@@ -1,0 +1,45 @@
+launch-slaves: 1
+
+modules:
+  spark:
+    version: 1.2.1  # can also be a git hash
+    git-repo: "https://github.com/apache/spark"  # required only if deploying a hash
+  # ephemeral-hdfs:
+  #   version: 
+  # tachyon:
+  #   version: 
+
+default-provider: ec2
+
+providers:
+  ec2:
+    key-name: <key-name>
+    identity-file: <path>
+
+    instance-type: <type>  # must be 64-bit; small instances won't work
+
+    region: <name>
+    availability-zone: <name>
+    ami: <id>
+
+    spot-price: <price>
+
+    vpc-id: <id>
+    subnet-id: <id>
+    placement-group: <name>
+
+    tenancy: default | dedicated
+    ebs-optimized: yes | no
+    instance-initiated-shutdown-behavior: terminate | stop
+
+    delete-groups-on-destroy: yes | no
+
+# ssh-user: root
+# use-existing-master: no
+# ec2:
+#   master-instance-type:  # leave empty for same as instance-type
+#   ebs-volumes:
+#     count: 0  # N volumes get attached as /vol[N]
+#     size-gb: 8
+#     type: standard  # gp2, standard
+#   security-group-ids: 
