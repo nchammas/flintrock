@@ -1,0 +1,112 @@
+#!/usr/bin/env python -Wdefault
+from __future__ import print_function
+
+import fabric.state
+from fabric.api import task, local, parallel, run, env
+from fabric.tasks import execute
+
+import json
+
+env.colorize_errors = True
+env.disable_known_hosts = True
+# env.eagerly_disconnect = True
+# env.keepalive = 30
+# env.key_filename = "~/.ssh/nick.pem"
+env.rcfile = ""
+env.hosts = ['localhost', '127.0.0.1']
+
+supported_modules = {
+    "spark": {
+        "version": "1.3.0",
+        "git-repo": "https://github.com/apache/spark"
+    }
+}
+
+
+@parallel
+def date():
+    run("date")
+
+
+def launch(provider, cluster_name, num_slaves, modules, provider_options):
+    if provider == 'ec2':
+        return launch_ec2(
+            cluster_name=cluster_name,
+            num_slaves=num_slaves,
+            modules=modules,
+            **provider_options)
+    pass
+
+
+def launch_ec2(cluster_name, num_slaves, modules,
+    key_name, identity_file,
+    instance_type,
+    region,
+    ami="",
+    spot_price=0,
+    vpc_id="", subnet_id="", placement_group="",
+    tenancy="default", ebs_optimized=False,
+    instance_initiated_shutdown_behavior="stop"):
+    pass
+
+
+def destroy(provider, cluster_name, assume_yes=False, provider_options):
+    pass
+
+
+def destroy_ec2(cluster_name, assume_yes=False,
+    delete_groups=False):
+    pass
+
+
+def add_slaves(provider, cluster_name, num_slaves, provider_options):
+    pass
+
+
+def add_slaves_ec2(cluster_name, num_slaves,
+    identity_file):
+    pass
+
+
+def remove_slaves(provider, cluster_name, num_slaves, assume_yes=False, provider_options):
+    pass
+
+
+def remove_slaves_ec2(cluster_name, num_slaves, assume_yes=False):
+    pass
+
+
+def describe(provider, cluster_name, master_hostname_only=False, provider_options):
+    pass
+
+
+def describe_ec2(cluster_name, master_hostname_only=False):
+    pass
+
+
+def login(provider, cluster_name, provider_options):
+    pass
+
+
+def login_ec2(cluster_name):
+    pass
+
+
+def start(provider, cluster_name, provider_options):
+    pass
+
+
+def start_ec2(cluster_name):
+    pass
+
+
+def stop(provider, cluster_name, assume_yes=False, provider_options):
+    pass
+
+
+def stop_ec2(cluster_name, assume_yes=False):
+    pass
+
+
+# print(json.dumps(env, indent=True))
+# print(json.dumps(fabric.state.commands, indent=True))
