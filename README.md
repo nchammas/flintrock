@@ -17,6 +17,7 @@ Commands:
                     [--ec2-key-name <name>] [--ec2-identity-file <path>]
                     [--ec2-instance-type <type>]
                     [--ec2-region <name>]
+                    [--ec2-availability-zone <name>]
                     [--ec2-ami <id>]
                     [--ec2-spot-price <price>]
                     [--ec2-vpc-id <id>] [--ec2-subnet-id <id>] [--ec2-placement-group <name>]
