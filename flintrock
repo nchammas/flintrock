@@ -1,11 +1,13 @@
 #!/usr/bin/env python -Wdefault
 from __future__ import print_function
 
+import boto.ec2 as ec2
+import json
+import PyYAML
+
 import fabric.state
 from fabric.api import task, local, parallel, run, env
 from fabric.tasks import execute
-
-import json
 
 env.colorize_errors = True
 env.disable_known_hosts = True
@@ -15,7 +17,7 @@ env.disable_known_hosts = True
 env.rcfile = ""
 env.hosts = ['localhost', '127.0.0.1']
 
-supported_modules = {
+SUPPORTED_MODULES = {
     "spark": {
         "version": "1.3.0",
         "git-repo": "https://github.com/apache/spark"
@@ -38,15 +40,54 @@ def launch(provider, cluster_name, num_slaves, modules, provider_options):
     pass
 
 
+# Move to ec2 module and call as ec2.launch()?
 def launch_ec2(cluster_name, num_slaves, modules,
     key_name, identity_file,
     instance_type,
     region,
+    availability_zone="",
     ami="",
-    spot_price=0,
+    spot_price=None,
     vpc_id="", subnet_id="", placement_group="",
     tenancy="default", ebs_optimized=False,
     instance_initiated_shutdown_behavior="stop"):
+    def get_or_create_security_group(region, name, vpc_id):
+        connection = ec2.connect_to_region(region_name=region)
+        group = connection.get_all_security_groups(groupnames=[name])[0]
+        if not group:
+            group = connection.create_security_group(
+                name=name,
+                description="flintrock-managed Spark group",
+                vpc_id=vpc_id)
+        return group
+    security_group = get_or_create_security_group(region=region, name=cluster_name, vpc_id=vpc_id)
+    image = connection.get_image(image_id=ami)
+    reservation = image.run(
+        min_count=(num_slaves + 1),
+        max_count=(num_slaves + 1),
+        key_name=key_name,
+        instance_type=instance_type,
+        placement=availability_zone,
+        security_group_ids=[security_group.id],
+        subnet_id=subnet_id,
+        placement_group=placement_group,
+        tenancy=tenancy,
+        ebs_optimized=ebs_optimized,
+        instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
+    # TODO: Wait for all instances to come up. 
+    #       This is OK for now because sooner or later we will wait for everything to be up.
+    #       e.g. During final config of master/slaves.
+    execute(task=provision_ec2_node, hosts=[i.public_dns_name for i in reservation.instances])
+    # TODO: configure_master
+    # TODO: allow for different setup of master and slaves
+    pass
+
+
+@parallel
+# boto is not thread-safe so each task needs to create its own connection.
+# Reference, from boto's primary maintainer: http://stackoverflow.com/a/19542645/
+def provision_ec2_node(modules,
+    identity_file):
     pass
 
 
