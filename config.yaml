@@ -43,3 +43,4 @@ providers:
 #     size-gb: 8
 #     type: standard  # gp2, standard
 #   security-group-ids: 
+#   instance_profile_arn: 
