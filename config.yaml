@@ -1,3 +1,4 @@
+log-level: debug | info | warn | error
 launch-slaves: 1
 
 modules:
