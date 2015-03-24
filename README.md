@@ -4,16 +4,18 @@ flintrock is a command-line tool for launching Apache Spark clusters.
 
 ## Usage
 
-```
-usage: flintrock [--version] [--help]
+```text
+usage: flintrock [--version] [--help] [--log-level <level>]
                  [--config <path>]
                  [--provider <name>]
                  <command> [<args>]
 
-Commands:
+<command>:
     launch          <cluster-name> [--slaves <num>]
+
                     [--install-spark|--no-install-spark]
                     [--spark-version <version>] [--spark-git-repo]
+
                     [--ec2-key-name <name>] [--ec2-identity-file <path>]
                     [--ec2-instance-type <type>]
                     [--ec2-region <name>]
