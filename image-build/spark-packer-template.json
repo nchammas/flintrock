@@ -1,0 +1,71 @@
+{
+  "variables": {
+    "aws_access_key": "{{env `AWS_ACCESS_KEY_ID`}}",
+    "aws_secret_key": "{{env `AWS_SECRET_ACCESS_KEY`}}",
+    "base_ebs_hvm_ami": "ami-b66ed3de",
+    "base_ebs_pv_ami": "ami-246ed34c"
+  },
+
+  "builders": [
+    {
+      "name": "spark:base:us-east-1:ebs:hvm",
+      "type": "amazon-ebs",
+      "access_key": "{{user `aws_access_key`}}",
+      "secret_key": "{{user `aws_secret_key`}}",
+      "region": "us-east-1",
+      "source_ami": "{{user `base_ebs_hvm_ami`}}",
+      "instance_type": "m3.large",
+      "ssh_username": "ec2-user",
+      "ami_name": "Spark Base HVM {{timestamp}}",
+      "ami_description": "Spark Base HVM AMI",
+      "ami_groups": ["all"],
+      "ami_virtualization_type": "hvm",
+      "ami_regions": [
+        "ap-northeast-1",
+        "ap-southeast-1",
+        "ap-southeast-2",
+        "eu-west-1",
+        "sa-east-1",
+        "us-west-1",
+        "us-west-2"
+      ]
+    },
+    {
+      "name": "spark:base:us-east-1:ebs:pv",
+      "type": "amazon-ebs",
+      "access_key": "{{user `aws_access_key`}}",
+      "secret_key": "{{user `aws_secret_key`}}",
+      "region": "us-east-1",
+      "source_ami": "{{user `base_ebs_pv_ami`}}",
+      "instance_type": "m3.large",
+      "ssh_username": "ec2-user",
+      "ami_name": "Spark Base PV {{timestamp}}",
+      "ami_description": "Spark Base PV AMI",
+      "ami_groups": ["all"],
+      "ami_virtualization_type": "paravirtual",
+      "ami_regions": [
+        "ap-northeast-1",
+        "ap-southeast-1",
+        "ap-southeast-2",
+        "eu-west-1",
+        "sa-east-1",
+        "us-west-1",
+        "us-west-2"
+      ]
+    }
+  ],
+
+  "provisioners": [
+    {
+      "type": "shell",
+      "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo -E sh -x '{{ .Path }}'",
+      "scripts": [
+        "./enable-root-login.sh",
+        "./os-setup.sh",
+        "./python-setup.sh",
+        "./tools-setup.sh"
+      ],
+      "pause_before": "5s"
+    }
+  ]
+}
