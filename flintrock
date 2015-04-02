@@ -1,12 +1,16 @@
-#!/usr/bin/env python -Wdefault
+#!/usr/bin/env python3
 from __future__ import print_function
 
 
-import concurrent.futures
+import asyncio
+import functools
 import boto.ec2 as ec2
+import paramiko
+import socket
 import json
 import yaml
 import time
+from datetime import datetime
 
 # import fabric.state
 # from fabric.api import task, local, parallel, run, env
@@ -63,6 +67,7 @@ def launch_ec2(cluster_name, num_slaves, modules,
                 name=name,
                 description="flintrock-managed Spark group",
                 vpc_id=vpc_id)
+        # TODO: Add sensible rules.
         return group
     security_group = get_or_create_security_group(name=cluster_name, vpc_id=vpc_id)
     reservation = connection.run_instances(
@@ -79,17 +84,23 @@ def launch_ec2(cluster_name, num_slaves, modules,
         ebs_optimized=ebs_optimized,
         instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
-        instance_futures = {executor.submit(provision_ec2_node, modules=None, region=region, instance=i, identity_file=None): i for i in reservation.instances}
-        try:
-            print("Waiting for instances to come up...")
-            for instance_future in concurrent.futures.as_completed(instance_futures, timeout=1000):
-                instance_future.result()
-        except KeyboardInterrupt:
-            print("Received interrupt. Cancelling futures...")
-            # TODO: Something
-    # TODO: configure_master
-    pass
+    # TODO: Abstract away. No-one wants to see this async shite here.
+    loop = asyncio.get_event_loop()
+
+    tasks = []
+    for instance in reservation.instances:
+        task = loop.run_in_executor(
+            executor=None,
+            callback=functools.partial(
+                provision_ec2_node,
+                modules=modules,
+                region=region,
+                instance=instance,
+                identity_file=identity_file))
+        tasks.append(task)
+    loop.run_until_complete(asyncio.wait(tasks))
+
+    loop.close()
 
 
 # boto is not thread-safe so each task needs to create its own connection.
@@ -99,13 +110,42 @@ def provision_ec2_node(modules,
     instance,
     identity_file):
     connection = ec2.connect_to_region(region_name=region)
+
     while True:
         if instance.state != 'running':
             print("State is {s}. Sleeping on {i}...".format(s=instance.state, i=instance.id))
             time.sleep(5)
+            instance.update()
         else:
             print("Instance {i} is running.".format(i=instance.id))
             break
+
+    with paramiko.client.SSHClient() as client:
+        client.load_system_host_keys()
+        client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
+
+        while True:
+            try:
+                client.connect(
+                    username="ec2-user",
+                    hostname=instance.public_dns_name,
+                    key_filename=identity_file,
+                    timeout=3)
+                print("[{h}] SSH online.".format(h=instance.public_dns_name))
+                break
+            except socket.timeout as e:
+                print("[{h}] SSH timed out.".format(h=instance.public_dns_name))
+                time.sleep(5)
+            except socket.error as e:
+                if e.errno != 61:
+                    print(e)
+                    raise
+                print("[{h}] SSH refused.".format(h=instance.public_dns_name))
+                time.sleep(5)
+
+        stdin, stdout, stderr = client.exec_command(command='curl checkip.amazonaws.com')
+        print(stdout.read().decode("utf8"), end='')
+        exit_status = stdout.channel.recv_exit_status()
 
 
 def destroy(provider, cluster_name, provider_options, assume_yes=False):
