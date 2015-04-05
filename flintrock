@@ -2,6 +2,10 @@
 from __future__ import print_function
 
 
+import sys
+import shlex
+import subprocess
+import pprint
 import asyncio
 import functools
 import boto.ec2 as ec2
@@ -10,7 +14,10 @@ import socket
 import json
 import yaml
 import time
+import urllib.request
+import tempfile
 from datetime import datetime
+from collections import namedtuple
 
 # import fabric.state
 # from fabric.api import task, local, parallel, run, env
@@ -32,10 +39,29 @@ SUPPORTED_MODULES = {
 }
 
 
-# @parallel
-# def date():
-#     run("date")
+def generate_ssh_key_pair():
+    """
+    
+    """
+    with tempfile.TemporaryDirectory() as tempdir:
+        ret = subprocess.check_call(
+            """
+            # set -x
+            ssh-keygen -q -t rsa -N '' -f {key_file} -C flintrock
+            # ls -l {tempdir}
+            # cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+            """.format(
+                key_file=shlex.quote(tempdir + "/flintrock_rsa"),
+                tempdir=shlex.quote(tempdir)),
+            shell=True)
 
+        with open(file=tempdir + "/flintrock_rsa") as private_key_file:
+            private_key = private_key_file.read()
+
+        with open(file=tempdir + "/flintrock_rsa.pub") as public_key_file:
+            public_key = public_key_file.read()
+
+    return namedtuple('KeyPair', ['public', 'private'])(public_key, private_key)
 
 def launch(provider, cluster_name, num_slaves, modules, provider_options):
     if provider == 'ec2':
@@ -62,12 +88,62 @@ def launch_ec2(cluster_name, num_slaves, modules,
     def get_or_create_security_group(name, vpc_id):
         search_results = connection.get_all_security_groups(filters={"group-name": [name]})
         group = search_results[0] if search_results else None
+
         if not group:
             group = connection.create_security_group(
                 name=name,
                 description="flintrock-managed Spark group",
                 vpc_id=vpc_id)
-        # TODO: Add sensible rules.
+
+        try:
+            group.authorize(
+                ip_protocol='icmp',
+                from_port=-1,
+                to_port=-1,
+                src_group=group)
+            group.authorize(
+                ip_protocol='tcp',
+                from_port=0,
+                to_port=65535,
+                src_group=group)
+            group.authorize(
+                ip_protocol='udp',
+                from_port=0,
+                to_port=65535,
+                src_group=group)
+        except Exception as e:
+            print("ERROR: Make a clean way to check for existing SG rules.")
+
+        flintrock_client_ip = urllib.request.urlopen('http://checkip.amazonaws.com/').read().decode('utf-8').strip()
+        flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+
+        # ssh_rule = None
+
+        # for rule in group.rules:
+        #     if int(rule.from_port) == 22 and int(rule.to_port) == 22:
+        #         ssh_rule = rule
+        #         break
+
+        # if not ssh_rule or flintrock_client_cidr not in [str(grant) for grant in ssh_rule.grants]:
+        try:
+            group.authorize(
+                ip_protocol='tcp',
+                from_port=22,
+                to_port=22,
+                cidr_ip=flintrock_client_cidr)
+            group.authorize(
+                ip_protocol='tcp',
+                from_port=8080,
+                to_port=8081,
+                cidr_ip=flintrock_client_cidr)
+            group.authorize(
+                ip_protocol='tcp',
+                from_port=4040,
+                to_port=4040,
+                cidr_ip=flintrock_client_cidr)
+        except Exception as e:
+            print("ERROR: Really, make it easy to manipulate SG rules.")
+
         return group
     security_group = get_or_create_security_group(name=cluster_name, vpc_id=vpc_id)
     reservation = connection.run_instances(
@@ -84,23 +160,82 @@ def launch_ec2(cluster_name, num_slaves, modules,
         ebs_optimized=ebs_optimized,
         instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
 
-    # TODO: Abstract away. No-one wants to see this async shite here.
-    loop = asyncio.get_event_loop()
+    cluster_key_pair = generate_ssh_key_pair()
 
-    tasks = []
-    for instance in reservation.instances:
-        task = loop.run_in_executor(
-            executor=None,
-            callback=functools.partial(
-                provision_ec2_node,
-                modules=modules,
-                region=region,
-                instance=instance,
-                identity_file=identity_file))
-        tasks.append(task)
-    loop.run_until_complete(asyncio.wait(tasks))
+    try:
+        # TODO: Abstract away. No-one wants to see this async shite here.
+        loop = asyncio.get_event_loop()
 
-    loop.close()
+        tasks = []
+        for instance in reservation.instances:
+            task = loop.run_in_executor(
+                executor=None,
+                callback=functools.partial(
+                    provision_ec2_node,
+                    modules=modules,
+                    region=region,
+                    instance=instance,
+                    identity_file=identity_file,
+                    cluster_key_pair=cluster_key_pair))
+            tasks.append(task)
+        loop.run_until_complete(asyncio.wait(tasks))
+
+        loop.close()
+
+        # Configure cluster.
+        # TODO: Abstract out neatly.
+        master_instance = reservation.instances[0]
+        slave_instances = reservation.instances[1:]
+
+        with paramiko.client.SSHClient() as client:
+            client.load_system_host_keys()
+            client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
+            client.connect(
+                username="ec2-user",
+                hostname=master_instance.public_dns_name,
+                key_filename=identity_file,
+                timeout=3)
+            stdin, stdout, stderr = client.exec_command(
+                # command='pwd ; ls -l *; ls -l /tmp/*')
+                command='set -x ; echo "{s}" > spark/conf/slaves'.format(
+                    s='\n'.join([i.public_dns_name for i in slave_instances])))
+            print(stdout.read().decode("utf8"), end='')
+            print(stderr.read().decode("utf8"), end='')
+            exit_status = stdout.channel.recv_exit_status()
+            print(exit_status)
+
+            stdin, stdout, stderr = client.exec_command(
+                command='spark/sbin/start-master.sh')
+            print(stdout.read().decode("utf8"), end='')
+            print(stderr.read().decode("utf8"), end='')
+            exit_status = stdout.channel.recv_exit_status()
+            print(exit_status)
+
+            time.sleep(20)
+
+            stdin, stdout, stderr = client.exec_command(
+                command='spark/sbin/start-slaves.sh')
+            print(stdout.read().decode("utf8"), end='')
+            print(stderr.read().decode("utf8"), end='')
+            exit_status = stdout.channel.recv_exit_status()
+            print(exit_status)
+
+            # TODO: Move to master_login() method.
+            ret = subprocess.call(
+                """
+                set -x
+                ssh -o "StrictHostKeyChecking=no" -i {identity_file} ec2-user@{host}
+                """.format(
+                    identity_file=shlex.quote(identity_file),
+                    host=shlex.quote(master_instance.public_dns_name)),
+                shell=True)
+            print("Shell returned: {r}".format(r=ret))
+    except KeyboardInterrupt as e:
+        print("Exiting...")
+        sys.exit(1)
+    finally:
+        for instance in reservation.instances:
+            instance.terminate()
 
 
 # boto is not thread-safe so each task needs to create its own connection.
@@ -108,16 +243,19 @@ def launch_ec2(cluster_name, num_slaves, modules,
 def provision_ec2_node(modules,
     region,
     instance,
-    identity_file):
+    identity_file,
+    cluster_key_pair):
     connection = ec2.connect_to_region(region_name=region)
 
+    time.sleep(10)  # Eventual consistency complexity tax.
+
     while True:
+        instance.update()
         if instance.state != 'running':
-            print("State is {s}. Sleeping on {i}...".format(s=instance.state, i=instance.id))
+            # print("State is {s}. Sleeping on {i}...".format(s=instance.state, i=instance.id))
             time.sleep(5)
-            instance.update()
         else:
-            print("Instance {i} is running.".format(i=instance.id))
+            # print("Instance {i} is running.".format(i=instance.id))
             break
 
     with paramiko.client.SSHClient() as client:
@@ -135,17 +273,49 @@ def provision_ec2_node(modules,
                 break
             except socket.timeout as e:
                 print("[{h}] SSH timed out.".format(h=instance.public_dns_name))
+                # print(e)
                 time.sleep(5)
             except socket.error as e:
                 if e.errno != 61:
                     print(e)
                     raise
                 print("[{h}] SSH refused.".format(h=instance.public_dns_name))
+                # print(e)
                 time.sleep(5)
 
-        stdin, stdout, stderr = client.exec_command(command='curl checkip.amazonaws.com')
+        # --- SSH is now available. ---
+        stdin, stdout, stderr = client.exec_command(
+            command='echo {private_key} > ~/.ssh/id_rsa ; chmod 400 ~/.ssh/id_rsa'.format(
+                private_key=shlex.quote(cluster_key_pair.private)))
+        exit_status = stdout.channel.recv_exit_status()
+        print(exit_status)
+
+        stdin, stdout, stderr = client.exec_command(
+            command='echo {public_key} >> ~/.ssh/authorized_keys'.format(
+                public_key=shlex.quote(cluster_key_pair.public)))
+        exit_status = stdout.channel.recv_exit_status()
+        print(exit_status)
+
+        stdin, stdout, stderr = client.exec_command(
+            command='curl checkip.amazonaws.com')
         print(stdout.read().decode("utf8"), end='')
         exit_status = stdout.channel.recv_exit_status()
+        print(exit_status)
+
+        with client.open_sftp() as sftp_client:
+            sftp_client.put(
+                localpath="./install-spark.sh",
+                remotepath="/tmp/install-spark.sh")
+            sftp_client.chmod(
+                path="/tmp/install-spark.sh",
+                mode=0o755)
+
+        stdin, stdout, stderr = client.exec_command(
+            command='/tmp/install-spark.sh 1.3.0 hadoop1')
+        print(stdout.read().decode("utf8"), end='')
+        print(stderr.read().decode("utf8"), end='')
+        exit_status = stdout.channel.recv_exit_status()
+        print(exit_status)
 
 
 def destroy(provider, cluster_name, provider_options, assume_yes=False):
@@ -207,10 +377,12 @@ def stop_ec2(cluster_name, assume_yes=False):
 
 
 if __name__ == "__main__":
+    # print(generate_ssh_key_pair())
+    # sys.exit()
     launch(
         provider="ec2",
         cluster_name="flintrock-test",
-        num_slaves=1,
+        num_slaves=5,
         modules=None,
         provider_options={
             "key_name": "nick",
