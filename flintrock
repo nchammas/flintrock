@@ -160,7 +160,12 @@ def launch_ec2(cluster_name, num_slaves, modules,
         ebs_optimized=ebs_optimized,
         instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
 
+    master_instance = reservation.instances[0]
+    slave_instances = reservation.instances[1:]
+
     cluster_key_pair = generate_ssh_key_pair()
+
+    time.sleep(10)  # Eventual consistency complexity tax.
 
     try:
         # TODO: Abstract away. No-one wants to see this async shite here.
@@ -176,7 +181,8 @@ def launch_ec2(cluster_name, num_slaves, modules,
                     region=region,
                     instance=instance,
                     identity_file=identity_file,
-                    cluster_key_pair=cluster_key_pair))
+                    cluster_key_pair=cluster_key_pair,
+                    master_instance=master_instance))
             tasks.append(task)
         loop.run_until_complete(asyncio.wait(tasks))
 
@@ -184,9 +190,8 @@ def launch_ec2(cluster_name, num_slaves, modules,
 
         # Configure cluster.
         # TODO: Abstract out neatly.
-        master_instance = reservation.instances[0]
-        slave_instances = reservation.instances[1:]
 
+        # --- Configure master. ---
         with paramiko.client.SSHClient() as client:
             client.load_system_host_keys()
             client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
@@ -238,16 +243,30 @@ def launch_ec2(cluster_name, num_slaves, modules,
             instance.terminate()
 
 
+# Combo of
+#   * node-specific info
+#   * cluster-wide info
+# install_spark gets cluster info and specific node to work on
+# Module-specific.
+# Run from flintrock directly on nodes.
+class Spark:
+    def __init__(self):
+        pass
+
+    def install(version):
+        pass
+
+
 # boto is not thread-safe so each task needs to create its own connection.
 # Reference, from boto's primary maintainer: http://stackoverflow.com/a/19542645/
+# TODO: Pass in cluster_info object instead of key_pair and master_hostname.
 def provision_ec2_node(modules,
     region,
     instance,
     identity_file,
-    cluster_key_pair):
+    cluster_key_pair,
+    master_instance):
     connection = ec2.connect_to_region(region_name=region)
-
-    time.sleep(10)  # Eventual consistency complexity tax.
 
     while True:
         instance.update()
@@ -302,6 +321,7 @@ def provision_ec2_node(modules,
         exit_status = stdout.channel.recv_exit_status()
         print(exit_status)
 
+        # --- Install Spark. ---
         with client.open_sftp() as sftp_client:
             sftp_client.put(
                 localpath="./install-spark.sh",
@@ -316,6 +336,43 @@ def provision_ec2_node(modules,
         print(stderr.read().decode("utf8"), end='')
         exit_status = stdout.channel.recv_exit_status()
         print(exit_status)
+
+        # --- Configure Spark. ---
+        ssh_command_output(
+            client=client,
+            command="sudo mkdir /mnt/spark ; sudo chown ec2-user:ec2-user /mnt/spark")
+
+        num_cores = int(ssh_command_output(client=client, command='nproc'))
+
+        template_path = "/spark/conf/spark-env.sh"
+        master_instance.update()  # TODO: Get rid of this whole shite.
+        with open("templates" + template_path) as f:
+            spark_env = f.read().format(
+                spark_local_dirs="/mnt/spark",
+                spark_master_opts="",
+                spark_worker_instances="1",
+                spark_worker_cores=num_cores,
+                active_master=master_instance.public_dns_name)
+
+        ssh_command_output(client=client, command="""
+            echo {f} > .{p}
+        """.format(
+            f=shlex.quote(spark_env),
+            p=shlex.quote(template_path)))
+
+        # print(ssh_command_output(
+        #     client=client,
+        #     command='cat .{p}'.format(p=template_path)))
+
+
+def ssh_command_output(client: "paramiko.client.SSHClient", command):
+    stdin, stdout, stderr = client.exec_command(command, get_pty=True)
+    exit_status = stdout.channel.recv_exit_status()
+
+    if exit_status != 0:
+        raise Exception(stderr.read().decode("utf8"))
+
+    return stdout.read().decode("utf8").rstrip('\n')
 
 
 def destroy(provider, cluster_name, provider_options, assume_yes=False):
@@ -377,12 +434,11 @@ def stop_ec2(cluster_name, assume_yes=False):
 
 
 if __name__ == "__main__":
-    # print(generate_ssh_key_pair())
     # sys.exit()
     launch(
         provider="ec2",
         cluster_name="flintrock-test",
-        num_slaves=5,
+        num_slaves=3,
         modules=None,
         provider_options={
             "key_name": "nick",
