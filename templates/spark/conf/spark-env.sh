@@ -5,7 +5,7 @@ export SPARK_LOCAL_DIRS="{spark_local_dirs}"
 # Standalone cluster options
 export SPARK_MASTER_OPTS="{spark_master_opts}"
 export SPARK_WORKER_INSTANCES="{spark_worker_instances}"
-export SPARK_WORKER_CORES="{spark_worker_cores}"
+export SPARK_WORKER_CORES="$(nproc)"
 
 export HADOOP_HOME=""
 export SPARK_MASTER_IP="{active_master}"

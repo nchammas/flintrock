@@ -19,17 +19,6 @@ import tempfile
 from datetime import datetime
 from collections import namedtuple
 
-# import fabric.state
-# from fabric.api import task, local, parallel, run, env
-# from fabric.tasks import execute
-
-# env.colorize_errors = True
-# env.disable_known_hosts = True
-# env.eagerly_disconnect = True
-# env.keepalive = 30
-# env.key_filename = "~/.ssh/nick.pem"
-# env.rcfile = ""
-# env.hosts = ['localhost', '127.0.0.1']
 
 SUPPORTED_MODULES = {
     "spark": {
@@ -96,6 +85,7 @@ def launch_ec2(cluster_name, num_slaves, modules,
                 vpc_id=vpc_id)
 
         try:
+            # namedtuple('SecurityGroupRule', ['ip_protocol', 'from_port', 'to_port', 'src_group'])(ip_protocol, from_port, to_port, src_group)
             group.authorize(
                 ip_protocol='icmp',
                 from_port=-1,
@@ -201,29 +191,37 @@ def launch_ec2(cluster_name, num_slaves, modules,
                 key_filename=identity_file,
                 timeout=3)
             stdin, stdout, stderr = client.exec_command(
-                # command='pwd ; ls -l *; ls -l /tmp/*')
-                command='set -x ; echo "{s}" > spark/conf/slaves'.format(
-                    s='\n'.join([i.public_dns_name for i in slave_instances])))
-            print(stdout.read().decode("utf8"), end='')
-            print(stderr.read().decode("utf8"), end='')
+                command="""
+                    set -x
+                    echo "{s}" > spark/conf/slaves
+                """.format(s='\n'.join([i.public_dns_name for i in slave_instances])))
+            # print(stdout.read().decode("utf8"), end='')
             exit_status = stdout.channel.recv_exit_status()
-            print(exit_status)
+            if exit_status:
+                error_output = stderr.read().decode("utf8").rstrip('\n')
+                raise Exception(error_output)
 
             stdin, stdout, stderr = client.exec_command(
-                command='spark/sbin/start-master.sh')
-            print(stdout.read().decode("utf8"), end='')
-            print(stderr.read().decode("utf8"), end='')
+                command="""
+                    spark/sbin/start-master.sh
+                """)
+            # print(stdout.read().decode("utf8"), end='')
             exit_status = stdout.channel.recv_exit_status()
-            print(exit_status)
+            if exit_status:
+                error_output = stderr.read().decode("utf8").rstrip('\n')
+                raise Exception(error_output)
 
             time.sleep(20)
 
             stdin, stdout, stderr = client.exec_command(
-                command='spark/sbin/start-slaves.sh')
-            print(stdout.read().decode("utf8"), end='')
-            print(stderr.read().decode("utf8"), end='')
+                command="""
+                    spark/sbin/start-slaves.sh
+                """)
+            # print(stdout.read().decode("utf8"), end='')
             exit_status = stdout.channel.recv_exit_status()
-            print(exit_status)
+            if exit_status:
+                error_output = stderr.read().decode("utf8").rstrip('\n')
+                raise Exception(error_output)
 
             # TODO: Move to master_login() method.
             ret = subprocess.call(
@@ -234,7 +232,7 @@ def launch_ec2(cluster_name, num_slaves, modules,
                     identity_file=shlex.quote(identity_file),
                     host=shlex.quote(master_instance.public_dns_name)),
                 shell=True)
-            print("Shell returned: {r}".format(r=ret))
+            # print("Shell returned: {r}".format(r=ret))
     except KeyboardInterrupt as e:
         print("Exiting...")
         sys.exit(1)
@@ -250,10 +248,53 @@ def launch_ec2(cluster_name, num_slaves, modules,
 # Module-specific.
 # Run from flintrock directly on nodes.
 class Spark:
-    def __init__(self):
+    def __init__(self, ssh_client: "paramiko.client.SSHClient", master_hostname):
+        self.ssh_client = ssh_client
+        self.master_hostname = master_hostname
+
+    def install(self, version):
+        with self.ssh_client.open_sftp() as sftp_client:
+            sftp_client.put(
+                localpath="./install-spark.sh",
+                remotepath="/tmp/install-spark.sh")
+            sftp_client.chmod(
+                path="/tmp/install-spark.sh",
+                mode=0o755)
+
+        stdin, stdout, stderr = self.ssh_client.exec_command(
+            get_pty=True,
+            command="""
+                /tmp/install-spark.sh {v} hadoop1
+            """.format(v=version))
+        exit_status = stdout.channel.recv_exit_status()
+        if exit_status:
+            error_output = stderr.read().decode("utf8").rstrip('\n')
+            raise Exception(error_output)
+
+        # num_cores = int(ssh_command_output(client=self.ssh_client, command='nproc'))
+
+        template_path = "/spark/conf/spark-env.sh"
+        with open("templates" + template_path) as f:
+            spark_env = f.read().format(
+                spark_local_dirs="/mnt/spark",
+                spark_master_opts="",
+                spark_worker_instances="1",
+                # spark_worker_cores=num_cores,
+                active_master=self.master_hostname)
+
+        ssh_command_output(client=self.ssh_client, command="""
+            echo {f} > .{p}
+        """.format(
+            f=shlex.quote(spark_env),
+            p=shlex.quote(template_path)))
+
+    def configure():
         pass
 
-    def install(version):
+    def configure_master():
+        pass
+
+    def configure_slave():
         pass
 
 
@@ -291,85 +332,53 @@ def provision_ec2_node(modules,
                 print("[{h}] SSH online.".format(h=instance.public_dns_name))
                 break
             except socket.timeout as e:
-                print("[{h}] SSH timed out.".format(h=instance.public_dns_name))
+                # print("[{h}] SSH timed out.".format(h=instance.public_dns_name))
                 # print(e)
                 time.sleep(5)
             except socket.error as e:
                 if e.errno != 61:
                     print(e)
                     raise
-                print("[{h}] SSH refused.".format(h=instance.public_dns_name))
+                # print("[{h}] SSH refused.".format(h=instance.public_dns_name))
                 # print(e)
                 time.sleep(5)
 
         # --- SSH is now available. ---
-        stdin, stdout, stderr = client.exec_command(
-            command='echo {private_key} > ~/.ssh/id_rsa ; chmod 400 ~/.ssh/id_rsa'.format(
-                private_key=shlex.quote(cluster_key_pair.private)))
+        stdin, stdout, stderr = client.exec_command(command="""
+                echo {private_key} > ~/.ssh/id_rsa
+                chmod 400 ~/.ssh/id_rsa
+            """.format(private_key=shlex.quote(cluster_key_pair.private)))
         exit_status = stdout.channel.recv_exit_status()
-        print(exit_status)
+        if exit_status:
+            error_output = stderr.read().decode("utf8").rstrip('\n')
+            raise Exception(error_output)
 
         stdin, stdout, stderr = client.exec_command(
             command='echo {public_key} >> ~/.ssh/authorized_keys'.format(
                 public_key=shlex.quote(cluster_key_pair.public)))
         exit_status = stdout.channel.recv_exit_status()
-        print(exit_status)
+        if exit_status:
+            error_output = stderr.read().decode("utf8").rstrip('\n')
+            raise Exception(error_output)
 
         stdin, stdout, stderr = client.exec_command(
             command='curl checkip.amazonaws.com')
-        print(stdout.read().decode("utf8"), end='')
+        # print(stdout.read().decode("utf8"), end='')
         exit_status = stdout.channel.recv_exit_status()
-        print(exit_status)
+        if exit_status:
+            error_output = stderr.read().decode("utf8").rstrip('\n')
+            raise Exception(error_output)
 
         # --- Install Spark. ---
-        with client.open_sftp() as sftp_client:
-            sftp_client.put(
-                localpath="./install-spark.sh",
-                remotepath="/tmp/install-spark.sh")
-            sftp_client.chmod(
-                path="/tmp/install-spark.sh",
-                mode=0o755)
-
-        stdin, stdout, stderr = client.exec_command(
-            command='/tmp/install-spark.sh 1.3.0 hadoop1')
-        print(stdout.read().decode("utf8"), end='')
-        print(stderr.read().decode("utf8"), end='')
-        exit_status = stdout.channel.recv_exit_status()
-        print(exit_status)
-
-        # --- Configure Spark. ---
-        ssh_command_output(
-            client=client,
-            command="sudo mkdir /mnt/spark ; sudo chown ec2-user:ec2-user /mnt/spark")
-
-        num_cores = int(ssh_command_output(client=client, command='nproc'))
-
-        template_path = "/spark/conf/spark-env.sh"
         master_instance.update()  # TODO: Get rid of this whole shite.
-        with open("templates" + template_path) as f:
-            spark_env = f.read().format(
-                spark_local_dirs="/mnt/spark",
-                spark_master_opts="",
-                spark_worker_instances="1",
-                spark_worker_cores=num_cores,
-                active_master=master_instance.public_dns_name)
-
-        ssh_command_output(client=client, command="""
-            echo {f} > .{p}
-        """.format(
-            f=shlex.quote(spark_env),
-            p=shlex.quote(template_path)))
-
-        # print(ssh_command_output(
-        #     client=client,
-        #     command='cat .{p}'.format(p=template_path)))
+        spark = Spark(ssh_client=client, master_hostname=master_instance.public_dns_name)
+        spark.install(version='1.3.0')
 
 
 def ssh_command_output(client: "paramiko.client.SSHClient", command):
     stdin, stdout, stderr = client.exec_command(command, get_pty=True)
     exit_status = stdout.channel.recv_exit_status()
-
-    if exit_status != 0:
+    if exit_status:
         raise Exception(stderr.read().decode("utf8"))
 
     return stdout.read().decode("utf8").rstrip('\n')
@@ -438,7 +447,7 @@ if __name__ == "__main__":
     launch(
         provider="ec2",
         cluster_name="flintrock-test",
-        num_slaves=3,
+        num_slaves=2,
         modules=None,
         provider_options={
             "key_name": "nick",
