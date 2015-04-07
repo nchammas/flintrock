@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function
-
 
 import sys
 import shlex
@@ -52,6 +50,7 @@ def generate_ssh_key_pair():
 
     return namedtuple('KeyPair', ['public', 'private'])(public_key, private_key)
 
+
 def launch(provider, cluster_name, num_slaves, modules, provider_options):
     if provider == 'ec2':
         return launch_ec2(
@@ -60,6 +59,86 @@ def launch(provider, cluster_name, num_slaves, modules, provider_options):
             modules=modules,
             **provider_options)
     pass
+
+
+# Combo of
+#   * node-specific info
+#   * cluster-wide info
+# install_spark gets cluster info and specific node to work on
+# Module-specific.
+# Run from flintrock directly on nodes.
+class Spark:
+    def __init__(
+        self,
+        version,
+        ssh_client: "paramiko.client.SSHClient",
+        master_hostname=None,
+        slave_hostnames=None):
+        self.version = version
+        self.ssh_client = ssh_client
+        self.master_hostname = master_hostname
+        self.slave_hostnames = slave_hostnames
+
+    def install(self):
+        """
+        Runs independently on nodes.
+        """
+        with self.ssh_client.open_sftp() as sftp_client:
+            sftp_client.put(
+                localpath="./install-spark.sh",
+                remotepath="/tmp/install-spark.sh")
+            sftp_client.chmod(
+                path="/tmp/install-spark.sh",
+                mode=0o755)
+
+        stdin, stdout, stderr = self.ssh_client.exec_command(
+            get_pty=True,
+            command="""
+                /tmp/install-spark.sh {v} hadoop1
+            """.format(v=self.version))
+        exit_status = stdout.channel.recv_exit_status()
+        if exit_status:
+            error_output = stderr.read().decode("utf8").rstrip('\n')
+            raise Exception(error_output)
+
+        template_path = "/spark/conf/spark-env.sh"
+        with open("templates" + template_path) as f:
+            spark_env = f.read().format(
+                spark_local_dirs="/mnt/spark",
+                spark_master_opts="",
+                spark_worker_instances="1",
+                # spark_worker_cores=num_cores,
+                active_master=self.master_hostname)
+
+        ssh_command_output(client=self.ssh_client, command="""
+            echo {f} > .{p}
+        """.format(
+            f=shlex.quote(spark_env),
+            p=shlex.quote(template_path)))
+
+    def configure(self):
+        """
+        Runs after all nodes are "ready".
+        """
+        pass
+
+    def configure_master(self):
+        stdin, stdout, stderr = self.ssh_client.exec_command(
+            command="""
+                set -e
+                echo {s} > spark/conf/slaves
+                spark/sbin/start-master.sh
+                sleep 15
+                spark/sbin/start-slaves.sh
+            """.format(s=shlex.quote('\n'.join(self.slave_hostnames))))
+        # print(stdout.read().decode("utf8"), end='')
+        exit_status = stdout.channel.recv_exit_status()
+        if exit_status:
+            error_output = stderr.read().decode("utf8").rstrip('\n')
+            raise Exception(error_output)
+
+    def configure_slave(self):
+        pass
 
 
 # Move to ec2 module and call as ec2.launch()?
@@ -178,10 +257,8 @@ def launch_ec2(cluster_name, num_slaves, modules,
 
         loop.close()
 
-        # Configure cluster.
-        # TODO: Abstract out neatly.
-
-        # --- Configure master. ---
+        # --- Spark: Configure master. ---
+        # TODO: Move to step that runs once all nodes are known to be "ready".
         with paramiko.client.SSHClient() as client:
             client.load_system_host_keys()
             client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
@@ -190,49 +267,27 @@ def launch_ec2(cluster_name, num_slaves, modules,
                 hostname=master_instance.public_dns_name,
                 key_filename=identity_file,
                 timeout=3)
-            stdin, stdout, stderr = client.exec_command(
-                command="""
-                    set -x
-                    echo "{s}" > spark/conf/slaves
-                """.format(s='\n'.join([i.public_dns_name for i in slave_instances])))
-            # print(stdout.read().decode("utf8"), end='')
-            exit_status = stdout.channel.recv_exit_status()
-            if exit_status:
-                error_output = stderr.read().decode("utf8").rstrip('\n')
-                raise Exception(error_output)
 
-            stdin, stdout, stderr = client.exec_command(
-                command="""
-                    spark/sbin/start-master.sh
-                """)
-            # print(stdout.read().decode("utf8"), end='')
-            exit_status = stdout.channel.recv_exit_status()
-            if exit_status:
-                error_output = stderr.read().decode("utf8").rstrip('\n')
-                raise Exception(error_output)
+            for i in [master_instance] + slave_instances:
+                i.update()
 
-            time.sleep(20)
+            spark = Spark(
+                version="1.3.0",
+                ssh_client=client,
+                master_hostname=master_instance.public_dns_name,
+                slave_hostnames=[s.public_dns_name for s in slave_instances])
+            spark.configure_master()
 
-            stdin, stdout, stderr = client.exec_command(
-                command="""
-                    spark/sbin/start-slaves.sh
-                """)
-            # print(stdout.read().decode("utf8"), end='')
-            exit_status = stdout.channel.recv_exit_status()
-            if exit_status:
-                error_output = stderr.read().decode("utf8").rstrip('\n')
-                raise Exception(error_output)
-
-            # TODO: Move to master_login() method.
-            ret = subprocess.call(
-                """
-                set -x
-                ssh -o "StrictHostKeyChecking=no" -i {identity_file} ec2-user@{host}
-                """.format(
-                    identity_file=shlex.quote(identity_file),
-                    host=shlex.quote(master_instance.public_dns_name)),
-                shell=True)
-            # print("Shell returned: {r}".format(r=ret))
+        # TODO: Move to master_login() method.
+        ret = subprocess.call(
+            """
+            set -x
+            ssh -o "StrictHostKeyChecking=no" -i {identity_file} ec2-user@{host}
+            """.format(
+                identity_file=shlex.quote(identity_file),
+                host=shlex.quote(master_instance.public_dns_name)),
+            shell=True)
+        # print("Shell returned: {r}".format(r=ret))
     except KeyboardInterrupt as e:
         print("Exiting...")
         sys.exit(1)
@@ -241,67 +296,11 @@ def launch_ec2(cluster_name, num_slaves, modules,
             instance.terminate()
 
 
-# Combo of
-#   * node-specific info
-#   * cluster-wide info
-# install_spark gets cluster info and specific node to work on
-# Module-specific.
-# Run from flintrock directly on nodes.
-class Spark:
-    def __init__(self, ssh_client: "paramiko.client.SSHClient", master_hostname):
-        self.ssh_client = ssh_client
-        self.master_hostname = master_hostname
-
-    def install(self, version):
-        with self.ssh_client.open_sftp() as sftp_client:
-            sftp_client.put(
-                localpath="./install-spark.sh",
-                remotepath="/tmp/install-spark.sh")
-            sftp_client.chmod(
-                path="/tmp/install-spark.sh",
-                mode=0o755)
-
-        stdin, stdout, stderr = self.ssh_client.exec_command(
-            get_pty=True,
-            command="""
-                /tmp/install-spark.sh {v} hadoop1
-            """.format(v=version))
-        exit_status = stdout.channel.recv_exit_status()
-        if exit_status:
-            error_output = stderr.read().decode("utf8").rstrip('\n')
-            raise Exception(error_output)
-
-        # num_cores = int(ssh_command_output(client=self.ssh_client, command='nproc'))
-
-        template_path = "/spark/conf/spark-env.sh"
-        with open("templates" + template_path) as f:
-            spark_env = f.read().format(
-                spark_local_dirs="/mnt/spark",
-                spark_master_opts="",
-                spark_worker_instances="1",
-                # spark_worker_cores=num_cores,
-                active_master=self.master_hostname)
-
-        ssh_command_output(client=self.ssh_client, command="""
-            echo {f} > .{p}
-        """.format(
-            f=shlex.quote(spark_env),
-            p=shlex.quote(template_path)))
-
-    def configure():
-        pass
-
-    def configure_master():
-        pass
-
-    def configure_slave():
-        pass
-
-
 # boto is not thread-safe so each task needs to create its own connection.
 # Reference, from boto's primary maintainer: http://stackoverflow.com/a/19542645/
 # TODO: Pass in cluster_info object instead of key_pair and master_hostname.
-def provision_ec2_node(modules,
+def provision_ec2_node(
+    modules,
     region,
     instance,
     identity_file,
@@ -361,18 +360,13 @@ def provision_ec2_node(modules,
             error_output = stderr.read().decode("utf8").rstrip('\n')
             raise Exception(error_output)
 
-        stdin, stdout, stderr = client.exec_command(
-            command='curl checkip.amazonaws.com')
-        # print(stdout.read().decode("utf8"), end='')
-        exit_status = stdout.channel.recv_exit_status()
-        if exit_status:
-            error_output = stderr.read().decode("utf8").rstrip('\n')
-            raise Exception(error_output)
-
         # --- Install Spark. ---
         master_instance.update()  # TODO: Get rid of this whole shite.
-        spark = Spark(ssh_client=client, master_hostname=master_instance.public_dns_name)
-        spark.install(version='1.3.0')
+        spark = Spark(
+            version="1.3.0",
+            ssh_client=client,
+            master_hostname=master_instance.public_dns_name)
+        spark.install()
 
 
 def ssh_command_output(client: "paramiko.client.SSHClient", command):
