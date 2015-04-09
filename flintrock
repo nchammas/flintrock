@@ -303,17 +303,30 @@ def launch_ec2(cluster_name, num_slaves, modules,
                 ssh_client=client,
                 cluster_info=cluster_info)
 
+            # Run basic Spark health check.
+            with open("./spark-health.sh") as health_check:
+                stdin, stdout, stderr = client.exec_command(
+                    command=health_check.read())
+            print(stdout.read().decode("utf8"), end='')
+            exit_status = stdout.channel.recv_exit_status()
+            if exit_status:
+                error_output = stderr.read().decode("utf8").rstrip('\n')
+                raise Exception(error_output)
+
         # Login to the master for manual inspection.
         # TODO: Move to master_login() method.
-        ret = subprocess.call(
-            """
-            set -x
-            ssh -o "StrictHostKeyChecking=no" -i {identity_file} ec2-user@{host}
-            """.format(
-                identity_file=shlex.quote(identity_file),
-                host=shlex.quote(master_instance.public_dns_name)),
-            shell=True)
+        # ret = subprocess.call(
+        #     """
+        #     set -x
+        #     ssh -o "StrictHostKeyChecking=no" \
+        #         -i {identity_file} \
+        #         ec2-user@{host}
+        #     """.format(
+        #         identity_file=shlex.quote(identity_file),
+        #         host=shlex.quote(master_instance.public_dns_name)),
+        #     shell=True)
         # print("Shell returned: {r}".format(r=ret))
+
     except KeyboardInterrupt as e:
         print("Exiting...")
         sys.exit(1)

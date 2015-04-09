@@ -1,3 +1,5 @@
+set -e
+
 cat << EOM > test.py
 from pyspark import SparkContext
 sc = SparkContext()
