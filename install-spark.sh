@@ -15,6 +15,9 @@ mkdir "spark"
 tar xzf "$file" -C "spark" --strip-components=1
 rm "$file"
 
+sudo mkdir /mnt/spark
+sudo chown ec2-user:ec2-user /mnt/spark
+
 # if [[ "$SPARK_VERSION" == *\|* ]]
 # then
 #   mkdir spark
