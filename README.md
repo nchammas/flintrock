@@ -65,7 +65,7 @@ Right now, it seems unlikely that #2 will ever happen, but hey, I can dream righ
 
 ## Motivation
 
-This project is inspired by spark-ec2 and more generic service orchestration tools like MIT StarCluster and Ubuntu Juju.
+This project is inspired by [spark-ec2](https://spark.apache.org/docs/latest/ec2-scripts.html) and more generic service orchestration tools like [MIT StarCluster](http://star.mit.edu/cluster/) and [Ubuntu Juju](http://www.ubuntu.com/cloud/tools/juju). It also takes some UI cues from [Docker Machine](https://docs.docker.com/machine/).
 
 Several limitations of spark-ec2 motivated this project:
 
@@ -76,3 +76,23 @@ Several limitations of spark-ec2 motivated this project:
 * [SPARK-925](https://issues.apache.org/jira/browse/SPARK-925): spark-ec2 does not allow options to be read from a config file.
 
 flintrock addresses all of these shortcomings within the bounds of its scope.
+
+### Additional Bonuses
+
+* Programmatic use as library.
+* No assault on stdout during launch.
+* Auth on client's IP address only, not 0.0.0.0/0.
+
+## Python 2 support
+
+flintrock does not currently support Python 2 and will likely never do so. The main reasons for that are:
+
+1. flintrock uses [AsyncSSH](https://github.com/ronf/asyncssh), which is built on top of Python 3.4's `asyncio` library. This gives us asynchronous SSH, which is essential for building a lightweight and fast tool that can orchestrate potentially hundreds of remote instances at once.
+2. flintrock's dev team is really small. We can't support much outside of a narrow core set of features and environments. And if we have to choose between the old and the new, we will generally go with the new. This is a new project; there is little sense in building it on an old version of Python.
+
+### Asynchronous SSH Libraries
+
+* [AsyncSSH](https://github.com/ronf/asyncssh) is built on top of Python 3.4's `asyncio` library. Its API is a bit [low level](https://github.com/ronf/asyncssh/issues/10) and the library does [not have support for SFTP](https://github.com/ronf/asyncssh/issues/11), but it supports most of what we need well.
+* [parallel-ssh](https://github.com/pkittenis/parallel-ssh) [relies on gevent](https://groups.google.com/d/msg/parallelssh/5m4N39no8O4/el4aYbiddjgJ), which is Python 2 only. There is an [open issue](https://github.com/gevent/gevent/issues/38) to make it compatible with Python 3.
+* [Fabric](http://www.fabfile.org/) is not really well-suited to use as a library, and it provides asynchronous connections through multithreading, which is a big resource hog when connecting to hundreds of servers at once. Hopefully, [Fabric 2](http://www.fabfile.org/roadmap.html#invoke-fabric-2-x-and-patchwork) will address both these issues, but that's a while out.
+* All other options that came to my attention did not appear to have much adoption or ongoing development. It would be a bad idea to rely on a random project that didn't seem actively maintained or used just because it promised async SSH on Python 3.
