@@ -136,6 +136,9 @@ class Spark:
     def configure_master(self,
         ssh_client: paramiko.client.SSHClient,
         cluster_info: ClusterInfo):
+        print("[{h}] Configuring Spark master...".format(
+            h=ssh_client.get_transport().getpeername()[0]))
+
         stdin, stdout, stderr = ssh_client.exec_command(
             command="""
                 set -e
@@ -173,7 +176,7 @@ def launch_ec2(cluster_name, num_slaves, modules,
         if not group:
             group = connection.create_security_group(
                 name=name,
-                description="flintrock-managed Spark group",
+                description="flintrock-managed group",
                 vpc_id=vpc_id)
 
         try:
@@ -254,7 +257,8 @@ def launch_ec2(cluster_name, num_slaves, modules,
                     time.sleep(3)
                     break
             else:
-                print("All instances now running.")
+                print("All {c} instances now running.".format(
+                    c=len(reservation.instances)))
                 break
 
         master_instance = reservation.instances[0]
@@ -265,8 +269,6 @@ def launch_ec2(cluster_name, num_slaves, modules,
             master_host=master_instance.public_dns_name,
             slave_hosts=[instance.public_dns_name for instance in slave_instances])
 
-        spark = Spark(version="1.3.0")
-
         # TODO: Abstract away. No-one wants to see this async shite here.
         loop = asyncio.get_event_loop()
 
@@ -276,7 +278,7 @@ def launch_ec2(cluster_name, num_slaves, modules,
                 executor=None,
                 callback=functools.partial(
                     provision_ec2_node,
-                    modules=[spark],  # TODO: Initialize Spark module in launch(), not here.
+                    modules=modules,
                     region=region,
                     host=instance.ip_address,
                     identity_file=identity_file,
@@ -285,7 +287,8 @@ def launch_ec2(cluster_name, num_slaves, modules,
         loop.run_until_complete(asyncio.wait(tasks))
         loop.close()
 
-        print("All instances provisioned.")
+        print("All {c} instances provisioned.".format(
+            c=len(reservation.instances)))
 
         # --- This stuff here runs after all the nodes are provisioned. ---
         with paramiko.client.SSHClient() as client:
@@ -298,10 +301,10 @@ def launch_ec2(cluster_name, num_slaves, modules,
                 key_filename=identity_file,
                 timeout=3)
 
-            print("[{h}] Configuring Spark master...".format(h=master_instance.ip_address))
-            spark.configure_master(
-                ssh_client=client,
-                cluster_info=cluster_info)
+            for module in modules:
+                module.configure_master(
+                    ssh_client=client,
+                    cluster_info=cluster_info)
 
             # Run basic Spark health check.
             with open("./spark-health.sh") as health_check:
@@ -331,7 +334,9 @@ def launch_ec2(cluster_name, num_slaves, modules,
         print("Exiting...")
         sys.exit(1)
     finally:
-        print("Terminating instances...")
+        print("Terminating all {c} instances...".format(
+            c=len(reservation.instances)))
+
         for instance in reservation.instances:
             instance.terminate()
 
@@ -384,9 +389,7 @@ def provision_ec2_node(
             error_output = stderr.read().decode("utf8").rstrip('\n')
             raise Exception(error_output)
 
-        # --- Install Spark. ---
-        spark = Spark(version="1.3.0")
-
+        # --- Install Modules. ---
         for module in modules:
             module.install(
                 ssh_client=client,
@@ -462,11 +465,15 @@ def stop_ec2(cluster_name, assume_yes=False):
 
 if __name__ == "__main__":
     # sys.exit()
+
+    spark = Spark(version="1.3.0")
+    modules = [spark]
+
     launch(
         provider="ec2",
         cluster_name="flintrock-test",
         num_slaves=2,
-        modules=None,
+        modules=modules,
         provider_options={
             "key_name": "nick",
             "identity_file": "/Users/nicholaschammas/.ssh/nick.pem",
