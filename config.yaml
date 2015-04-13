@@ -1,9 +1,9 @@
-log-level: debug | info | warn | error
+log-level: debug  # debug | info | warn | error
 launch-slaves: 1
 
 modules:
   spark:
-    version: 1.2.1  # can also be a git hash
+    version: 1.3.0  # can also be a git hash
     git-repo: "https://github.com/apache/spark"  # required only if deploying a hash
   # ephemeral-hdfs:
   #   version: 
@@ -14,26 +14,26 @@ default-provider: ec2
 
 providers:
   ec2:
-    key-name: <key-name>
-    identity-file: <path>
+    key-name: nick
+    identity-file: /Users/nicholaschammas/.ssh/nick.pem
 
-    instance-type: <type>  # must be 64-bit; small instances won't work
+    instance-type: m3.medium  # must be 64-bit; small instances won't work
 
-    region: <name>
-    availability-zone: <name>
-    ami: <id>
+    region: us-east-1
+    # availability-zone: <name>
+    ami: ami-146e2a7c
 
-    spot-price: <price>
+    # spot-price: <price>
 
-    vpc-id: <id>
-    subnet-id: <id>
-    placement-group: <name>
+    # vpc-id: <id>
+    # subnet-id: <id>
+    # placement-group: <name>
 
-    tenancy: default | dedicated
-    ebs-optimized: yes | no
-    instance-initiated-shutdown-behavior: terminate | stop
+    tenancy: default  # default | dedicated
+    ebs-optimized: no  # yes | no
+    instance-initiated-shutdown-behavior: terminate  # terminate | stop
 
-    delete-groups-on-destroy: yes | no
+    # delete-groups-on-destroy: no  # yes | no
 
 # ssh-user: root
 # use-existing-master: no

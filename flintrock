@@ -487,21 +487,35 @@ def stop_ec2(cluster_name, assume_yes=False):
     pass
 
 
-if __name__ == "__main__":
-    # sys.exit()
+def normalize_keys(obj):
+    """
+    Used to map keys from config files to Python parameter names.
+    """
+    if type(obj) != dict:
+        return obj
+    else:
+        return { k.replace('-', '_'): normalize_keys(v) for k,v in obj.items() }
 
-    spark = Spark(version="1.3.0")
+
+if __name__ == "__main__":
+    with open("config.yaml") as f:
+        config = normalize_keys(yaml.safe_load(f))
+
+    spark = Spark(version=config['modules']['spark']['version'])
+    provider = config['default_provider']
+
     modules = [spark]
 
     launch(
-        provider="ec2",
+        provider=provider,
         cluster_name="flintrock-test",
         num_slaves=2,
         modules=modules,
-        provider_options={
-            "key_name": "nick",
-            "identity_file": "/Users/nicholaschammas/.ssh/nick.pem",
-            "instance_type": "m3.medium",
-            "region": "us-east-1",
-            "ami": "ami-146e2a7c"
-        })
+        provider_options=config['providers'][provider])
+        # provider_options={
+        #     "key_name": "nick",
+        #     "identity_file": "/Users/nicholaschammas/.ssh/nick.pem",
+        #     "instance_type": "m3.medium",
+        #     "region": "us-east-1",
+        #     "ami": "ami-146e2a7c"
+        # })
