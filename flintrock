@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 """
+flintrock
+
 Nothing here should be distribution-specific (e.g. yum vs. apt-get).
 That stuff belongs under image-build/.
 """
@@ -54,29 +56,34 @@ def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
     return namedtuple('KeyPair', ['public', 'private'])(public_key, private_key)
 
 
-def launch(provider, cluster_name, num_slaves, modules, provider_options):
-    if provider == 'ec2':
-        return launch_ec2(
-            cluster_name=cluster_name,
-            num_slaves=num_slaves,
-            modules=modules,
-            **provider_options)
-    else:
-        raise Exception("This provider is not supported: {p}".format(p=provider))
-
-
 ClusterInfo = namedtuple(
     'ClusterInfo', [
         'key_pair',
         'master_host',
-        'slave_hosts'
+        'slave_hosts',
+        'spark_scratch_dir',
+        'spark_master_opts'
     ])
 
 
+# TODO: Cache these files. (?) They are being read potentially tens or
+#       hundreds of times. Maybe it doesn't matter because the files 
+#       are so small.
+# NOTE: functools.lru_cache() doesn't work here because the mapping is
+#       not hashable.
+def get_formatted_template(path: str, mapping: dict) -> str:
+    class TemplateDict(dict):
+        def __missing__(self, key):
+            return '{' + key + '}'
+
+    with open(path) as f:
+        formatted = f.read().format_map(TemplateDict(**mapping))
+
+    return formatted
+
+
 class Spark:
-    def __init__(
-        self,
-        version):
+    def __init__(self, version):
         self.version = version
 
     def install(self,
@@ -88,41 +95,34 @@ class Spark:
         print("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
-        with ssh_client.open_sftp() as sftp_client:
-            sftp_client.put(
-                localpath="./install-spark.sh",
-                remotepath="/tmp/install-spark.sh")
-            sftp_client.chmod(
-                path="/tmp/install-spark.sh",
-                mode=0o755)
-
-        stdin, stdout, stderr = ssh_client.exec_command(
-            get_pty=True,
+        # TODO: Figure out how these non-template paths should work.
+        ssh_check_output(
+            client=ssh_client,
             command="""
+                set -e
+
+                echo {f} > /tmp/install-spark.sh
+                chmod 755 /tmp/install-spark.sh
+
                 /tmp/install-spark.sh {v} hadoop1
-            """.format(v=self.version))
-        exit_status = stdout.channel.recv_exit_status()
-        if exit_status:
-            error_output = stderr.read().decode("utf8").rstrip('\n')
-            raise Exception(error_output)
+            """.format(
+                f=shlex.quote(
+                    get_formatted_template(
+                        path='./install-spark.sh',
+                        mapping=vars(cluster_info))),
+                v=shlex.quote(self.version)))
 
-        # Pass in a dictionary of all template variables and use
-        # that to fill in any number of templates. (?)
-
-        template_path = "/spark/conf/spark-env.sh"
-        with open("templates" + template_path) as f:
-            spark_env = f.read().format(
-                spark_local_dirs="/mnt/spark",
-                spark_master_opts="",
-                spark_worker_instances="1",
-                # spark_worker_cores=num_cores,
-                active_master=cluster_info.master_host)
-
-        ssh_command_output(client=ssh_client, command="""
-            echo {f} > .{p}
-        """.format(
-            f=shlex.quote(spark_env),
-            p=shlex.quote(template_path)))
+        template_path = "./spark/conf/spark-env.sh"
+        ssh_check_output(
+            client=ssh_client,
+            command="""
+                echo {f} > {p}
+            """.format(
+                f=shlex.quote(
+                    get_formatted_template(
+                        path="templates/" + template_path,
+                        mapping=vars(cluster_info))),
+                p=shlex.quote(template_path)))
 
     def configure(self):
         """
@@ -139,22 +139,51 @@ class Spark:
         print("[{h}] Configuring Spark master...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
-        stdin, stdout, stderr = ssh_client.exec_command(
+        ssh_check_output(
+            client=ssh_client,
             command="""
                 set -e
+
                 echo {s} > spark/conf/slaves
+
                 spark/sbin/start-master.sh
-                sleep 15
+
+                set +e
+
+                master_ui_response_code=0
+                while [ "$master_ui_response_code" -ne 200 ]; do
+                    sleep 1
+                    master_ui_response_code="$(
+                        curl --head --silent --output /dev/null \
+                             --write-out "%{{http_code}}" {m}:8080
+                    )"
+                done
+
+                set -e
+
                 spark/sbin/start-slaves.sh
-            """.format(s=shlex.quote('\n'.join(cluster_info.slave_hosts))))
-        # print(stdout.read().decode("utf8"), end='')
-        exit_status = stdout.channel.recv_exit_status()
-        if exit_status:
-            error_output = stderr.read().decode("utf8").rstrip('\n')
-            raise Exception(error_output)
+            """.format(
+                s=shlex.quote('\n'.join(cluster_info.slave_hosts)),
+                m=shlex.quote(cluster_info.master_host)))
 
     def configure_slave(self):
         pass
+
+
+def launch(provider, cluster_name, num_slaves, modules, provider_options):
+    """
+    Launch a cluster on the specific provider.
+    
+    EC2 is currently the only supported provider.
+    """
+    if provider == 'ec2':
+        return launch_ec2(
+            cluster_name=cluster_name,
+            num_slaves=num_slaves,
+            modules=modules,
+            **provider_options)
+    else:
+        raise Exception("This provider is not supported: {p}".format(p=provider))
 
 
 # Move to ec2 module and call as ec2.launch()?
@@ -168,9 +197,17 @@ def launch_ec2(cluster_name, num_slaves, modules,
     vpc_id="", subnet_id="", placement_group="",
     tenancy="default", ebs_optimized=False,
     instance_initiated_shutdown_behavior="stop"):
+    """
+    Launch a fully functional cluster on EC2 with the specific configuration
+    and installed modules.
+    """
     connection = ec2.connect_to_region(region_name=region)
 
     def get_or_create_security_group(name, vpc_id):
+        """
+        If one does not already exist, create a security with all the appropriate
+        rules for the cluster to use.
+        """
         search_results = connection.get_all_security_groups(filters={"group-name": [name]})
         group = search_results[0] if search_results else None
 
@@ -255,23 +292,23 @@ def launch_ec2(cluster_name, num_slaves, modules,
 
     security_group = get_or_create_security_group(name=cluster_name, vpc_id=vpc_id)
 
-    reservation = connection.run_instances(
-        image_id=ami,
-        min_count=(num_slaves + 1),
-        max_count=(num_slaves + 1),
-        key_name=key_name,
-        instance_type=instance_type,
-        placement=availability_zone,
-        security_group_ids=[security_group.id],
-        subnet_id=subnet_id,
-        placement_group=placement_group,
-        tenancy=tenancy,
-        ebs_optimized=ebs_optimized,
-        instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
-
-    time.sleep(10)  # AWS metadata eventual consistency tax.
-
     try:
+        reservation = connection.run_instances(
+            image_id=ami,
+            min_count=(num_slaves + 1),
+            max_count=(num_slaves + 1),
+            key_name=key_name,
+            instance_type=instance_type,
+            placement=availability_zone,
+            security_group_ids=[security_group.id],
+            subnet_id=subnet_id,
+            placement_group=placement_group,
+            tenancy=tenancy,
+            ebs_optimized=ebs_optimized,
+            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
+
+        time.sleep(10)  # AWS metadata eventual consistency tax.
+
         while True:
             for instance in reservation.instances:
                 if instance.state == 'running':
@@ -291,7 +328,9 @@ def launch_ec2(cluster_name, num_slaves, modules,
         cluster_info = ClusterInfo(
             key_pair=generate_ssh_key_pair(),
             master_host=master_instance.public_dns_name,
-            slave_hosts=[instance.public_dns_name for instance in slave_instances])
+            slave_hosts=[instance.public_dns_name for instance in slave_instances],
+            spark_scratch_dir='/mnt/spark',
+            spark_master_opts="")
 
         # TODO: Abstract away. No-one wants to see this async shite here.
         loop = asyncio.get_event_loop()
@@ -303,7 +342,6 @@ def launch_ec2(cluster_name, num_slaves, modules,
                 callback=functools.partial(
                     provision_ec2_node,
                     modules=modules,
-                    region=region,
                     host=instance.ip_address,
                     identity_file=identity_file,
                     cluster_info=cluster_info))
@@ -315,6 +353,20 @@ def launch_ec2(cluster_name, num_slaves, modules,
             c=len(reservation.instances)))
 
         # --- This stuff here runs after all the nodes are provisioned. ---
+        # Login to the master for manual inspection.
+        # TODO: Move to master_login() method.
+        # ret = subprocess.call(
+        #     """
+        #     set -x
+        #     ssh -o "StrictHostKeyChecking=no" \
+        #         -i {identity_file} \
+        #         ec2-user@{host}
+        #     """.format(
+        #         identity_file=shlex.quote(identity_file),
+        #         host=shlex.quote(master_instance.public_dns_name)),
+        #     shell=True)
+        # print("Shell returned: {r}".format(r=ret))
+
         with paramiko.client.SSHClient() as client:
             client.load_system_host_keys()
             client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
@@ -331,28 +383,12 @@ def launch_ec2(cluster_name, num_slaves, modules,
                     cluster_info=cluster_info)
 
             # Run basic Spark health check.
-            with open("./spark-health.sh") as health_check:
-                stdin, stdout, stderr = client.exec_command(
-                    command=health_check.read())
-            print(stdout.read().decode("utf8"), end='')
-            exit_status = stdout.channel.recv_exit_status()
-            if exit_status:
-                error_output = stderr.read().decode("utf8").rstrip('\n')
-                raise Exception(error_output)
-
-        # Login to the master for manual inspection.
-        # TODO: Move to master_login() method.
-        # ret = subprocess.call(
-        #     """
-        #     set -x
-        #     ssh -o "StrictHostKeyChecking=no" \
-        #         -i {identity_file} \
-        #         ec2-user@{host}
-        #     """.format(
-        #         identity_file=shlex.quote(identity_file),
-        #         host=shlex.quote(master_instance.public_dns_name)),
-        #     shell=True)
-        # print("Shell returned: {r}".format(r=ret))
+            with open("./spark-health.sh") as f:
+                health_report = ssh_check_output(
+                    client=client,
+                    command=f.read())
+            
+            print(health_report)
 
     except KeyboardInterrupt as e:
         print("Exiting...")
@@ -370,12 +406,17 @@ def launch_ec2(cluster_name, num_slaves, modules,
 # TODO: Pass in cluster_info object instead of key_pair and master_hostname.
 def provision_ec2_node(
     modules,
-    region,
     host,
     identity_file,
     cluster_info):
-    connection = ec2.connect_to_region(region_name=region)
-
+    """
+    Connect to a freshly launched EC2 instance, set it up for SSH access, and
+    install the specified modules.
+    
+    This function is intended to be called on all cluster nodes in parallel.
+    
+    No master- or slave-specific logic should be in this method.
+    """
     with paramiko.client.SSHClient() as client:
         client.load_system_host_keys()
         client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
@@ -397,7 +438,8 @@ def provision_ec2_node(
                 time.sleep(5)
 
         # --- SSH is now available. ---
-        stdin, stdout, stderr = client.exec_command(
+        ssh_check_output(
+            client=client,
             command="""
                 set -e
 
@@ -408,10 +450,6 @@ def provision_ec2_node(
             """.format(
                 private_key=shlex.quote(cluster_info.key_pair.private),
                 public_key=shlex.quote(cluster_info.key_pair.public)))
-        exit_status = stdout.channel.recv_exit_status()
-        if exit_status:
-            error_output = stderr.read().decode("utf8").rstrip('\n')
-            raise Exception(error_output)
 
         # --- Install Modules. ---
         for module in modules:
@@ -420,11 +458,20 @@ def provision_ec2_node(
                 cluster_info=cluster_info)
 
 
-def ssh_command_output(client: "paramiko.client.SSHClient", command):
+def ssh_check_output(client: "paramiko.client.SSHClient", command: str):
+    """
+    Run a command via the provided SSH client and return the output captured
+    on stdout.
+    
+    Raise an exception if the command returns a non-zero code.
+    """
     stdin, stdout, stderr = client.exec_command(command, get_pty=True)
     exit_status = stdout.channel.recv_exit_status()
+
     if exit_status:
-        raise Exception(stderr.read().decode("utf8"))
+        # TODO: Return a custom exception that includes the return code.
+        # See: https://docs.python.org/3/library/subprocess.html#subprocess.check_output
+        raise Exception(stderr.read().decode("utf8").rstrip('\n'))
 
     return stdout.read().decode("utf8").rstrip('\n')
 
@@ -498,6 +545,8 @@ def normalize_keys(obj):
 
 
 if __name__ == "__main__":
+    start = datetime.now().replace(microsecond=0)
+
     with open("config.yaml") as f:
         config = normalize_keys(yaml.safe_load(f))
 
@@ -512,10 +561,6 @@ if __name__ == "__main__":
         num_slaves=2,
         modules=modules,
         provider_options=config['providers'][provider])
-        # provider_options={
-        #     "key_name": "nick",
-        #     "identity_file": "/Users/nicholaschammas/.ssh/nick.pem",
-        #     "instance_type": "m3.medium",
-        #     "region": "us-east-1",
-        #     "ami": "ami-146e2a7c"
-        # })
+
+    end = datetime.now().replace(microsecond=0)
+    print("Finished in {t}.".format(t=(end - start)))
