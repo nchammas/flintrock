@@ -5,6 +5,13 @@ flintrock
 
 Nothing here should be distribution-specific (e.g. yum vs. apt-get).
 That stuff belongs under image-build/.
+
+Major TODOs:
+ * Command-line options
+    - launch
+    - login
+    - destroy
+ * 
 """
 
 import sys
@@ -22,6 +29,7 @@ import yaml
 import time
 import urllib.request
 import tempfile
+import textwrap
 from datetime import datetime
 from collections import namedtuple
 
@@ -353,20 +361,6 @@ def launch_ec2(cluster_name, num_slaves, modules,
             c=len(reservation.instances)))
 
         # --- This stuff here runs after all the nodes are provisioned. ---
-        # Login to the master for manual inspection.
-        # TODO: Move to master_login() method.
-        # ret = subprocess.call(
-        #     """
-        #     set -x
-        #     ssh -o "StrictHostKeyChecking=no" \
-        #         -i {identity_file} \
-        #         ec2-user@{host}
-        #     """.format(
-        #         identity_file=shlex.quote(identity_file),
-        #         host=shlex.quote(master_instance.public_dns_name)),
-        #     shell=True)
-        # print("Shell returned: {r}".format(r=ret))
-
         with paramiko.client.SSHClient() as client:
             client.load_system_host_keys()
             client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
@@ -382,13 +376,47 @@ def launch_ec2(cluster_name, num_slaves, modules,
                     ssh_client=client,
                     cluster_info=cluster_info)
 
+            # Login to the master for manual inspection.
+            # TODO: Move to master_login() method.
+            # ret = subprocess.call(
+            #     """
+            #     set -x
+            #     ssh -o "StrictHostKeyChecking=no" \
+            #         -i {identity_file} \
+            #         ec2-user@{host}
+            #     """.format(
+            #         identity_file=shlex.quote(identity_file),
+            #         host=shlex.quote(master_instance.public_dns_name)),
+            #     shell=True)
+            # print("Shell returned: {r}".format(r=ret))
+
             # Run basic Spark health check.
-            with open("./spark-health.sh") as f:
-                health_report = ssh_check_output(
-                    client=client,
-                    command=f.read())
+            # with open("./spark-health.sh") as f:
+            #     health_report = ssh_check_output(
+            #         client=client,
+            #         command=f.read())
             
-            print(health_report)
+            # print(health_report)
+
+        time.sleep(30)
+
+        spark_master_ui = 'http://{m}:8080/json/'.format(
+            m=master_instance.public_dns_name)
+
+        spark_ui_info = json.loads(
+            urllib.request.urlopen(spark_master_ui).read().decode('utf-8'))
+
+        print(textwrap.dedent("""\
+            Spark Health Report:
+             * Master: {status}
+             * Workers: {workers}
+             * Cores: {cores}
+             * Memory: {memory:.1f} GB\
+        """.format(
+            status=spark_ui_info['status'],
+            workers=len(spark_ui_info['workers']),
+            cores=spark_ui_info['cores'],
+            memory=spark_ui_info['memory'] / 1024)))        
 
     except KeyboardInterrupt as e:
         print("Exiting...")
