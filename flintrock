@@ -11,13 +11,15 @@ Major TODOs:
     - launch
     - login
     - destroy
- * 
+ * Module reorg - EC2 stuff to its own module
+ * EBS volume setup (maybe replace with EFS?)
 """
 
 import sys
 import shlex
 import subprocess
 import pprint
+import click
 import asyncio
 import functools
 import boto
@@ -144,8 +146,8 @@ class Spark:
         """
         Configures the Spark master and starts both the master and slaves.
         """
-        print("[{h}] Configuring Spark master...".format(
-            h=ssh_client.get_transport().getpeername()[0]))
+        host = ssh_client.get_transport().getpeername()[0]
+        print("[{h}] Configuring Spark master...".format(h=host))
 
         ssh_check_output(
             client=ssh_client,
@@ -174,22 +176,103 @@ class Spark:
                 s=shlex.quote('\n'.join(cluster_info.slave_hosts)),
                 m=shlex.quote(cluster_info.master_host)))
 
+        # Spark health check
+        # TODO: Move to module method?
+        time.sleep(15)
+
+        spark_master_ui = 'http://{m}:8080/json/'.format(m=cluster_info.master_host)
+
+        spark_ui_info = json.loads(
+            urllib.request.urlopen(spark_master_ui).read().decode('utf-8'))
+
+        print(textwrap.dedent("""\
+            Spark Health Report:
+             * Master: {status}
+             * Workers: {workers}
+             * Cores: {cores}
+             * Memory: {memory:.1f} GB\
+        """.format(
+            status=spark_ui_info['status'],
+            workers=len(spark_ui_info['workers']),
+            cores=spark_ui_info['cores'],
+            memory=spark_ui_info['memory'] / 1024)))        
+
     def configure_slave(self):
         pass
 
 
-def launch(provider, cluster_name, num_slaves, modules, provider_options):
+@click.group()
+@click.option('--provider', default='ec2', type=click.Choice(['ec2']))
+@click.version_option(version='dev')  # TODO: Replace with setuptools auto-detect.
+@click.pass_context
+def cli(cli_context, provider):
+    cli_context.obj['provider'] = provider
+
+
+@cli.command()
+@click.argument('cluster-name')
+@click.option('--num-slaves', type=int, required=True)
+@click.option('--install-spark/--no-install-spark', default=True, show_default=True)
+@click.option('--ec2-key-name', required=True)
+@click.option('--ec2-identity-file', required=True)
+@click.option('--ec2-instance-type', default='m3.medium', show_default=True)
+@click.option('--ec2-region', default='us-east-1')
+@click.option('--ec2-availability-zone')
+@click.option('--ec2-ami')
+@click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-vpc-id')
+@click.option('--ec2-subnet-id')
+@click.option('--ec2-placement-group')
+@click.option('--ec2-tenancy', default='default')
+@click.option('--ec2-ebs-optimized/--no-ec2-ebs-optimized', default=False)
+@click.option('--ec2-instance-initiated-shutdown-behavior', default='stop')
+@click.pass_context
+def launch(cli_context,
+    cluster_name, num_slaves,
+    install_spark,
+    ec2_key_name,
+    ec2_identity_file,
+    ec2_instance_type,
+    ec2_region,
+    ec2_availability_zone,
+    ec2_ami,
+    ec2_spot_price,
+    ec2_vpc_id,
+    ec2_subnet_id,
+    ec2_placement_group,
+    ec2_tenancy,
+    ec2_ebs_optimized,
+    ec2_instance_initiated_shutdown_behavior):
     """
-    Launch a cluster on the specific provider.
+    Launch a cluster on the specified provider.
     
     EC2 is currently the only supported provider.
     """
-    if provider == 'ec2':
+    # print(cli_context.obj, install_spark)
+    # sys.exit()
+
+    modules = []
+
+    if install_spark:
+        spark = Spark(version='1.3.0')
+        modules += [spark]
+
+    if cli_context.obj['provider'] == 'ec2':
         return launch_ec2(
-            cluster_name=cluster_name,
-            num_slaves=num_slaves,
-            modules=modules,
-            **provider_options)
+            cluster_name=cluster_name, num_slaves=num_slaves, modules=modules,
+            key_name=ec2_key_name,
+            identity_file=ec2_identity_file,
+            instance_type=ec2_instance_type,
+            region=ec2_region,
+            availability_zone=ec2_availability_zone,
+            ami=ec2_ami,
+            spot_price=ec2_spot_price,
+            vpc_id=ec2_vpc_id,
+            subnet_id=ec2_subnet_id,
+            placement_group=ec2_placement_group,
+            tenancy=ec2_tenancy,
+            ebs_optimized=ec2_ebs_optimized,
+            instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior)
     else:
         raise Exception("This provider is not supported: {p}".format(p=provider))
 
@@ -288,6 +371,7 @@ def launch_ec2(cluster_name, num_slaves, modules,
                 src_group=None)
         ]
 
+        # TODO: Don't try adding rules that already exist.
         for rule in client_rules:
             try:
                 group.authorize(**vars(rule))
@@ -398,26 +482,6 @@ def launch_ec2(cluster_name, num_slaves, modules,
             
             # print(health_report)
 
-        time.sleep(30)
-
-        spark_master_ui = 'http://{m}:8080/json/'.format(
-            m=master_instance.public_dns_name)
-
-        spark_ui_info = json.loads(
-            urllib.request.urlopen(spark_master_ui).read().decode('utf-8'))
-
-        print(textwrap.dedent("""\
-            Spark Health Report:
-             * Master: {status}
-             * Workers: {workers}
-             * Cores: {cores}
-             * Memory: {memory:.1f} GB\
-        """.format(
-            status=spark_ui_info['status'],
-            workers=len(spark_ui_info['workers']),
-            cores=spark_ui_info['cores'],
-            memory=spark_ui_info['memory'] / 1024)))        
-
     except KeyboardInterrupt as e:
         print("Exiting...")
         sys.exit(1)
@@ -431,7 +495,6 @@ def launch_ec2(cluster_name, num_slaves, modules,
 
 # boto is not thread-safe so each task needs to create its own connection.
 # Reference, from boto's primary maintainer: http://stackoverflow.com/a/19542645/
-# TODO: Pass in cluster_info object instead of key_pair and master_hostname.
 def provision_ec2_node(
     modules,
     host,
@@ -573,6 +636,9 @@ def normalize_keys(obj):
 
 
 if __name__ == "__main__":
+    cli(obj={})
+    sys.exit()
+
     start = datetime.now().replace(microsecond=0)
 
     with open("config.yaml") as f:
