@@ -1,5 +1,4 @@
 log-level: debug  # debug | info | warn | error
-launch-slaves: 1
 
 modules:
   spark:
@@ -10,30 +9,25 @@ modules:
   # tachyon:
   #   version: 
 
-default-provider: ec2
+provider: ec2
 
-providers:
-  ec2:
-    key-name: nick
-    identity-file: /Users/nicholaschammas/.ssh/nick.pem
+launch:
+  num-slaves: 2
 
-    instance-type: m3.medium  # must be 64-bit; small instances won't work
-
-    region: us-east-1
-    # availability-zone: <name>
-    ami: ami-146e2a7c
-
-    # spot-price: <price>
-
-    # vpc-id: <id>
-    # subnet-id: <id>
-    # placement-group: <name>
-
-    tenancy: default  # default | dedicated
-    ebs-optimized: no  # yes | no
-    instance-initiated-shutdown-behavior: terminate  # terminate | stop
-
-    # delete-groups-on-destroy: no  # yes | no
+  ec2-key-name: nick
+  ec2-identity-file: /Users/nicholaschammas/.ssh/nick.pem
+  ec2-instance-type: m3.medium  # must be 64-bit; small instances won't work
+  ec2-region: us-east-1
+  # ec2-availability-zone: <name>
+  ec2-ami: ami-146e2a7c
+  # ec2-spot-price: <price>
+  # ec2-vpc-id: <id>
+  # ec2-subnet-id: <id>
+  # ec2-placement-group: <name>
+  ec2-tenancy: default  # default | dedicated
+  ec2-ebs-optimized: no  # yes | no
+  ec2-instance-initiated-shutdown-behavior: terminate  # terminate | stop
+  # ec2-delete-groups-on-destroy: no  # yes | no
 
 # ssh-user: root
 # use-existing-master: no

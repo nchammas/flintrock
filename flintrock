@@ -177,7 +177,7 @@ class Spark:
                 m=shlex.quote(cluster_info.master_host)))
 
         # Spark health check
-        # TODO: Move to module method?
+        # TODO: Move to health_check() module method?
         time.sleep(15)
 
         spark_master_ui = 'http://{m}:8080/json/'.format(m=cluster_info.master_host)
@@ -214,9 +214,9 @@ def cli(cli_context, provider):
 @click.option('--num-slaves', type=int, required=True)
 @click.option('--install-spark/--no-install-spark', default=True, show_default=True)
 @click.option('--ec2-key-name', required=True)
-@click.option('--ec2-identity-file', required=True)
+@click.option('--ec2-identity-file', required=True, help="Path to a .pem file to use for SSHing into nodes.")
 @click.option('--ec2-instance-type', default='m3.medium', show_default=True)
-@click.option('--ec2-region', default='us-east-1')
+@click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-availability-zone')
 @click.option('--ec2-ami')
 @click.option('--ec2-spot-price', type=float)
@@ -636,7 +636,11 @@ def normalize_keys(obj):
 
 
 if __name__ == "__main__":
-    cli(obj={})
+    with open("config.yaml") as f:
+        config = normalize_keys(yaml.safe_load(f))
+        # print(config)
+
+    cli(obj={}, default_map=config)
     sys.exit()
 
     start = datetime.now().replace(microsecond=0)
