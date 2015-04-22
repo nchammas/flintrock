@@ -1,6 +1,7 @@
 # flintrock
 
-flintrock is a command-line tool for launching Apache Spark clusters.
+flintrock is a command-line tool for launching [Apache Spark](http://spark.apache.org/) clusters.
+
 
 ## Usage
 
@@ -44,55 +45,68 @@ usage: flintrock [--version] [--help] [--log-level <level>]
     stop            <cluster-name> [--assume-yes]
 ```
 
-## Limited Scope
 
-flintrock has a limited scope.
+## Use Cases
 
-1. **Spark-centric**: If flintrock launches any service or tool other than Spark, it's strictly to support or integrate with Spark. flintrock is not for, say, launching a bare Mesos cluster.
+1. **Experimentation**: If you want to play around with Spark, develop a prototype application, run a one-off job, or otherwise just experiment, flintrock is the fastest way to get you a working Spark cluster.
 
-2. **Suitable for programmatic use**: Many people will use flintrock interactively from the command line, but flintrock is also meant to be used as part of an automated job.
+2. **Performance testing**: flintrock exposes many options of its underlying providers (e.g. EBS-optimized volumes on EC2) which makes it easy to create a cluster with predictable performance for [Spark performance testing](https://github.com/databricks/auto-spark-perf).
 
-3. **Intended for short-lived clusters**: flintrock is for quickly spinning up a Spark cluster to test something out, run a job, or just experiment. It's also meant for creating Spark clusters with specific OS or network configurations for automated performance testing.
+3. **Automated pipelines**: Many people will use flintrock interactively from the command line, but flintrock can also be imported as a Python library and used as part of an automated pipeline.
 
- flintrock is not for spinning up a production Spark cluster.
 
-## Goals
+## Anti-Use Cases
 
-1. Be a fun side-project.
-2. Be a better alternative to spark-ec2 for the use-cases outlined above.
+There are some things that flintrock specifically does *not* support.
 
-Right now, it seems unlikely that #2 will ever happen, but hey, I can dream right?
+1. **Managing permanent infrastructure**: flintrock is not for managing long-lived clusters, or any infrastructure that serves as a permanent part of some environment.
+
+  For starters, flintrock provides no guarantee that clusters launched with one version of flintrock can still be managed by a newer version of flintrock, and no considerations are made for any long-term use cases.
+
+  If you are looking for ways to manage permanent infrastructure, look at tools like [Terraform](https://www.terraform.io/), [Ansible](http://www.ansible.com/), [SaltStack](http://saltstack.com/), or [Ubuntu Juju](http://www.ubuntu.com/cloud/tools/juju).
+
+2. **Launching non-Spark-related services**: flintrock is meant for launching Spark clusters that include closely related services like HDFS, Mesos, and YARN.
+
+  flintrock is not for launching external datasources (e.g. Cassandra), or other services that are not closely integrated with Spark (e.g. Tez).
+
+  If you are looking for an easy way to launch other services from the Hadoop ecosystem, look at the [Apache Bigtop](http://bigtop.apache.org/) and [Apache Whirr](https://whirr.apache.org/) projects.
+
 
 ## Motivation
 
-This project is inspired by [spark-ec2](https://spark.apache.org/docs/latest/ec2-scripts.html) and more generic service orchestration tools like [MIT StarCluster](http://star.mit.edu/cluster/) and [Ubuntu Juju](http://www.ubuntu.com/cloud/tools/juju). It also takes some UI cues from [Docker Machine](https://docs.docker.com/machine/).
+Several limitations of [spark-ec2](https://spark.apache.org/docs/latest/ec2-scripts.html) provided the initial motivation for this project:
 
-Several limitations of spark-ec2 motivated this project:
+* **Slow launches**: spark-ec2 cluster launch times increase linearly with the number of slaves being created. For example, it takes spark-ec2 **[over an hour](https://issues.apache.org/jira/browse/SPARK-5189)** to launch a cluster with 100 slaves. (flintrock can do it 5 minutes.) ([SPARK-4325](https://issues.apache.org/jira/browse/SPARK-4325), [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189))
+* **Immutable clusters**: Adding or removing slaves from an existing spark-ec2 cluster is not possible. ([SPARK-2008](https://issues.apache.org/jira/browse/SPARK-2008))
+* **Out-of-date machine images**: spark-ec2 uses very old machine images, and the process of updating those machine images is not automated. A [bunch of work](https://issues.apache.org/jira/browse/SPARK-3821) was done towards fixing that, but that work has now been adapted for use with flintrock. ([SPARK-3821](https://issues.apache.org/jira/browse/SPARK-3821))
+* **Unexposed EC2 options**: spark-ec2 does not expose all the EC2 options one would want to use as part of automated performance testing of Spark. ([SPARK-6220](https://issues.apache.org/jira/browse/SPARK-6220))
+* **Poor support for programmatic use cases**: spark-ec2 was not built with programmatic use in mind, so many flows are difficult or impossible to automate. ([SPARK-5627](https://issues.apache.org/jira/browse/SPARK-5627), [SPARK-5629](https://issues.apache.org/jira/browse/SPARK-5629))
+* **No support for configuration files**: spark-ec2 does not support reading options from a config file, so users are always forced to type them in at the command line. ([SPARK-925](https://issues.apache.org/jira/browse/SPARK-925))
 
-* [SPARK-4325](https://issues.apache.org/jira/browse/SPARK-4325), [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189): spark-ec2 cluster launch times increase linearly with the number of slaves being created. It takes spark-ec2 [over an hour](https://issues.apache.org/jira/browse/SPARK-5189) to launch a cluster with 100 slaves.
-* [SPARK-2008](https://issues.apache.org/jira/browse/SPARK-2008): Adding or removing slaves from an existing cluster is not possible.
-* [SPARK-3821](https://issues.apache.org/jira/browse/SPARK-3821): Updating the machine images spark-ec2 uses is not automated.
-* [SPARK-6220](https://issues.apache.org/jira/browse/SPARK-6220): spark-ec2 does not expose all the EC2 options one would want to use as part of automated performance testing of Spark.
-* [SPARK-925](https://issues.apache.org/jira/browse/SPARK-925): spark-ec2 does not allow options to be read from a config file.
-
-flintrock addresses all of these shortcomings within the bounds of its scope.
+flintrock addresses all of these shortcomings.
 
 ### Additional Bonuses
 
-* Programmatic use as library.
 * No assault on stdout during launch.
 * Auth on client's IP address only, not 0.0.0.0/0.
 
-## Python 2 support
+
+## FAQ
+
+### Why no Python 2 support?
 
 flintrock does not currently support Python 2 and will likely never do so. The main reasons for that are:
 
-1. flintrock uses [AsyncSSH](https://github.com/ronf/asyncssh), which is built on top of Python 3.4's `asyncio` library. This gives us asynchronous SSH, which is essential for building a lightweight and fast tool that can orchestrate potentially hundreds of remote instances at once.
+1. flintrock uses [AsyncSSH](https://github.com/ronf/asyncssh), which is built on top of Python 3.4's `asyncio` library. This gives us asynchronous SSH, which is essential for building a lightweight and fast tool that can efficiently orchestrate hundreds of remote instances at once.
 2. flintrock's dev team is really small. We can't support much outside of a narrow core set of features and environments. And if we have to choose between the old and the new, we will generally go with the new. This is a new project; there is little sense in building it on an old version of Python.
 
-### Asynchronous SSH Libraries
+#### Asynchronous SSH Libraries
 
 * [AsyncSSH](https://github.com/ronf/asyncssh) is built on top of Python 3.4's `asyncio` library. Its API is a bit [low level](https://github.com/ronf/asyncssh/issues/10) and the library does [not have support for SFTP](https://github.com/ronf/asyncssh/issues/11), but it supports most of what we need well.
 * [parallel-ssh](https://github.com/pkittenis/parallel-ssh) [relies on gevent](https://groups.google.com/d/msg/parallelssh/5m4N39no8O4/el4aYbiddjgJ), which is Python 2 only. There is an [open issue](https://github.com/gevent/gevent/issues/38) to make it compatible with Python 3.
 * [Fabric](http://www.fabfile.org/) is not really well-suited to use as a library, and it provides asynchronous connections through multithreading, which is a big resource hog when connecting to hundreds of servers at once. Hopefully, [Fabric 2](http://www.fabfile.org/roadmap.html#invoke-fabric-2-x-and-patchwork) will address both these issues, but that's a while out.
 * All other options that came to my attention did not appear to have much adoption or ongoing development. It would be a bad idea to rely on a random project that didn't seem actively maintained or used just because it promised async SSH on Python 3.
+
+### Why not use something like Salt/Ansible to provision and manage instances?
+
+### Why not use Jinja for templating?
