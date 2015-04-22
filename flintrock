@@ -7,14 +7,15 @@ Nothing here should be distribution-specific (e.g. yum vs. apt-get).
 That stuff belongs under image-build/.
 
 Major TODOs:
- * Command-line options
-    - launch
+  * Specifying Spark version at command line / config file
+  * Command-line options
     - login
     - destroy
- * Module reorg - EC2 stuff to its own module
- * EBS volume setup (maybe replace with EFS?)
+  * Module reorg - EC2 stuff to its own module
+  * EBS volume setup (maybe replace with EFS?)
 """
 
+import os
 import sys
 import shlex
 import subprocess
@@ -35,13 +36,17 @@ import textwrap
 from datetime import datetime
 from collections import namedtuple
 
+_SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
-SUPPORTED_MODULES = {
-    "spark": {
-        "version": "1.3.0",
-        "git-repo": "https://github.com/apache/spark"
-    }
-}
+
+def timeit(func):
+    def wrapper(*args, **kwargs):
+        start = datetime.now().replace(microsecond=0)
+        res = func(*args, **kwargs)
+        end = datetime.now().replace(microsecond=0)
+        print("{f} finished in {t}.".format(f=func.__name__, t=(end - start)))
+        return res
+    return wrapper
 
 
 def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
@@ -178,43 +183,52 @@ class Spark:
 
         # Spark health check
         # TODO: Move to health_check() module method?
-        time.sleep(15)
+        time.sleep(30)
 
         spark_master_ui = 'http://{m}:8080/json/'.format(m=cluster_info.master_host)
 
         spark_ui_info = json.loads(
             urllib.request.urlopen(spark_master_ui).read().decode('utf-8'))
 
-        print(textwrap.dedent("""\
+        print(textwrap.dedent(
+            """\
             Spark Health Report:
-             * Master: {status}
-             * Workers: {workers}
-             * Cores: {cores}
-             * Memory: {memory:.1f} GB\
-        """.format(
-            status=spark_ui_info['status'],
-            workers=len(spark_ui_info['workers']),
-            cores=spark_ui_info['cores'],
-            memory=spark_ui_info['memory'] / 1024)))        
+              * Master: {status}
+              * Workers: {workers}
+              * Cores: {cores}
+              * Memory: {memory:.1f} GB\
+            """.format(
+                status=spark_ui_info['status'],
+                workers=len(spark_ui_info['workers']),
+                cores=spark_ui_info['cores'],
+                memory=spark_ui_info['memory'] / 1024)))        
 
     def configure_slave(self):
         pass
 
 
 @click.group()
+@click.option('--config', default=_SCRIPT_DIR + '/config.yaml')
 @click.option('--provider', default='ec2', type=click.Choice(['ec2']))
 @click.version_option(version='dev')  # TODO: Replace with setuptools auto-detect.
 @click.pass_context
-def cli(cli_context, provider):
+def cli(cli_context, config, provider):
     cli_context.obj['provider'] = provider
 
+    with open(config) as f:
+        config_map = normalize_keys(yaml.safe_load(f))
 
+    cli_context.default_map = config_map
+
+
+# @timeit  # Why doesn't this work?
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=int, required=True)
 @click.option('--install-spark/--no-install-spark', default=True, show_default=True)
+# TODO: Accept + auto-load Spark version, git repo (?), and other properties.
 @click.option('--ec2-key-name', required=True)
-@click.option('--ec2-identity-file', required=True, help="Path to a .pem file to use for SSHing into nodes.")
+@click.option('--ec2-identity-file', required=True, help="Path to .pem file for SSHing into nodes.")
 @click.option('--ec2-instance-type', default='m3.medium', show_default=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-availability-zone')
@@ -278,6 +292,7 @@ def launch(cli_context,
 
 
 # Move to ec2 module and call as ec2.launch()?
+@timeit
 def launch_ec2(cluster_name, num_slaves, modules,
     key_name, identity_file,
     instance_type,
@@ -474,14 +489,6 @@ def launch_ec2(cluster_name, num_slaves, modules,
             #     shell=True)
             # print("Shell returned: {r}".format(r=ret))
 
-            # Run basic Spark health check.
-            # with open("./spark-health.sh") as f:
-            #     health_report = ssh_check_output(
-            #         client=client,
-            #         command=f.read())
-            
-            # print(health_report)
-
     except KeyboardInterrupt as e:
         print("Exiting...")
         sys.exit(1)
@@ -636,29 +643,4 @@ def normalize_keys(obj):
 
 
 if __name__ == "__main__":
-    with open("config.yaml") as f:
-        config = normalize_keys(yaml.safe_load(f))
-        # print(config)
-
-    cli(obj={}, default_map=config)
-    sys.exit()
-
-    start = datetime.now().replace(microsecond=0)
-
-    with open("config.yaml") as f:
-        config = normalize_keys(yaml.safe_load(f))
-
-    spark = Spark(version=config['modules']['spark']['version'])
-    provider = config['default_provider']
-
-    modules = [spark]
-
-    launch(
-        provider=provider,
-        cluster_name="flintrock-test",
-        num_slaves=2,
-        modules=modules,
-        provider_options=config['providers'][provider])
-
-    end = datetime.now().replace(microsecond=0)
-    print("Finished in {t}.".format(t=(end - start)))
+    cli(obj={})
