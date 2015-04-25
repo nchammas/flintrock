@@ -3,16 +3,24 @@
 """
 flintrock
 
-Nothing here should be distribution-specific (e.g. yum vs. apt-get).
-That stuff belongs under image-build/.
+A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-  * Specifying Spark version at command line / config file
   * Command-line options
     - login
     - destroy
+  * Specifying Spark version at command line / config file
+  * ext4/disk setup
   * Module reorg - EC2 stuff to its own module
   * EBS volume setup (maybe replace with EFS?)
+
+Other TODOs:
+  * Handling EC2 private IPs
+  * Using IAM roles to launch instead of AWS keys
+  * Using SSHAgent instead of .pem files (?)
+
+Nothing here should be distribution-specific (e.g. yum vs. apt-get).
+That stuff belongs under image-build/.
 """
 
 import os
@@ -20,15 +28,10 @@ import sys
 import shlex
 import subprocess
 import pprint
-import click
 import asyncio
 import functools
-import boto
-import boto.ec2 as ec2
-import paramiko
 import socket
 import json
-import yaml
 import time
 import urllib.request
 import tempfile
@@ -36,10 +39,18 @@ import textwrap
 from datetime import datetime
 from collections import namedtuple
 
+# External modules.
+import click
+import boto
+import boto.ec2
+import paramiko
+import yaml
+
 _SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
 def timeit(func):
+    @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start = datetime.now().replace(microsecond=0)
         res = func(*args, **kwargs)
@@ -86,6 +97,7 @@ ClusterInfo = namedtuple(
 #       are so small.
 # NOTE: functools.lru_cache() doesn't work here because the mapping is
 #       not hashable.
+# TODO: Get rid of this. Just escape braces à la {{ and }}.
 def get_formatted_template(path: str, mapping: dict) -> str:
     class TemplateDict(dict):
         def __missing__(self, key):
@@ -225,7 +237,7 @@ def cli(cli_context, config, provider):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=int, required=True)
-@click.option('--install-spark/--no-install-spark', default=True, show_default=True)
+@click.option('--install-spark/--no-install-spark', default=True)
 # TODO: Accept + auto-load Spark version, git repo (?), and other properties.
 @click.option('--ec2-key-name', required=True)
 @click.option('--ec2-identity-file', required=True, help="Path to .pem file for SSHing into nodes.")
@@ -239,7 +251,8 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-placement-group')
 @click.option('--ec2-tenancy', default='default')
 @click.option('--ec2-ebs-optimized/--no-ec2-ebs-optimized', default=False)
-@click.option('--ec2-instance-initiated-shutdown-behavior', default='stop')
+@click.option('--ec2-instance-initiated-shutdown-behavior', default='stop',
+    type=click.Choice(['stop', 'terminate']))
 @click.pass_context
 def launch(cli_context,
     cluster_name, num_slaves,
@@ -262,8 +275,6 @@ def launch(cli_context,
     
     EC2 is currently the only supported provider.
     """
-    # print(cli_context.obj, install_spark)
-    # sys.exit()
 
     modules = []
 
@@ -293,36 +304,28 @@ def launch(cli_context,
 
 # Move to ec2 module and call as ec2.launch()?
 @timeit
-def launch_ec2(cluster_name, num_slaves, modules,
+def launch_ec2(*,
+    cluster_name, num_slaves, modules,
     key_name, identity_file,
     instance_type,
     region,
-    availability_zone="",
-    ami="",
+    availability_zone,
+    ami,
     spot_price=None,
-    vpc_id="", subnet_id="", placement_group="",
+    vpc_id, subnet_id, placement_group,
     tenancy="default", ebs_optimized=False,
     instance_initiated_shutdown_behavior="stop"):
     """
-    Launch a fully functional cluster on EC2 with the specific configuration
+    Launch a fully functional cluster on EC2 with the specified configuration
     and installed modules.
     """
-    connection = ec2.connect_to_region(region_name=region)
+    connection = boto.ec2.connect_to_region(region_name=region)
 
-    def get_or_create_security_group(name, vpc_id):
+    def get_or_create_security_groups(cluster_name, vpc_id) -> 'List[boto.ec2.securitygroup.SecurityGroup]':
         """
-        If one does not already exist, create a security with all the appropriate
-        rules for the cluster to use.
+        If they do not already exist, create all the security groups needed for a
+        flintrock cluster.
         """
-        search_results = connection.get_all_security_groups(filters={"group-name": [name]})
-        group = search_results[0] if search_results else None
-
-        if not group:
-            group = connection.create_security_group(
-                name=name,
-                description="flintrock-managed group",
-                vpc_id=vpc_id)
-
         SecurityGroupRule = namedtuple(
             'SecurityGroupRule', [
                 'ip_protocol',
@@ -330,41 +333,28 @@ def launch_ec2(cluster_name, num_slaves, modules,
                 'to_port',
                 'src_group',
                 'cidr_ip'])
+        flintrock_group_name = 'flintrock'
+        cluster_group_name = 'flintrock-' + cluster_name
 
-        # Rules for internal cluster communication.
-        cluster_rules = [
-            SecurityGroupRule(
-                ip_protocol='icmp',
-                from_port=-1,
-                to_port=-1,
-                src_group=group,
-                cidr_ip=None),
-            SecurityGroupRule(
-                ip_protocol='tcp',
-                from_port=0,
-                to_port=65535,
-                src_group=group,
-                cidr_ip=None),
-            SecurityGroupRule(
-                ip_protocol='udp',
-                from_port=0,
-                to_port=65535,
-                src_group=group,
-                cidr_ip=None)
-        ]
+        search_results = connection.get_all_security_groups(
+            filters={
+                'group-name': [flintrock_group_name, cluster_group_name]
+            })
+        flintrock_group = next((sg for sg in search_results if sg.name == flintrock_group_name), None)
+        cluster_group = next((sg for sg in search_results if sg.name == cluster_group_name), None)
 
-        for rule in cluster_rules:
-            try:
-                group.authorize(**vars(rule))
-            except boto.exception.EC2ResponseError as e:
-                if e.error_code != 'InvalidPermission.Duplicate':
-                    print("Error adding rule: {r}".format(r=rule))
-                    raise
-
-        flintrock_client_ip = urllib.request.urlopen('http://checkip.amazonaws.com/').read().decode('utf-8').strip()
-        flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+        if not flintrock_group:
+            flintrock_group = connection.create_security_group(
+                name=flintrock_group_name,
+                description="flintrock base group",
+                vpc_id=vpc_id)
 
         # Rules for the client interacting with the cluster.
+        flintrock_client_ip = (
+            urllib.request.urlopen('http://checkip.amazonaws.com/')
+            .read().decode('utf-8').strip())
+        flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+
         client_rules = [
             SecurityGroupRule(
                 ip_protocol='tcp',
@@ -387,17 +377,56 @@ def launch_ec2(cluster_name, num_slaves, modules,
         ]
 
         # TODO: Don't try adding rules that already exist.
+        # TODO: Add rules in one shot.
         for rule in client_rules:
             try:
-                group.authorize(**vars(rule))
+                flintrock_group.authorize(**vars(rule))
             except boto.exception.EC2ResponseError as e:
                 if e.error_code != 'InvalidPermission.Duplicate':
                     print("Error adding rule: {r}".format(r=rule))
                     raise
 
-        return group
+        # Rules for internal cluster communication.
+        if not cluster_group:
+            cluster_group = connection.create_security_group(
+                name=cluster_group_name,
+                description="flintrock cluster group",
+                vpc_id=vpc_id)
 
-    security_group = get_or_create_security_group(name=cluster_name, vpc_id=vpc_id)
+        cluster_rules = [
+            SecurityGroupRule(
+                ip_protocol='icmp',
+                from_port=-1,
+                to_port=-1,
+                src_group=cluster_group,
+                cidr_ip=None),
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=0,
+                to_port=65535,
+                src_group=cluster_group,
+                cidr_ip=None),
+            SecurityGroupRule(
+                ip_protocol='udp',
+                from_port=0,
+                to_port=65535,
+                src_group=cluster_group,
+                cidr_ip=None)
+        ]
+
+        # TODO: Don't try adding rules that already exist.
+        # TODO: Add rules in one shot.
+        for rule in cluster_rules:
+            try:
+                cluster_group.authorize(**vars(rule))
+            except boto.exception.EC2ResponseError as e:
+                if e.error_code != 'InvalidPermission.Duplicate':
+                    print("Error adding rule: {r}".format(r=rule))
+                    raise
+
+        return [flintrock_group, cluster_group]
+
+    security_groups = get_or_create_security_groups(cluster_name=cluster_name, vpc_id=vpc_id)
 
     try:
         reservation = connection.run_instances(
@@ -407,7 +436,7 @@ def launch_ec2(cluster_name, num_slaves, modules,
             key_name=key_name,
             instance_type=instance_type,
             placement=availability_zone,
-            security_group_ids=[security_group.id],
+            security_group_ids=[sg.id for sg in security_groups],
             subnet_id=subnet_id,
             placement_group=placement_group,
             tenancy=tenancy,
@@ -487,7 +516,6 @@ def launch_ec2(cluster_name, num_slaves, modules,
             #         identity_file=shlex.quote(identity_file),
             #         host=shlex.quote(master_instance.public_dns_name)),
             #     shell=True)
-            # print("Shell returned: {r}".format(r=ret))
 
     except KeyboardInterrupt as e:
         print("Exiting...")
