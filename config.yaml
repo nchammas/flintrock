@@ -29,6 +29,12 @@ launch:
   ec2-instance-initiated-shutdown-behavior: terminate  # terminate | stop
   # ec2-delete-groups-on-destroy: no  # yes | no
 
+login:
+  ec2-identity-file: /Users/nicholaschammas/.ssh/nick.pem
+
+describe:
+  ec2-region: us-east-1
+
 # ssh-user: root
 # use-existing-master: no
 # ec2:
