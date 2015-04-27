@@ -6,18 +6,26 @@ flintrock
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-  * Command-line options
-    - login
-    - destroy
-  * Specifying Spark version at command line / config file
-  * Module reorg - EC2 stuff to its own module
-  * ext4/disk setup
-  * EBS volume setup (maybe replace with EFS?)
+    * Specifying Spark version at command line / config file
+    * Module reorg - EC2 stuff to its own module
+    * Port to AsyncSSH
+    * ext4/disk setup
+    * EBS volume setup (maybe replace with EFS?)
 
 Other TODOs:
-  * Handling EC2 private IPs
-  * Using IAM roles to launch instead of AWS keys
-  * Using SSHAgent instead of .pem files (?)
+    * Support for spot instances
+    * Handling EC2 private IPs
+    * Using IAM roles to launch instead of AWS keys
+    * Using SSHAgent instead of .pem files (?)
+    * Setup and teardown VPC, routes, gateway, etc. from scratch.
+
+Distant future / Never:
+    * Local provider
+    * GCE provider
+    * [methinks-not] Allow master and slaves to be different.
+
+Research
+    * Autogenerating options from function signatures
 
 Nothing here should be distribution-specific (e.g. yum vs. apt-get).
 That stuff belongs under image-build/.
