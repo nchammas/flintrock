@@ -65,11 +65,19 @@ There are some things that flintrock specifically does *not* support.
 
   If you are looking for ways to manage permanent infrastructure, look at tools like [Terraform](https://www.terraform.io/), [Ansible](http://www.ansible.com/), [SaltStack](http://saltstack.com/), or [Ubuntu Juju](http://www.ubuntu.com/cloud/tools/juju).
 
-2. **Launching non-Spark-related services**: flintrock is meant for launching Spark clusters that include closely related services like HDFS, Mesos, and YARN.
-
-  flintrock is not for launching external datasources (e.g. Cassandra), or other services that are not closely integrated with Spark (e.g. Tez).
+2. **Launching non-Spark-related services**: flintrock is meant for launching Spark clusters that include closely related services like HDFS, Mesos, and YARN. flintrock is not for launching external datasources (e.g. Cassandra), or other services that are not closely integrated with Spark (e.g. Tez).
 
   If you are looking for an easy way to launch other services from the Hadoop ecosystem, look at the [Apache Bigtop](http://bigtop.apache.org/) and [Apache Whirr](https://whirr.apache.org/) projects.
+
+3. **Launching out-of-date services**: flintrock will always take advantage of new features of Spark and related services to make the process of launching a cluster faster, simpler, and easier to maintain. If that means dropping support for launching older versions of a service, then we will generally make that tradeoff.
+
+
+## Features
+
+
+
+## Anti-Features
+
 
 
 ## Motivation
