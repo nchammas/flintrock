@@ -10,8 +10,8 @@ Major TODOs:
     - login
     - destroy
   * Specifying Spark version at command line / config file
-  * ext4/disk setup
   * Module reorg - EC2 stuff to its own module
+  * ext4/disk setup
   * EBS volume setup (maybe replace with EFS?)
 
 Other TODOs:
@@ -82,9 +82,14 @@ def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
     return namedtuple('KeyPair', ['public', 'private'])(public_key, private_key)
 
 
+# TODO: Think about extending this to represent everything that defines a cluster.
+#           * name
+#           * installed modules (?)
+#           * etc.
 ClusterInfo = namedtuple(
     'ClusterInfo', [
-        'key_pair',
+        'name',
+        'ssh_key_pair',
         'master_host',
         'slave_hosts',
         'spark_scratch_dir',
@@ -93,7 +98,7 @@ ClusterInfo = namedtuple(
 
 
 # TODO: Cache these files. (?) They are being read potentially tens or
-#       hundreds of times. Maybe it doesn't matter because the files 
+#       hundreds of times. Maybe it doesn't matter because the files
 #       are so small.
 # NOTE: functools.lru_cache() doesn't work here because the mapping is
 #       not hashable.
@@ -109,13 +114,15 @@ def get_formatted_template(path: str, mapping: dict) -> str:
     return formatted
 
 
+# TODO: Turn this into an implementation of an abstract FlintrockModule class. (?)
 class Spark:
     def __init__(self, version):
         self.version = version
 
-    def install(self,
-        ssh_client: paramiko.client.SSHClient,
-        cluster_info: ClusterInfo):
+    def install(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster_info: ClusterInfo):
         """
         Downloads and installs Spark on a given node.
         """
@@ -157,9 +164,10 @@ class Spark:
         """
         pass
 
-    def configure_master(self,
-        ssh_client: paramiko.client.SSHClient,
-        cluster_info: ClusterInfo):
+    def configure_master(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster_info: ClusterInfo):
         """
         Configures the Spark master and starts both the master and slaves.
         """
@@ -213,7 +221,7 @@ class Spark:
                 status=spark_ui_info['status'],
                 workers=len(spark_ui_info['workers']),
                 cores=spark_ui_info['cores'],
-                memory=spark_ui_info['memory'] / 1024)))        
+                memory=spark_ui_info['memory'] / 1024)))
 
     def configure_slave(self):
         pass
@@ -234,6 +242,9 @@ def cli(cli_context, config, provider):
 
 
 # @timeit  # Why doesn't this work?
+# TODO: Required EC2 parameters shouldn't be required for non-EC2 providers.
+#       Maybe move check for required parameters to launch_ec2()? But that 
+#       belongs in the CLI interface, no?
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=int, required=True)
@@ -252,28 +263,27 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-tenancy', default='default')
 @click.option('--ec2-ebs-optimized/--no-ec2-ebs-optimized', default=False)
 @click.option('--ec2-instance-initiated-shutdown-behavior', default='stop',
-    type=click.Choice(['stop', 'terminate']))
+              type=click.Choice(['stop', 'terminate']))
 @click.pass_context
-def launch(cli_context,
-    cluster_name, num_slaves,
-    install_spark,
-    ec2_key_name,
-    ec2_identity_file,
-    ec2_instance_type,
-    ec2_region,
-    ec2_availability_zone,
-    ec2_ami,
-    ec2_spot_price,
-    ec2_vpc_id,
-    ec2_subnet_id,
-    ec2_placement_group,
-    ec2_tenancy,
-    ec2_ebs_optimized,
-    ec2_instance_initiated_shutdown_behavior):
+def launch(
+        cli_context,
+        cluster_name, num_slaves,
+        install_spark,
+        ec2_key_name,
+        ec2_identity_file,
+        ec2_instance_type,
+        ec2_region,
+        ec2_availability_zone,
+        ec2_ami,
+        ec2_spot_price,
+        ec2_vpc_id,
+        ec2_subnet_id,
+        ec2_placement_group,
+        ec2_tenancy,
+        ec2_ebs_optimized,
+        ec2_instance_initiated_shutdown_behavior):
     """
-    Launch a cluster on the specified provider.
-    
-    EC2 is currently the only supported provider.
+    Launch a new cluster.
     """
 
     modules = []
@@ -299,22 +309,23 @@ def launch(cli_context,
             ebs_optimized=ec2_ebs_optimized,
             instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior)
     else:
-        raise Exception("This provider is not supported: {p}".format(p=provider))
+        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
 # Move to ec2 module and call as ec2.launch()?
 @timeit
-def launch_ec2(*,
-    cluster_name, num_slaves, modules,
-    key_name, identity_file,
-    instance_type,
-    region,
-    availability_zone,
-    ami,
-    spot_price=None,
-    vpc_id, subnet_id, placement_group,
-    tenancy="default", ebs_optimized=False,
-    instance_initiated_shutdown_behavior="stop"):
+def launch_ec2(
+        *,
+        cluster_name, num_slaves, modules,
+        key_name, identity_file,
+        instance_type,
+        region,
+        availability_zone,
+        ami,
+        spot_price=None,
+        vpc_id, subnet_id, placement_group,
+        tenancy="default", ebs_optimized=False,
+        instance_initiated_shutdown_behavior="stop"):
     """
     Launch a fully functional cluster on EC2 with the specified configuration
     and installed modules.
@@ -333,6 +344,8 @@ def launch_ec2(*,
                 'to_port',
                 'src_group',
                 'cidr_ip'])
+        # TODO: Make these into methods, since we need this logic (though simple)
+        #       in multiple places. (?)
         flintrock_group_name = 'flintrock'
         cluster_group_name = 'flintrock-' + cluster_name
 
@@ -461,8 +474,16 @@ def launch_ec2(*,
         master_instance = reservation.instances[0]
         slave_instances = reservation.instances[1:]
 
+        connection.create_tags(
+            resource_ids=[master_instance.id],
+            tags={'flintrock-role': 'master'})
+        connection.create_tags(
+            resource_ids=[i.id for i in slave_instances],
+            tags={'flintrock-role': 'slave'})
+
         cluster_info = ClusterInfo(
-            key_pair=generate_ssh_key_pair(),
+            name=cluster_name,
+            ssh_key_pair=generate_ssh_key_pair(),
             master_host=master_instance.public_dns_name,
             slave_hosts=[instance.public_dns_name for instance in slave_instances],
             spark_scratch_dir='/mnt/spark',
@@ -520,27 +541,28 @@ def launch_ec2(*,
     except KeyboardInterrupt as e:
         print("Exiting...")
         sys.exit(1)
-    finally:
-        print("Terminating all {c} instances...".format(
-            c=len(reservation.instances)))
+    # finally:
+    #     print("Terminating all {c} instances...".format(
+    #         c=len(reservation.instances)))
 
-        for instance in reservation.instances:
-            instance.terminate()
+    #     for instance in reservation.instances:
+    #         instance.terminate()
 
 
 # boto is not thread-safe so each task needs to create its own connection.
 # Reference, from boto's primary maintainer: http://stackoverflow.com/a/19542645/
 def provision_ec2_node(
-    modules,
-    host,
-    identity_file,
-    cluster_info):
+        *,
+        modules,
+        host,
+        identity_file,
+        cluster_info):
     """
     Connect to a freshly launched EC2 instance, set it up for SSH access, and
     install the specified modules.
-    
+
     This function is intended to be called on all cluster nodes in parallel.
-    
+
     No master- or slave-specific logic should be in this method.
     """
     with paramiko.client.SSHClient() as client:
@@ -574,8 +596,8 @@ def provision_ec2_node(
 
                 chmod 400 ~/.ssh/id_rsa
             """.format(
-                private_key=shlex.quote(cluster_info.key_pair.private),
-                public_key=shlex.quote(cluster_info.key_pair.public)))
+                private_key=shlex.quote(cluster_info.ssh_key_pair.private),
+                public_key=shlex.quote(cluster_info.ssh_key_pair.public)))
 
         # --- Install Modules. ---
         for module in modules:
@@ -588,7 +610,7 @@ def ssh_check_output(client: "paramiko.client.SSHClient", command: str):
     """
     Run a command via the provided SSH client and return the output captured
     on stdout.
-    
+
     Raise an exception if the command returns a non-zero code.
     """
     stdin, stdout, stderr = client.exec_command(command, get_pty=True)
@@ -602,21 +624,55 @@ def ssh_check_output(client: "paramiko.client.SSHClient", command: str):
     return stdout.read().decode("utf8").rstrip('\n')
 
 
-def destroy(provider, cluster_name, provider_options, assume_yes=False):
-    pass
+@cli.command()
+@click.argument('cluster-name')
+# @click.confirmation_option(help="Are you sure you want to destroy this cluster?")
+@click.option('--assume-yes/--no-assume-yes', default=False)
+@click.option('--ec2-region', default='us-east-1', show_default=True)
+# TODO: Always delete cluster security group. People shouldn't be adding stuff to it.
+#       Instead, provide option for cluster to be assigned to additional, pre-existing
+#       security groups.
+@click.pass_context
+def destroy(cli_context, cluster_name, assume_yes, ec2_region):
+    """
+    Destroy a cluster.
+    """
+    if cli_context.obj['provider'] == 'ec2':
+        destroy_ec2(
+            cluster_name=cluster_name,
+            assume_yes=assume_yes,
+            region=ec2_region)
+    else:
+        # TODO: Create UnsupportedProviderException. (?)
+        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
-def destroy_ec2(cluster_name, assume_yes=False,
-    delete_groups=False):
-    pass
+@timeit
+# assume_yes defaults to True here for library use (as opposed to command-line use).
+def destroy_ec2(*, cluster_name, assume_yes=True, region):
+    connection = boto.ec2.connect_to_region(region_name=region)
+
+    cluster_instances = connection.get_only_instances(
+        filters={
+            'instance.group-name': ['flintrock', 'flintrock-' + cluster_name]
+        })
+
+    # TODO: Prompt user.
+
+    print("Terminating {c} instances...".format(c=len(cluster_instances)))
+    for instance in cluster_instances:
+        instance.terminate()
+
+    # TODO: Destroy cluster security group.
 
 
 def add_slaves(provider, cluster_name, num_slaves, provider_options):
+    # Need concept of cluster state so we can add slaves with the same config.
+    # Otherwise we must ask unreliable user to respecify slave config.
     pass
 
 
-def add_slaves_ec2(cluster_name, num_slaves,
-    identity_file):
+def add_slaves_ec2(cluster_name, num_slaves, identity_file):
     pass
 
 
@@ -628,20 +684,81 @@ def remove_slaves_ec2(cluster_name, num_slaves, assume_yes=False):
     pass
 
 
-def describe(provider, cluster_name, provider_options, master_hostname_only=False):
-    pass
+@cli.command()
+@click.argument('cluster-name')
+@click.option('--master-hostname-only', is_flag=True, default=False)
+@click.pass_context
+def describe(cli_context, cluster_name, master_hostname_only=False):
+    """
+    Describe an existing cluster.
+    """
+    if cli_context.obj['provider'] == 'ec2':
+        describe_ec2(
+            cluster_name=cluster_name,
+            master_hostname_only=master_hostname_only)
+    else:
+        # TODO: Create UnsupportedProviderException. (?)
+        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
+@timeit
 def describe_ec2(cluster_name, master_hostname_only=False):
     pass
 
 
-def login(provider, cluster_name, provider_options):
-    pass
+def ssh(host, identity_file):
+    """
+    SSH into a host.
+    """
+    ret = subprocess.call([
+        'ssh',
+            '-o', 'StrictHostKeyChecking=no',
+            '-i', identity_file,
+            'ec2-user@{h}'.format(h=host)])
 
 
-def login_ec2(cluster_name):
-    pass
+# TODO: Provide different command or option for going straight to Spark Shell.
+@cli.command()
+@click.argument('cluster-name')
+@click.option('--ec2-region', default='us-east-1', show_default=True)
+# TODO: Move this to global option. (?)
+@click.option('--ec2-identity-file', required=True, help="Path to .pem file for SSHing into nodes.")
+@click.pass_context
+def login(cli_context, cluster_name, ec2_region, ec2_identity_file):
+    """
+    Login to the master of an existing cluster.
+    """
+    if cli_context.obj['provider'] == 'ec2':
+        login_ec2(
+            cluster_name=cluster_name,
+            region=ec2_region,
+            identity_file=ec2_identity_file)
+    else:
+        # TODO: Create UnsupportedProviderException. (?)
+        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+
+
+@timeit
+def login_ec2(cluster_name, region, identity_file):
+    connection = boto.ec2.connect_to_region(region_name=region)
+
+    master_instance = next(iter(
+        connection.get_only_instances(
+            filters={
+                'instance.group-name': ['flintrock', 'flintrock-' + cluster_name],
+                'tag:flintrock-role': 'master'
+            })),
+        None)
+
+    if master_instance:
+        ssh(
+            host=master_instance.public_dns_name,
+            identity_file=identity_file)
+    else:
+        # TODO: Custom MasterNotFound exception. (?)
+        raise Exception("Could not find a cluster named '{c}' in the {r} region.".format(
+            c=cluster_name,
+            r=region))
 
 
 def start(provider, cluster_name, provider_options):
@@ -667,7 +784,7 @@ def normalize_keys(obj):
     if type(obj) != dict:
         return obj
     else:
-        return { k.replace('-', '_'): normalize_keys(v) for k,v in obj.items() }
+        return {k.replace('-', '_'): normalize_keys(v) for k, v in obj.items()}
 
 
 if __name__ == "__main__":
