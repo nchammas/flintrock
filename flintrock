@@ -654,10 +654,25 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
 
     cluster_instances = connection.get_only_instances(
         filters={
-            'instance.group-name': ['flintrock', 'flintrock-' + cluster_name]
+            'instance.group-name': 'flintrock-' + cluster_name
         })
 
-    # TODO: Prompt user.
+    # Should this be an error? ClusterNotFound exception?
+    if not cluster_instances:
+        print("No such cluster.")
+        sys.exit(0)
+
+    # TODO: Make prompt provider-agnostic. (?)
+    # TODO: Replace this cluster description with a reusable method that
+    #       uses ClusterInfo.
+    if not assume_yes:
+        click.confirm(
+            text='\n'.join([
+                'Cluster: ' + cluster_name,
+                '\n - '.join(['Instances:'] + [i.public_dns_name for i in cluster_instances]),
+                "Are you sure you want to destroy this cluster?"
+                ]),
+            abort=True)
 
     print("Terminating {c} instances...".format(c=len(cluster_instances)))
     for instance in cluster_instances:
@@ -745,7 +760,7 @@ def login_ec2(cluster_name, region, identity_file):
     master_instance = next(iter(
         connection.get_only_instances(
             filters={
-                'instance.group-name': ['flintrock', 'flintrock-' + cluster_name],
+                'instance.group-name': 'flintrock-' + cluster_name,
                 'tag:flintrock-role': 'master'
             })),
         None)
