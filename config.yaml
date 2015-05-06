@@ -1,18 +1,19 @@
 log-level: debug  # debug | info | warn | error
 
-modules:
-  spark:
-    version: 1.3.0  # can also be a git hash
-    git-repo: "https://github.com/apache/spark"  # required only if deploying a hash
-  # ephemeral-hdfs:
-  #   version: 
-  # tachyon:
-  #   version: 
+# modules:
+#   spark:
+#     version: 1.3.0  # can also be a git hash
+#     git-repo: "https://github.com/apache/spark"  # required only if deploying a hash
+#   ephemeral-hdfs:
+#     version: 
+#   tachyon:
+#     version: 
 
 provider: ec2
 
 launch:
-  num-slaves: 2
+  num-slaves: 1
+  # spark-version: 1.3.0
 
   ec2-key-name: nick
   ec2-identity-file: /Users/nicholaschammas/.ssh/nick.pem
