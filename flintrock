@@ -7,30 +7,38 @@ A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
     * Specifying Spark version at command line / config file
+    * Tag EC2 instances with names
     * Module reorg - EC2 stuff to its own module
+    * AsyncSSH research
+        - Reusing connection; getting host from existing connection
+        - Eclipse License
     * Port to AsyncSSH
     * packaging
         - pip install deps to venv
         - setuptools Windows config
     * ext4/disk setup
     * EBS volume setup (maybe replace with EFS?)
+    * Capture option dependencies nicely. For example:
+        - install-spark requires spark-version
+        - ec2 provider requires ec2-region
 
 Other TODOs:
+    * Reorg config file so that it's natural. Explicitly map configs to Click CLI.
     * Support for spot instances
+        - show wait reason
     * Handling EC2 private IPs
+    * Support submit command (?) Maybe not. Does spark-submit work from a remote client?
     * Using IAM roles to launch instead of AWS keys
     * Using SSHAgent instead of .pem files (?)
     * Setup and teardown VPC, routes, gateway, etc. from scratch.
 
-Distant future / Never:
+Distant future:
     * Local provider
     * GCE provider
-    * [methinks-not] Allow master and slaves to be different.
+    * [probably-not] Allow master and slaves to be different (spot, instance typem, etc).
 
 Research:
-    * AsyncSSH
-        - Reusing connection; getting host from existing connection
-        - Eclipse License
+    * Way to make certain options required depending on chosen provider.
     * [probably-not] Autogenerating options from function signatures
 
 Nothing here should be distribution-specific (e.g. yum vs. apt-get).
@@ -62,7 +70,7 @@ import paramiko
 import yaml
 
 _SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-
+DEFAULT_SPARK_VERSION = '1.3.1'
 
 def timeit(func):
     @functools.wraps(func)
@@ -263,15 +271,15 @@ def cli(cli_context, config, provider):
 
 # @timeit  # Why doesn't this work?
 # TODO: Required EC2 parameters shouldn't be required for non-EC2 providers.
-#       Maybe move check for required parameters to launch_ec2()? But that 
-#       belongs in the CLI interface, no?
+#       Click doesn't support this kind of flow directly.
+#       See: https://github.com/mitsuhiko/click/issues/257
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=int, required=True)
 @click.option('--install-spark/--no-install-spark', default=True)
-# TODO: Accept + auto-load Spark version, git repo (?), and other properties.
-@click.option('--ec2-key-name', required=True)
-@click.option('--ec2-identity-file', required=True, help="Path to .pem file for SSHing into nodes.")
+@click.option('--spark-version', default=DEFAULT_SPARK_VERSION)
+@click.option('--ec2-key-name')
+@click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
 @click.option('--ec2-instance-type', default='m3.medium', show_default=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-availability-zone')
@@ -289,6 +297,7 @@ def launch(
         cli_context,
         cluster_name, num_slaves,
         install_spark,
+        spark_version,
         ec2_key_name,
         ec2_identity_file,
         ec2_instance_type,
@@ -309,7 +318,7 @@ def launch(
     modules = []
 
     if install_spark:
-        spark = Spark(version='1.3.0')
+        spark = Spark(version=spark_version)
         modules += [spark]
 
     if cli_context.obj['provider'] == 'ec2':
@@ -667,7 +676,6 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region):
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
-@timeit
 # assume_yes defaults to True here for library use (as opposed to command-line use).
 def destroy_ec2(*, cluster_name, assume_yes=True, region):
     connection = boto.ec2.connect_to_region(region_name=region)
@@ -691,8 +699,7 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
             text='\n'.join([
                 'Cluster: ' + cluster_name,
                 '\n - '.join(['Instances:'] + [i.public_dns_name for i in cluster_instances]),
-                "Are you sure you want to destroy this cluster?"
-                ]),
+                "Are you sure you want to destroy this cluster?"]),
             abort=True)
 
     print("Terminating {c} instances...".format(c=len(cluster_instances)))
@@ -735,7 +742,7 @@ def describe(
     """
     Describe an existing cluster.
 
-    Leave out the cluster name to find all clusters.
+    Leave out the cluster name to find all flintrock-managed clusters.
     """
     if cli_context.obj['provider'] == 'ec2':
         describe_ec2(
@@ -747,7 +754,6 @@ def describe(
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
-@timeit
 def describe_ec2(*, cluster_name, master_hostname_only=False, region):
     connection = boto.ec2.connect_to_region(region_name=region)
 
@@ -761,6 +767,7 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
     else:
         # TODO: Capture this in some reusable method that populates a list of
         #       ClusterInfo objects, and display them to screen using YAML.
+        #       See: https://issues.apache.org/jira/browse/SPARK-5629?focusedCommentId=14325346#comment-14325346
         #       Add provider-specific information like EC2 region.
         security_groups = itertools.chain.from_iterable([i.groups for i in cluster_instances])
         security_group_names = set(
@@ -772,7 +779,7 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
             print("Instances:", end='')
             # TODO: Helper method.
             filtered_instances = [
-                i for i in cluster_instances 
+                i for i in cluster_instances
                 if 'flintrock-' + cluster_name in [g.name for g in i.groups]]
             print('\n - '.join([''] + [i.public_dns_name for i in filtered_instances]))
 
@@ -783,17 +790,17 @@ def ssh(host, identity_file):
     """
     ret = subprocess.call([
         'ssh',
-            '-o', 'StrictHostKeyChecking=no',
-            '-i', identity_file,
-            'ec2-user@{h}'.format(h=host)])
+        '-o', 'StrictHostKeyChecking=no',
+        '-i', identity_file,
+        'ec2-user@{h}'.format(h=host)])
 
 
 # TODO: Provide different command or option for going straight to Spark Shell.
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--ec2-region', default='us-east-1', show_default=True)
-# TODO: Move this to global option. (?)
-@click.option('--ec2-identity-file', required=True, help="Path to .pem file for SSHing into nodes.")
+# TODO: Move identity-file to global, non-provider-specific option. (?)
+@click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
 @click.pass_context
 def login(cli_context, cluster_name, ec2_region, ec2_identity_file):
     """
@@ -809,7 +816,6 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file):
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
-@timeit
 def login_ec2(cluster_name, region, identity_file):
     connection = boto.ec2.connect_to_region(region_name=region)
 
