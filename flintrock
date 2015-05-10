@@ -6,18 +6,18 @@ flintrock
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-    * Specifying Spark version at command line / config file
-    * Tag EC2 instances with names
-    * Module reorg - EC2 stuff to its own module
+    * ext4/disk setup
+    * EBS volume setup
+    * ClusterInfo object cleanup and YAML serialization
     * AsyncSSH research
         - Reusing connection; getting host from existing connection
         - Eclipse License
+        - SFTP testing
     * Port to AsyncSSH
+    * Module reorg - EC2 stuff to its own module
     * packaging
         - pip install deps to venv
         - setuptools Windows config
-    * ext4/disk setup
-    * EBS volume setup (maybe replace with EFS?)
     * Capture option dependencies nicely. For example:
         - install-spark requires spark-version
         - ec2 provider requires ec2-region
@@ -27,7 +27,7 @@ Other TODOs:
     * Support for spot instances
         - show wait reason
     * Handling EC2 private IPs
-    * Support submit command (?) Maybe not. Does spark-submit work from a remote client?
+    * Support submit command.
     * Using IAM roles to launch instead of AWS keys
     * Using SSHAgent instead of .pem files (?)
     * Setup and teardown VPC, routes, gateway, etc. from scratch.
@@ -71,6 +71,7 @@ import yaml
 
 _SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 DEFAULT_SPARK_VERSION = '1.3.1'
+
 
 def timeit(func):
     @functools.wraps(func)
@@ -277,9 +278,9 @@ def cli(cli_context, config, provider):
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=int, required=True)
 @click.option('--install-spark/--no-install-spark', default=True)
-@click.option('--spark-version', default=DEFAULT_SPARK_VERSION)
+@click.option('--spark-version', default=DEFAULT_SPARK_VERSION, show_default=True)
 @click.option('--ec2-key-name')
-@click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
+@click.option('--ec2-identity-file', help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-instance-type', default='m3.medium', show_default=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-availability-zone')
@@ -505,10 +506,14 @@ def launch_ec2(
 
         connection.create_tags(
             resource_ids=[master_instance.id],
-            tags={'flintrock-role': 'master'})
+            tags={
+                'flintrock-role': 'master',
+                'Name': '{c}-master'.format(c=cluster_name)})
         connection.create_tags(
             resource_ids=[i.id for i in slave_instances],
-            tags={'flintrock-role': 'slave'})
+            tags={
+                'flintrock-role': 'slave',
+                'Name': '{c}-slave'.format(c=cluster_name)})
 
         cluster_info = ClusterInfo(
             name=cluster_name,
