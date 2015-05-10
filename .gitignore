@@ -1,6 +1,7 @@
 # From: https://github.com/github/gitignore/blob/master/Python.gitignore
 
 *example.py
+flintrock-logo/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
