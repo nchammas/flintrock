@@ -1,13 +1,17 @@
 # Contributing Guide
 
-**flintrock is still under heavy development. Until we make a 0.1 release, most PRs will be rejected.** We are likely already fixing or making that thing you want to open a PR for, or things are changing so quickly that your PR will be targeting outdated design.
+**flintrock is still under heavy development. Until we make a 0.1 release, most PRs will be rejected.** We are likely already fixing or making that thing you want to open a PR for, and major components are rapidly evolving so your PR is likely to be invalidated by upcoming changes you may not know about.
 
-Inspired by the [Phabricator contributor docs](https://secure.phabricator.com/book/phabcontrib/).
+This guide was heavily inspired by the [Phabricator contributor docs](https://secure.phabricator.com/book/phabcontrib/).
+
+## Principles
+
+* Weigh maintenance burden carefully.
 
 
 ## Contributing Thanks
 
-* We humans can be quite simple. We work on 
+* We humans can be quite simple. A thank you motivates us and gives us energy.
 
 
 ## Contributing Bug Reports
