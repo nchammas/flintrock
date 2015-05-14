@@ -1,52 +1,12 @@
-# flintrock
+![Flintrock](flintrock-logo/00-Flintrock-logo-capitalized.png)
 
-flintrock is a command-line tool for launching [Apache Spark](http://spark.apache.org/) clusters.
+flintrock is a command-line tool and library for launching [Apache Spark](http://spark.apache.org/) clusters.
 
 
 ## Usage
 
 * config example
 * full CLI example
-
-```text
-usage: flintrock [--version] [--help] [--log-level <level>]
-                 [--config <path>]
-                 [--provider <name>]
-                 <command> [<args>]
-
-<command>:
-    launch          <cluster-name> [--slaves <num>]
-
-                    [--install-spark|--no-install-spark]
-                    [--spark-version <version>] [--spark-git-repo]
-
-                    [--ec2-key-name <name>] [--ec2-identity-file <path>]
-                    [--ec2-instance-type <type>]
-                    [--ec2-region <name>]
-                    [--ec2-availability-zone <name>]
-                    [--ec2-ami <id>]
-                    [--ec2-spot-price <price>]
-                    [--ec2-vpc-id <id>] [--ec2-subnet-id <id>] [--ec2-placement-group <name>]
-                    [--ec2-tenancy <type>] [--ec2-ebs-optimized|--ec2-no-ebs-optimized]
-                    [--ec2-instance-initiated-shutdown-behavior <behavior>]
-
-    destroy         <cluster-name> [--assume-yes]
-                    [--ec2-delete-groups|--ec2-no-delete-groups]
-
-    add-slaves      <cluster-name> <num>
-                    [--ec2-identity-file <path>]
-
-    remove-slaves   <cluster-name> <num> [--assume-yes]
-
-    describe        <cluster-name>
-                    [--master-hostname-only]
-
-    login           <cluster-name>
-
-    start           <cluster-name>
-
-    stop            <cluster-name> [--assume-yes]
-```
 
 
 ## Use Cases
@@ -55,13 +15,19 @@ usage: flintrock [--version] [--help] [--log-level <level>]
 
 If you want to play around with Spark, develop a prototype application, run a one-off job, or otherwise just experiment, flintrock is the fastest way to get you a working Spark cluster.
 
+_example of quick CLI use_
+
 ### Performance testing
 
 flintrock exposes many options of its underlying providers (e.g. EBS-optimized volumes on EC2) which makes it easy to create a cluster with predictable performance for [Spark performance testing](https://github.com/databricks/auto-spark-perf).
 
+_example of EC2 performance options_
+
 ### Automated pipelines
 
 Many people will use flintrock interactively from the command line, but flintrock can also be imported as a Python library and used as part of an automated pipeline.
+
+_example of library use_
 
 
 ## Anti-Use Cases
