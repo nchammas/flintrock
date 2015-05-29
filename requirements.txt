@@ -1,0 +1,5 @@
+asyncssh==1.1.1
+boto==2.38.0
+click==4.0
+paramiko==1.15.2
+PyYAML==3.11
