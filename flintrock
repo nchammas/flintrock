@@ -6,16 +6,14 @@ flintrock
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-    * ClusterInfo object cleanup and YAML serialization.
-        e.g. print(yaml.dump([dict(vars(c)) for c in [list of cluster_info]], indent=2, default_flow_style=False))
-    * AsyncSSH research:
-        - Reusing connection; getting host from existing connection.
-        - Eclipse License.
-        - SFTP testing.
     * Port to AsyncSSH.
         - Performance comparison vs. threading.
+    * start/stop clusters
+        - destroy stopped clusters with proper info display
     * Reorg config file naturally. Explicitly map configs to Click CLI.
     * Module reorg - EC2 stuff to its own module.
+    * ClusterInfo -> a Class
+        - add a print method that centralizes the YAML display of info for destroy, describe, etc.
     * Capture option dependencies nicely. For example:
         - install-spark requires spark-version
         - ec2 provider requires ec2-region
@@ -28,15 +26,12 @@ Major TODOs:
         - See: https://packaging.python.org/en/latest/distributing.html
 
 Other TODOs:
+    * Support submit command.
+    * Handle EC2 private IPs.
     * Automatically replaced failed instances during launch, perhaps up to a
       certain limit (1-2 instances).
     * Support for spot instances.
         - Show wait reason (capcity oversubscribed, price too low, etc.).
-    * Handle EC2 private IPs.
-    * Support submit command.
-    * Use IAM roles to launch instead of AWS keys.
-    * Setup and teardown VPC, routes, gateway, etc. from scratch.
-    * Use SSHAgent instead of .pem files (?).
     * Instance type <-> AMI type validation/lookup.
         - Maybe this can be automated.
         - Otherwise have a separate YAML file with this info.
@@ -44,16 +39,15 @@ Other TODOs:
         - Show friendly error when user tries to launch PV instance type.
     * Persist defaults like Spark version to external file.
         - Poll external resource if default is not specified in file. (e.g. check GitHub tags for latest Spark version) (?)
+    * Use IAM roles to launch instead of AWS keys.
+    * Setup and teardown VPC, routes, gateway, etc. from scratch.
+    * Use SSHAgent instead of .pem files (?).
 
 Distant future:
     * Local provider
     * GCE provider
     * Add way for users to run arbitrary shell commands against all nodes of cluster.
-    * [probably-not] Allow master and slaves to be different (spot, instance typem, etc).
-
-Research:
-    * Way to make certain options required depending on chosen provider.
-    * [probably-not] Autogenerating options from function signatures.
+    * [probably-not] Allow master and slaves to be different (spot, instance type, etc).
 
 Nothing here should be distribution-specific (e.g. yum vs. apt-get).
 That stuff belongs under image-build/.
