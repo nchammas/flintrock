@@ -2,6 +2,7 @@
 
 *example.py
 flintrock-logo/
+.hypothesis/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
