@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # echo "Errors"
-python3 -m compileall ./flintrock
-python3 -m pep8 ./flintrock
+python3 -m compileall ./flintrock.py
+python3 -m pep8 ./flintrock.py
 
 # Warnings. Don't fail the linter.
 # echo "Warnings"
