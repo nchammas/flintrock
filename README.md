@@ -1,8 +1,8 @@
-![Flintrock](flintrock-logo/flintrock-logo-exploding.png)
+![Flintrock logo](flintrock-logo/v2/flintrock-logo.png)
 
 Flintrock is a command-line tool and library for launching [Apache Spark](http://spark.apache.org/) clusters.
 
-**Flintrock is currently undergoing heavy development. Until we make a 1.0 release, you probably should not use Flintrock.** Python hackers or heavy spark-ec2 users who are looking to experiment with something new are welcome to try Flintrock out and potentially [contribute](CONTRIBUTING.md).
+**Flintrock is currently undergoing heavy development. Until we make a 1.0 release, you probably should not use Flintrock unless you are ready to keep up with frequent changes to how it works.** Python hackers or heavy spark-ec2 users who are looking to experiment with something new are welcome to try Flintrock out and potentially [contribute](CONTRIBUTING.md).
 
 
 ## Usage
@@ -35,6 +35,13 @@ And if you're lost, do try:
 flintrock --help
 flintrock <subcommand> --help
 ```
+
+That's not all. Flintrock has a few more [features](#features) that you may find interesting.
+
+
+## Installation
+
+Flintrock requires Python 3.4 or newer.
 
 
 ## Use Cases
@@ -126,12 +133,18 @@ flintrock launch test-cluster \
 
 ### Fast Launches
 
-Flintrock is really fast.
+Flintrock is really fast. This is how quickly it can launch fully operational clusters on EC2 compared to [`spark-ec2`](https://spark.apache.org/docs/latest/ec2-scripts.html).
 
-| Cluster Size  | Flintrock Launch Time | spark-ec2 Launch Time |
-|---------------|----------------------:|----------------------:|
-| 1 slave       | 2m 41s                | 8m 44s                |
-| 50 slaves     | 6m 00s                | 37m 30s               |
+* EC2 `m3.large` instances.
+* Best of 6 tries.
+
+| Cluster Size  | Flintrock Launch Time | `spark-ec2` Launch Time |
+|---------------|----------------------:|------------------------:|
+| 1 slave       | 2m 06s                |     8m 44s              |
+| 50 slaves     | 5m 12s                |    37m 30s              |
+| 100 slaves    | 8m 46s                | 1h 06m 05s              |
+
+The `spark-ec2` launch times are sourced from [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189).
 
 ### Low-level Provider Options
 
@@ -147,6 +160,11 @@ Python 3.
 
 ## Anti-Features
 
+### Support for out-of-date versions of Python, EC2, etc.
+
+Supporting multiple versions of anything is tough. 
+
+Same as anti-use cases. We are mortal beings with limited energy. People who support stuff across a wide cut of language or API versions are gods.
 
 
 ## Motivation
@@ -182,7 +200,7 @@ Flintrock does not currently support Python 2 and will likely never do so. The m
 
 ### Asynchronous SSH Libraries
 
-* [AsyncSSH](https://github.com/ronf/asyncssh) is built on top of Python 3.4's `asyncio` library. Its API is a bit [low level](https://github.com/ronf/asyncssh/issues/10) and the library does [not have support for SFTP](https://github.com/ronf/asyncssh/issues/11), but it supports most of what we need well.
+* [AsyncSSH](https://github.com/ronf/asyncssh) is built on top of Python 3.4's `asyncio` library.
 * [parallel-ssh](https://github.com/pkittenis/parallel-ssh) [relies on gevent](https://groups.google.com/d/msg/parallelssh/5m4N39no8O4/el4aYbiddjgJ), which is Python 2 only. There is an [open issue](https://github.com/gevent/gevent/issues/38) to make it compatible with Python 3.
 * [Fabric](http://www.fabfile.org/) is not really well-suited to use as a library, and it provides asynchronous connections through multithreading, which is a big resource hog when connecting to hundreds of servers at once. Hopefully, [Fabric 2](http://www.fabfile.org/roadmap.html#invoke-fabric-2-x-and-patchwork) will address both these issues, but that's a while out.
 * All other options that came to my attention did not appear to have much adoption or ongoing development. It would be a bad idea to rely on a random project that didn't seem actively maintained or used just because it promised async SSH on Python 3.
