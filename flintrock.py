@@ -1,14 +1,15 @@
 """
-flintrock
+Flintrock
 
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-    * Port to AsyncSSH.
-        - Performance comparison vs. threading.
     * start/stop clusters
         - destroy stopped clusters with proper info display
     * Reorg config file naturally. Explicitly map configs to Click CLI.
+    * Test spark-perf on a Flintrock cluster.
+-- open source here --
+    * Support submit command.
     * Module reorg - EC2 stuff to its own module.
     * ClusterInfo -> a Class
         - add a print method that centralizes the YAML display of info for destroy, describe, etc.
@@ -24,8 +25,9 @@ Major TODOs:
         - See: https://packaging.python.org/en/latest/distributing.html
 
 Other TODOs:
-    * Support submit command.
     * Handle EC2 private IPs.
+    * Upgrade check -- Is a newer version of Flintrock available on PyPI?
+    * Credits command. (?)
     * Automatically replaced failed instances during launch, perhaps up to a
       certain limit (1-2 instances).
     * Support for spot instances.
@@ -265,7 +267,7 @@ class Spark:
 @click.pass_context
 def cli(cli_context, config, provider):
     """
-    flintrock
+    Flintrock
 
     A command-line tool and library for launching Apache Spark clusters.
     """
@@ -376,7 +378,7 @@ def launch_ec2(
     def get_or_create_security_groups(cluster_name, vpc_id) -> 'List[boto.ec2.securitygroup.SecurityGroup]':
         """
         If they do not already exist, create all the security groups needed for a
-        flintrock cluster.
+        Flintrock cluster.
         """
         SecurityGroupRule = namedtuple(
             'SecurityGroupRule', [
@@ -444,7 +446,7 @@ def launch_ec2(
         if not cluster_group:
             cluster_group = connection.create_security_group(
                 name=cluster_group_name,
-                description="flintrock cluster group",
+                description="Flintrock cluster group",
                 vpc_id=vpc_id)
 
         cluster_rules = [
@@ -758,7 +760,7 @@ def describe(
     """
     Describe an existing cluster.
 
-    Leave out the cluster name to find all flintrock-managed clusters.
+    Leave out the cluster name to find all Flintrock-managed clusters.
     """
     if cli_context.obj['provider'] == 'ec2':
         describe_ec2(
