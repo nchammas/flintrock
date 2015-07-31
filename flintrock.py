@@ -971,6 +971,18 @@ def stop_ec2(cluster_name, region, assume_yes=True):
     for instance in cluster_instances:
         instance.stop()
 
+    while True:
+        for instance in cluster_instances:
+            if instance.state == 'stopped':
+                continue
+            else:
+                instance.update()
+                time.sleep(3)
+                break
+        else:
+            print("{c} is now stopped.".format(c=cluster_name))
+            break
+
 
 def normalize_keys(obj):
     """
