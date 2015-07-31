@@ -4,15 +4,22 @@ Flintrock
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-    * start/stop clusters
-        - destroy stopped clusters with proper info display
+    * Implement common method for getting info about a cluster and refactor accordingly
+        - describe
+        - stop/start
+    * destroy/stop/start stopped clusters with proper info display
+        - Right now we print blank DNS names.
+        - Instead just show instance count, or (less desirably, because it's 
+          platform specific) show instance-ids
     * Reorg config file naturally. Explicitly map configs to Click CLI.
-    * Test spark-perf on a Flintrock cluster.
 -- open source here --
-    * Support submit command.
     * Module reorg - EC2 stuff to its own module.
     * ClusterInfo -> a Class
-        - add a print method that centralizes the YAML display of info for destroy, describe, etc.
+        - platform-specific (e.g. EC2) implementations of class add methods to
+          stop, start, describe (with YAML output) etc. clusters
+    * Support submit command.
+    * Upgrade to boto3
+        - What are the long-term benefits? 
     * Capture option dependencies nicely. For example:
         - install-spark requires spark-version
         - ec2 provider requires ec2-region
@@ -119,6 +126,11 @@ def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
 #           * name
 #           * installed modules (?)
 #           * etc.
+#
+#       Convert it into a class with variations (implementations?) for the specific
+#       providers.
+#
+#       Add class methods to start, stop, destroy, and describe clusters.
 ClusterInfo = namedtuple(
     'ClusterInfo', [
         'name',
@@ -715,7 +727,7 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
     if not assume_yes:
         print(cluster_name + ':')
         print('\n    - '.join(['  Instances:'] + [i.public_dns_name for i in cluster_instances]))
-                
+
         click.confirm(
             text="Are you sure you want to destroy this cluster?",
             abort=True)
@@ -724,7 +736,7 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
     for instance in cluster_instances:
         instance.terminate()
 
-    # TODO: Destroy cluster security group.
+    # TODO: Destroy cluster security group. We're not reusing it.
 
 
 def add_slaves(provider, cluster_name, num_slaves, provider_options):
@@ -741,7 +753,7 @@ def remove_slaves(provider, cluster_name, num_slaves, provider_options, assume_y
     pass
 
 
-def remove_slaves_ec2(cluster_name, num_slaves, assume_yes=False):
+def remove_slaves_ec2(cluster_name, num_slaves, assume_yes=True):
     pass
 
 
@@ -869,20 +881,95 @@ def login_ec2(cluster_name, region, identity_file):
             r=region))
 
 
-def start(provider, cluster_name, provider_options):
-    pass
+@cli.command()
+@click.argument('cluster-name')
+@click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.pass_context
+def start(cli_context, cluster_name, ec2_region):
+    """
+    Start an existing, stopped cluster.
+    """
+    if cli_context.obj['provider'] == 'ec2':
+        start_ec2(cluster_name=cluster_name, region=ec2_region)
+    else:
+        # TODO: Create UnsupportedProviderException. (?)
+        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
-def start_ec2(cluster_name):
-    pass
+def start_ec2(cluster_name, region):
+    # TODO: Replace this with a common get_cluster_info_ec2() method.
+    connection = boto.ec2.connect_to_region(region_name=region)
+
+    cluster_instances = connection.get_only_instances(
+        filters={
+            'instance.group-name': 'flintrock-' + cluster_name
+        })
+
+    # Should this be an error? ClusterNotFound exception?
+    if not cluster_instances:
+        print("No such cluster.")
+        sys.exit(0)
+        # Style: Should everything else be under an else: block?
+
+    print("Starting {c} instances...".format(c=len(cluster_instances)))
+    for instance in cluster_instances:
+        instance.start()
+
+    while True:
+        for instance in cluster_instances:
+            if instance.state == 'running':
+                continue
+            else:
+                instance.update()
+                time.sleep(3)
+                break
+        else:
+            print("{c} is now running.".format(c=cluster_name))
+            break
 
 
-def stop(provider, cluster_name, provider_options, assume_yes=False):
-    pass
+@cli.command()
+@click.argument('cluster-name')
+@click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--assume-yes/--no-assume-yes', default=False)
+@click.pass_context
+def stop(cli_context, cluster_name, ec2_region, assume_yes):
+    """
+    Stop an existing, running cluster.
+    """
+    if cli_context.obj['provider'] == 'ec2':
+        stop_ec2(cluster_name=cluster_name, region=ec2_region, assume_yes=assume_yes)
+    else:
+        # TODO: Create UnsupportedProviderException. (?)
+        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
-def stop_ec2(cluster_name, assume_yes=False):
-    pass
+def stop_ec2(cluster_name, region, assume_yes=True):
+    # TODO: Replace this with a common get_cluster_info_ec2() method.
+    connection = boto.ec2.connect_to_region(region_name=region)
+
+    cluster_instances = connection.get_only_instances(
+        filters={
+            'instance.group-name': 'flintrock-' + cluster_name
+        })
+
+    # Should this be an error? ClusterNotFound exception?
+    if not cluster_instances:
+        print("No such cluster.")
+        sys.exit(0)
+        # Style: Should everything else be under an else: block?
+
+    if not assume_yes:
+        print(cluster_name + ':')
+        print('\n    - '.join(['  Instances:'] + [i.public_dns_name for i in cluster_instances]))
+
+        click.confirm(
+            text="Are you sure you want to stop this cluster?",
+            abort=True)
+
+    print("Stopping {c} instances...".format(c=len(cluster_instances)))
+    for instance in cluster_instances:
+        instance.stop()
 
 
 def normalize_keys(obj):
