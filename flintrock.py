@@ -4,32 +4,32 @@ Flintrock
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-    * Implement common method for getting info about a cluster and refactor accordingly
-        - describe
-        - stop/start
-    * destroy/stop/start stopped clusters with proper info display
+    * destroy/stop/start/describe stopped clusters with proper info display
         - Right now we print blank DNS names.
-        - Instead just show instance count, or (less desirably, because it's 
+        - Instead just show instance count, or (less desirably, because it's
           platform specific) show instance-ids
     * Reorg config file naturally. Explicitly map configs to Click CLI.
--- open source here --
-    * Module reorg - EC2 stuff to its own module.
-    * ClusterInfo -> a Class
-        - platform-specific (e.g. EC2) implementations of class add methods to
-          stop, start, describe (with YAML output) etc. clusters
-    * Support submit command.
-    * Upgrade to boto3
-        - What are the long-term benefits? 
     * Capture option dependencies nicely. For example:
         - install-spark requires spark-version
         - ec2 provider requires ec2-region
+-- open source here --
+    * Module reorg - EC2 stuff to its own module.
+    * ClusterInfo namedtuple -> FlintrockCluster class
+        - Platform-specific (e.g. EC2) implementations of class add methods to
+          stop, start, describe (with YAML output) etc. clusters
+        - Implement method that takes cluster name and returns FlintrockCluster
+    * Support submit command.
     * ext4/disk setup.
     * EBS volume setup.
     * Check that EC2 enhanced networking is enabled.
     * Packaging:
+        - Binary distribution so people don't need to have Python 3 installed.
+            - cx_Freeze and family
         - pip install deps to venv
         - setuptools Windows config
         - See: https://packaging.python.org/en/latest/distributing.html
+    * Upgrade to boto3: http://boto3.readthedocs.org/en/latest/
+        - What are the long-term benefits?
 
 Other TODOs:
     * Handle EC2 private IPs.
@@ -721,17 +721,20 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
         sys.exit(0)
         # Style: Should everything else be under an else: block?
 
-    # TODO: Make destroy prompt provider-agnostic. (?)
-    # TODO: Replace this cluster description with a reusable method that
-    #       uses ClusterInfo. Maybe add print() method to ClusterInfo.
     if not assume_yes:
-        print(cluster_name + ':')
-        print('\n    - '.join(['  Instances:'] + [i.public_dns_name for i in cluster_instances]))
+        print_cluster_info_ec2(
+            cluster_name=cluster_name,
+            cluster_instances=cluster_instances)
+
+        print('---')
 
         click.confirm(
             text="Are you sure you want to destroy this cluster?",
             abort=True)
 
+    # TODO: Figure out if we want to use "node" instead of "instance" when
+    #       communicating with the user, even if we're talking about doing things
+    #       to EC2 instances. Spark docs definitely favor "node".
     print("Terminating {c} instances...".format(c=len(cluster_instances)))
     for instance in cluster_instances:
         instance.terminate()
@@ -755,6 +758,36 @@ def remove_slaves(provider, cluster_name, num_slaves, provider_options, assume_y
 
 def remove_slaves_ec2(cluster_name, num_slaves, assume_yes=True):
     pass
+
+
+def get_cluster_state_ec2(cluster_instances: list) -> str:
+    """
+    Get the state of an EC2 cluster.
+
+    This is distinct from the state of Spark on the cluster. At some point the two
+    concepts should be rationalized somehow.
+    """
+    instance_states = set(instance.state for instance in cluster_instances)
+
+    if len(instance_states) == 1:
+        return next(iter(instance_states))
+    else:
+        return 'inconsistent'
+
+
+def print_cluster_info_ec2(cluster_name: str, cluster_instances: list):
+    """
+    Print information about an EC2 cluster to screen in a YAML-compatible format.
+
+    This is the current solution until cluster methods are centralized under a
+    FlintrockCluster class, or something similar.
+    """
+    print(cluster_name + ':')
+    print('  state: {s}'.format(s=get_cluster_state_ec2(cluster_instances=cluster_instances)))
+    print('  node-count: {nc}'.format(nc=len(cluster_instances)))
+
+    if get_cluster_state_ec2(cluster_instances=cluster_instances) == 'running':
+        print('\n    - '.join(['  nodes:'] + [i.public_dns_name for i in cluster_instances]))
 
 
 @cli.command()
@@ -793,7 +826,7 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
         })
 
     # TODO: Capture this in some reusable method that gets info about a bunch of
-    #       Flintrock clusters and returns a list of ClusterInfo objects.
+    #       Flintrock clusters and returns a list of FlintrockCluster objects.
     #
     #       Then, maybe just serialize that list to screen using YAML.
     #       You'll have to deal with PyYAML's inability to customize the output
@@ -813,18 +846,15 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
         print('---')
 
         for cluster_name in sorted(cluster_names):
-            print(cluster_name + ':')
-            print('  Instances:', end='')
-
             filtered_instances = []
 
             for instance in cluster_instances:
                 if ('flintrock-' + cluster_name) in {g.name for g in instance.groups}:
                     filtered_instances.append(instance)
 
-            print('\n    - '.join([''] + sorted([i.public_dns_name for i in filtered_instances])))
-
-    # TODO: Return list of ClusterInfo.
+            print_cluster_info_ec2(
+                cluster_name=cluster_name,
+                cluster_instances=filtered_instances)
 
 
 def ssh(host, identity_file):
@@ -876,9 +906,10 @@ def login_ec2(cluster_name, region, identity_file):
             identity_file=identity_file)
     else:
         # TODO: Custom MasterNotFound exception. (?)
-        raise Exception("Could not find a cluster named '{c}' in the {r} region.".format(
-            c=cluster_name,
-            r=region))
+        raise Exception(
+            "Could not find a master for a cluster named '{c}' in the {r} region.".format(
+                c=cluster_name,
+                r=region))
 
 
 @cli.command()
@@ -960,8 +991,11 @@ def stop_ec2(cluster_name, region, assume_yes=True):
         # Style: Should everything else be under an else: block?
 
     if not assume_yes:
-        print(cluster_name + ':')
-        print('\n    - '.join(['  Instances:'] + [i.public_dns_name for i in cluster_instances]))
+        print_cluster_info_ec2(
+            cluster_name=cluster_name,
+            cluster_instances=cluster_instances)
+
+        print('---')
 
         click.confirm(
             text="Are you sure you want to stop this cluster?",
