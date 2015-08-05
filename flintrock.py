@@ -4,10 +4,6 @@ Flintrock
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-    * destroy/stop/start/describe stopped clusters with proper info display
-        - Right now we print blank DNS names.
-        - Instead just show instance count, or (less desirably, because it's
-          platform specific) show instance-ids
     * Reorg config file naturally. Explicitly map configs to Click CLI.
     * Capture option dependencies nicely. For example:
         - install-spark requires spark-version
@@ -79,9 +75,9 @@ from datetime import datetime
 from collections import namedtuple
 
 # External modules.
-import click
 import boto
 import boto.ec2
+import click
 import paramiko
 import yaml
 
