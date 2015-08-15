@@ -4,7 +4,6 @@ Flintrock
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-    * Reorg config file naturally. Explicitly map configs to Click CLI.
     * Capture option dependencies nicely. For example:
         - install-spark requires spark-version
         - ec2 provider requires ec2-region
@@ -215,6 +214,8 @@ class Spark:
         host = ssh_client.get_transport().getpeername()[0]
         print("[{h}] Configuring Spark master...".format(h=host))
 
+        # TODO: Maybe move this shell script out to some separate file/folder
+        #       for the Spark module.
         ssh_check_output(
             client=ssh_client,
             command="""
@@ -244,6 +245,8 @@ class Spark:
 
         # Spark health check
         # TODO: Move to health_check() module method?
+        # TODO: Research (or implement) way to get Spark to tell you when
+        #       it's ready, as opposed to checking after a time delay.
         time.sleep(30)
 
         spark_master_ui = 'http://{m}:8080/json/'.format(m=cluster_info.master_host)
@@ -283,7 +286,8 @@ def cli(cli_context, config, provider):
 
     if os.path.exists(config):
         with open(config) as f:
-            config_map = normalize_keys(yaml.safe_load(f))
+            raw_config = yaml.safe_load(f)
+            config_map = normalize_keys(config_to_click(raw_config))
 
         cli_context.default_map = config_map
     else:
@@ -1022,6 +1026,24 @@ def normalize_keys(obj):
         return obj
     else:
         return {k.replace('-', '_'): normalize_keys(v) for k, v in obj.items()}
+
+
+def config_to_click(config: dict) -> dict:
+    """
+    Convert a dictionary of configurations loaded from a Flintrock config file
+    to a dictionary that Click can use to set default options.
+    """
+    ec2_configs = {
+        'ec2-' + k: v for (k, v) in config['providers']['ec2'].items()}
+
+    click = {
+        'launch': dict(
+            list(config['launch'].items()) + list(ec2_configs.items())),
+        'describe': ec2_configs,
+        'login': ec2_configs
+    }
+
+    return click
 
 
 if __name__ == "__main__":
