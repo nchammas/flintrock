@@ -1,4 +1,4 @@
-![Flintrock logo](flintrock-logo/v2/flintrock-logo.png)
+![Flintrock logo](flintrock-logo.png)
 
 Flintrock is a command-line tool and library for launching [Apache Spark](http://spark.apache.org/) clusters.
 
