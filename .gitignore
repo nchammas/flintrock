@@ -1,6 +1,7 @@
 # From: https://github.com/github/gitignore/blob/master/Python.gitignore
 
 config.yaml
+venv/
 *example.py
 flintrock-logo/
 .hypothesis/
