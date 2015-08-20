@@ -1,27 +1,39 @@
 # Contributing Guide
 
-**Flintrock is still under heavy development.**
+*Note: This guide was inspired in part by the excellent [Phabricator contributor docs](https://secure.phabricator.com/book/phabcontrib/).*
 
-**Until we make a 0.1 release, most PRs will be rejected.** We are likely already fixing or making that thing you want to open a PR for, and major components are rapidly evolving so your PR is likely to be invalidated by upcoming changes you may not know about.
+**Flintrock is still under heavy development and has no releases at this time.**
 
-This guide was heavily inspired by the excellent [Phabricator contributor docs](https://secure.phabricator.com/book/phabcontrib/).
+**Until we make an initial release, most PRs will be rejected.** We are likely already fixing or making that thing you want to open a PR for, and major components are rapidly evolving so your PR is likely to be invalidated by upcoming changes you may not know about.
 
 
 ## Contributing Thanks
 
-* We humans can be quite simple. A thank you motivates us and gives us energy.
+When we put our time and enthusiasm into an open source project like this, we hope that somewhere out there we are helping people by saving them time and frustration. But most of the time, we'll never know what kind of impact we made, if any, on people's lives.
+
+Hearing first-hand of the positive impact we had on someone else's day, even if it is minor, can be a huge boost of joy and motivation.
+
+Don't underestimate the power of a thank you. If Flintrock helped you in some way, share your story, no matter how long or short, and know that at times it can be the most valuable way to contribute to the project.
 
 
 ## Contributing Money
 
-[Amazon Allowance](http://www.amazon.com/b?ie=UTF8&node=11453461011)
+Most projects have various kinds of tests to make sure things are working correctly. The most valuable test for an orchestration tool like Flintrock is a full acceptance test, since the fundamental thing Flintrock does is manage remote resources.
+
+This means that as Flintrock developers we are always launching and destroying instances on some cloud provider, which costs money.
+
+Any money you contribute will go towards paying those bills.
+
+Contribute money in one of the following ways:
+
+* [Amazon Allowance](http://www.amazon.com/b?ie=UTF8&node=11453461011)
 
 
 ## Contributing Bug Reports
 
-* Provide a [short, self contained, and correct example](http://sscce.org/) of the problem you are seeing.
-* Reports will otherwise likely be ignored unless they are really easy to find and fix.
-* Confirm or deny an existing bug report.
+When reporting a bug, do your best to provide a [short, self contained, and correct example](http://sscce.org/) of the problem you are seeing. Bug reports will otherwise likely be ignored, unless they are really easy to reproduce.
+
+In addition to reporting bugs, you can also confirm or deny existing bug reports. This helps us prioritize bug fixes and understand if certain bugs are limited to certain configurations.
 
 
 ## Contributing Feature Requests
@@ -30,16 +42,16 @@ This guide was heavily inspired by the excellent [Phabricator contributor docs](
 
 What are you trying to do? Explain the root problem clearly. **This is more important than describing your proposed solution.**
 
-  When we understand your feature request in the context of what you are really trying to do, we can better evaluate any proposed solutions and perhaps even come up with a better solution that you might not see.
+When we understand your feature request in the context of what you are really trying to do, we can better evaluate any proposed solutions and perhaps even come up with a better solution that you might not see.
 
-  Describing your original problem or use case will also help us avoid the [X-Y Problem](http://mywiki.wooledge.org/XyProblem), which can waste a lot of everyone's time.
+Describing your original problem or use case will also help us avoid the [X-Y Problem](http://mywiki.wooledge.org/XyProblem), which can waste a lot of everyone's time.
 
-* Chime in on an existing feature request.
+If you see an existing feature request that you are interested in, chime in. Your input will help us flesh out the request and understand how much demand there is for it.
 
 
 ## Contributing Code
 
-Sometimes, you just wanna write some code. Just keep these guidelines in mind before you do.
+Sometimes, you just wanna write some code. Just keep these guidelines in mind before you do that if you want your code contribution accepted.
 
 ### Trivial bug fixes or changes
 
@@ -77,4 +89,4 @@ We accept this tradeoff because we have seen popular open source projects go to 
 
 Small open source projects like Flintrock, which do not have the backing of company, run on the free time and interest of contributors. Keeping the project's maintenance burden as small as possible, sometimes at the cost of reach, makes it more likely that contributors will continue to find the project fun and worth contributing to.
 
-That said, we certainly do want to support enough environments to keep the project relevant and usable to many users.
+That said, we certainly do want to support enough environments to keep the project relevant and usable to many users, and will do so whenever possible.
