@@ -41,7 +41,28 @@ That's not all. Flintrock has a few more [features](#features) that you may find
 
 ## Installation
 
-Flintrock requires Python 3.4 or newer.
+Flintrock requires Python 3.4 or newer. Since we don't have any releases yet, the only way to install Flintrock at the moment is as follows:
+
+```sh
+# Download Flintrock.
+git clone https://github.com/nchammas/flintrock
+
+# Set your defaults.
+cd flintrock
+cp config.yaml.template config.yaml
+# vi config.yaml
+
+# Install Flintrock's dependencies.
+python3 -m venv venv
+source venv/bin/activate
+python3 -m pip install -r requirements.txt
+deactivate
+
+# You're good to go now.
+./flintrock --help
+```
+
+Eventually, we plan to release binaries so that you can install Flintrock without having to worry about having Python installed.
 
 
 ## Use Cases
