@@ -2,7 +2,7 @@
 
 Flintrock is a command-line tool and library for launching [Apache Spark](http://spark.apache.org/) clusters.
 
-**Flintrock is currently undergoing heavy development. Until we make a 1.0 release, you probably should not use Flintrock unless you are ready to keep up with frequent changes to how it works.** Python hackers or heavy spark-ec2 users who are looking to experiment with something new are welcome to try Flintrock out and potentially [contribute](CONTRIBUTING.md).
+**Flintrock is currently undergoing heavy development. Until we make a 1.0 release, you probably should not use Flintrock unless you are ready to keep up with frequent changes to how it works.** Python hackers or heavy spark-ec2 users who are looking to experiment with something new are welcome to try Flintrock out and potentially even [contribute](CONTRIBUTING.md).
 
 
 ## Usage
@@ -171,40 +171,47 @@ The `spark-ec2` launch times are sourced from [SPARK-5189](https://issues.apache
 
 #### EC2
 
-* EBS optimized
-* etc.
+Flintrock exposes low-level provider options (e.g. [instance-initiated shutdown behavior](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/terminating-instances.html#Using_ChangingInstanceInitiatedShutdownBehavior)) so you can control the details of how your cluster is setup if you want.
 
 ### Library Use
 
-Python 3.
+This is not yet proven out, but Flintrock's architecture should allow it to be used as a Python 3 library. Once the command-line application matures a bit, we will flesh out this use case if there is demand for it.
 
 
 ## Anti-Features
 
-### Support for out-of-date versions of Python, EC2, etc.
+### Support for out-of-date versions of Python, EC2 APIs, etc.
 
-Supporting multiple versions of anything is tough. 
+Supporting multiple versions of anything is tough. There's more surface area to cover for testing, and over the long term the maintenance burden of supporting something non-current with bug fixes and workarounds really adds up.
 
-Same as anti-use cases. We are mortal beings with limited energy. People who support stuff across a wide cut of language or API versions are gods.
+There are projects that support stuff across a wide cut of language or API versions. For example, Spark supports Java 7 and 8, and Python 2.6+ and 3+. The people behind these projects are gods. They take on an immense maintenance burden for the benefit and convenience of their users.
+
+We here at project Flintrock are much more modest in our abilities. We are best able to serve the project over the long term when we limit ourselves to supporting a small but widely applicable set of configurations.
 
 
 ## Motivation
 
-spark-ec2 was how I got started with Spark. It is one of the biggest reasons I found Spark so accessible.
+*Note: The explanation here is provided from the perspective of Flintrock's original author, Nicholas Chammas.*
 
-Several limitations of [spark-ec2](https://spark.apache.org/docs/latest/ec2-scripts.html) provided the initial motivation for this project:
+I got started with Spark by using [spark-ec2](http://spark.apache.org/docs/latest/ec2-scripts.html). It is one of the biggest reasons I found Spark so accessible. Being able to easily launch a large and immediately usable cluster was critical to enabling me to build non-trivial POCs with Spark and build up my competency.
+
+As I became a heavy user of spark-ec2, several limitations stood out and became an increasing pain. The provided me with the motivation for this project.
+
+Among those limitations are:
 
 * **Slow launches**: spark-ec2 cluster launch times increase linearly with the number of slaves being created. For example, it takes spark-ec2 **[over an hour](https://issues.apache.org/jira/browse/SPARK-5189)** to launch a cluster with 100 slaves. (Flintrock can do it 5 minutes.) ([SPARK-4325](https://issues.apache.org/jira/browse/SPARK-4325), [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189))
-* **Immutable clusters**: Adding or removing slaves from an existing spark-ec2 cluster is not possible. ([SPARK-2008](https://issues.apache.org/jira/browse/SPARK-2008))
+* **No support for configuration files**: spark-ec2 does not support reading options from a config file, so users are always forced to type them in at the command line. ([SPARK-925](https://issues.apache.org/jira/browse/SPARK-925))
+* **Un-resizable clusters**: Adding or removing slaves from an existing spark-ec2 cluster is not possible. ([SPARK-2008](https://issues.apache.org/jira/browse/SPARK-2008))
 * **Out-of-date machine images**: spark-ec2 uses very old machine images, and the process of updating those machine images is not automated. A [bunch of work](https://issues.apache.org/jira/browse/SPARK-3821?focusedCommentId=14203280#comment-14203280) was done towards fixing that, but that work has now been adapted for use with Flintrock. ([SPARK-3821](https://issues.apache.org/jira/browse/SPARK-3821))
 * **Unexposed EC2 options**: spark-ec2 does not expose all the EC2 options one would want to use as part of automated performance testing of Spark. ([SPARK-6220](https://issues.apache.org/jira/browse/SPARK-6220))
 * **Poor support for programmatic use cases**: spark-ec2 was not built with programmatic use in mind, so many flows are difficult or impossible to automate. ([SPARK-5627](https://issues.apache.org/jira/browse/SPARK-5627), [SPARK-5629](https://issues.apache.org/jira/browse/SPARK-5629))
-* **No support for configuration files**: spark-ec2 does not support reading options from a config file, so users are always forced to type them in at the command line. ([SPARK-925](https://issues.apache.org/jira/browse/SPARK-925))
 
 Flintrock addresses all of these shortcomings.
 
 ### Additional Bonuses
 
-* 1 request to allocate all instances -- no more bugs due to instance limits, metadata not propagating, etc.
-* No assault on stdout during launch.
-* Auth on client's IP address only, not 0.0.0.0/0.
+There are a few additional peeves I had with spark-ec2 -- some of which are difficult to fix -- that I wanted to address with Flintrock:
+
+* Flintrock does not assault stdout with all kinds of unnecessary output during a cluster launch.
+* By default, Flintrock only authorizes the client it is running from to SSH into launched clusters. spark-ec2, on the other hand, allows anyone to make SSH attempts to the cluster.
+* During an EC2 cluster launch Flintrock makes a single request to allocate all the required instances. This eliminates an annoying category of bugs in spark-ec2 related to hitting instance limits or to AWS metadata not propagating quickly enough.
