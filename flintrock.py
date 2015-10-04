@@ -4,16 +4,24 @@ Flintrock
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
+    * Add run-command and maybe also run-script. Rough Flintrock equivalents for pssh
+      to run commands or entire scripts remotely.
+    * Add copy-file command to copy files to all nodes of cluster.
+    * Handle EC2 private IPs / private VPCs.
+    * Handling/reporting of issues during cluster launch
+        - Spark install goes wrong
+        - Spark version is invalid
     * Capture option dependencies nicely. For example:
+        - ec2 provider requires ec2-region, ami, etc.
         - install-spark requires spark-version
-        - ec2 provider requires ec2-region
 -- open source here --
+    * "Fix" Hadoop 2.6 S3 setup by installing appropriate Hadoop libraries
     * Module reorg - EC2 stuff to its own module.
     * ClusterInfo namedtuple -> FlintrockCluster class
         - Platform-specific (e.g. EC2) implementations of class add methods to
           stop, start, describe (with YAML output) etc. clusters
         - Implement method that takes cluster name and returns FlintrockCluster
-    * Support submit command.
+    * Support submit command for Spark applications. Like a wrapper around spark-submit. (?)
     * ext4/disk setup.
     * EBS volume setup.
     * Check that EC2 enhanced networking is enabled.
@@ -27,11 +35,6 @@ Major TODOs:
         - What are the long-term benefits?
 
 Other TODOs:
-    * Handle EC2 private IPs.
-    * Upgrade check -- Is a newer version of Flintrock available on PyPI?
-    * Credits command. (?)
-    * Automatically replaced failed instances during launch, perhaps up to a
-      certain limit (1-2 instances).
     * Support for spot instances.
         - Show wait reason (capcity oversubscribed, price too low, etc.).
     * Instance type <-> AMI type validation/lookup.
@@ -39,16 +42,20 @@ Other TODOs:
         - Otherwise have a separate YAML file with this info.
         - Maybe support HVM only. AWS seems to position it as the future.
         - Show friendly error when user tries to launch PV instance type.
-    * Persist defaults like Spark version to external file.
-        - Poll external resource if default is not specified in file. (e.g. check GitHub tags for latest Spark version) (?)
+    * Move defaults like Spark version to external file. (Maybe to existing user defaults file?)
+        - Poll external resource if default is not specified in file.
+            (e.g. check GitHub tags for latest Spark version) (?)
     * Use IAM roles to launch instead of AWS keys.
     * Setup and teardown VPC, routes, gateway, etc. from scratch.
     * Use SSHAgent instead of .pem files (?).
+    * Automatically replace failed instances during launch, perhaps up to a
+      certain limit (1-2 instances).
+    * Upgrade check -- Is a newer version of Flintrock available on PyPI?
+    * Credits command, for crediting contributors. (?)
 
 Distant future:
     * Local provider
     * GCE provider
-    * Add way for users to run arbitrary shell commands against all nodes of cluster.
     * [probably-not] Allow master and slaves to be different (spot, instance type, etc).
 
 Nothing here should be distribution-specific (e.g. yum vs. apt-get).
