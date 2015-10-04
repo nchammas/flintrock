@@ -560,9 +560,13 @@ def launch_ec2(
 
         tasks = []
         for instance in reservation.instances:
+            # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
+            #       Until then, we leave them out to maintain compatibility across Python 3.4
+            #       and 3.5.
+            # See: http://stackoverflow.com/q/32873974/
             task = loop.run_in_executor(
-                executor=None,
-                callback=functools.partial(
+                None,
+                functools.partial(
                     provision_ec2_node,
                     modules=modules,
                     host=instance.ip_address,
