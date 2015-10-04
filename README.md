@@ -90,7 +90,7 @@ Flintrock is not for managing long-lived clusters, or any infrastructure that se
 
   For starters, Flintrock provides no guarantee that clusters launched with one version of Flintrock can be managed by another version of Flintrock, and no considerations are made for any long-term use cases.
 
-  If you are looking for ways to manage permanent infrastructure, look at tools like [Terraform](https://www.terraform.io/), [Ansible](http://www.ansible.com/), [SaltStack](http://saltstack.com/), or [Ubuntu Juju](http://www.ubuntu.com/cloud/tools/juju). You might also find a service like [Databricks Cloud](https://databricks.com/product/databricks-cloud) useful if you're looking for someone else to host and manage Spark for you.
+  If you are looking for ways to manage permanent infrastructure, look at tools like [Terraform](https://www.terraform.io/), [Ansible](http://www.ansible.com/), [SaltStack](http://saltstack.com/), or [Ubuntu Juju](http://www.ubuntu.com/cloud/tools/juju). You might also find a service like [Databricks](https://databricks.com/product/databricks) useful if you're looking for someone else to host and manage Spark for you.
 
 ### Launching non-Spark-related services
 
@@ -195,11 +195,11 @@ We here at project Flintrock are much more modest in our abilities. We are best 
 
 I got started with Spark by using [spark-ec2](http://spark.apache.org/docs/latest/ec2-scripts.html). It is one of the biggest reasons I found Spark so accessible. Being able to easily launch a large and immediately usable cluster was critical to enabling me to build non-trivial POCs with Spark and build up my competency.
 
-As I became a heavy user of spark-ec2, several limitations stood out and became an increasing pain. The provided me with the motivation for this project.
+As I became a heavy user of spark-ec2, several limitations stood out and became an increasing pain. They provided me with the motivation for this project.
 
 Among those limitations are:
 
-* **Slow launches**: spark-ec2 cluster launch times increase linearly with the number of slaves being created. For example, it takes spark-ec2 **[over an hour](https://issues.apache.org/jira/browse/SPARK-5189)** to launch a cluster with 100 slaves. (Flintrock can do it 5 minutes.) ([SPARK-4325](https://issues.apache.org/jira/browse/SPARK-4325), [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189))
+* **Slow launches**: spark-ec2 cluster launch times increase linearly with the number of slaves being created. For example, it takes spark-ec2 **[over an hour](https://issues.apache.org/jira/browse/SPARK-5189)** to launch a cluster with 100 slaves. (Flintrock can do it 9 minutes.) ([SPARK-4325](https://issues.apache.org/jira/browse/SPARK-4325), [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189))
 * **No support for configuration files**: spark-ec2 does not support reading options from a config file, so users are always forced to type them in at the command line. ([SPARK-925](https://issues.apache.org/jira/browse/SPARK-925))
 * **Un-resizable clusters**: Adding or removing slaves from an existing spark-ec2 cluster is not possible. ([SPARK-2008](https://issues.apache.org/jira/browse/SPARK-2008))
 * **Out-of-date machine images**: spark-ec2 uses very old machine images, and the process of updating those machine images is not automated. A [bunch of work](https://issues.apache.org/jira/browse/SPARK-3821?focusedCommentId=14203280#comment-14203280) was done towards fixing that, but that work has now been adapted for use with Flintrock. ([SPARK-3821](https://issues.apache.org/jira/browse/SPARK-3821))
