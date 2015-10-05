@@ -41,6 +41,8 @@ That's not all. Flintrock has a few more [features](#features) that you may find
 
 ## Installation
 
+Before using Flintrock, take a quick look at the [copyright](COPYRIGHT) notice and [license](LICENSE) and make sure you're OK with their terms.
+
 Flintrock requires Python 3.4 or newer. Since we don't have any releases yet, the only way to install Flintrock at the moment is as follows:
 
 ```sh

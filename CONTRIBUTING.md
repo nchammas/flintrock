@@ -53,6 +53,12 @@ If you see an existing feature request that you are interested in, chime in. You
 
 Sometimes, you just wanna write some code. Just keep these guidelines in mind before you do that if you want your code contribution accepted.
 
+### License
+
+Unless you explicitly tell us otherwise, when you contribute code you affirm that the contribution is your original work and that you license it to the project under the project's [license](LICENSE).
+
+Please make sure that you are OK with our license's terms before contributing code.
+
 ### Trivial bug fixes or changes
 
 If you're making a small change, go right ahead and open that pull request. There's no need to coordinate beforehand.
