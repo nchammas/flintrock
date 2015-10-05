@@ -8,9 +8,10 @@ Major TODOs:
       to run commands or entire scripts remotely.
     * Add copy-file command to copy files to all nodes of cluster.
     * Handle EC2 private IPs / private VPCs.
-    * Handling/reporting of issues during cluster launch
+    * Handling of exceptions / reporting of issues during cluster launch.
         - Spark install goes wrong
         - Spark version is invalid
+        - Current exception output is quite ugly. Related to thread executor / asyncio.
     * Capture option dependencies nicely. For example:
         - ec2 provider requires ec2-region, ami, etc.
         - install-spark requires spark-version
@@ -88,7 +89,7 @@ import paramiko
 import yaml
 
 _SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-DEFAULT_SPARK_VERSION = '1.3.1'
+DEFAULT_SPARK_VERSION = '1.5.0'
 
 
 def timeit(func):
@@ -173,25 +174,36 @@ class Spark:
         """
         Downloads and installs Spark on a given node.
         """
+        # TODO: Allow users to specify the Spark "distribution".
+        distribution = 'hadoop1'
+
         print("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
-        # TODO: Figure out how these non-template paths should work.
-        ssh_check_output(
-            client=ssh_client,
-            command="""
-                set -e
+        try:
+            # TODO: Figure out how these non-template paths should work.
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    set -e
 
-                echo {f} > /tmp/install-spark.sh
-                chmod 755 /tmp/install-spark.sh
+                    echo {f} > /tmp/install-spark.sh
+                    chmod 755 /tmp/install-spark.sh
 
-                /tmp/install-spark.sh {v} hadoop1
-            """.format(
-                f=shlex.quote(
-                    get_formatted_template(
-                        path='./install-spark.sh',
-                        mapping=vars(cluster_info))),
-                v=shlex.quote(self.version)))
+                    /tmp/install-spark.sh {spark_version} {distribution}
+                """.format(
+                    f=shlex.quote(
+                        get_formatted_template(
+                            path='./install-spark.sh',
+                            mapping=vars(cluster_info))),
+                    spark_version=shlex.quote(self.version),
+                    distribution=shlex.quote(distribution)))
+        except Exception as e:
+            print("Could not find package for Spark {s} / {d}.".format(
+                    s=self.version,
+                    d=distribution
+                ), file=sys.stderr)
+            raise
 
         template_path = "./spark/conf/spark-env.sh"
         ssh_check_output(
@@ -689,7 +701,9 @@ def ssh_check_output(client: "paramiko.client.SSHClient", command: str):
     if exit_status:
         # TODO: Return a custom exception that includes the return code.
         # See: https://docs.python.org/3/library/subprocess.html#subprocess.check_output
-        raise Exception(stderr.read().decode("utf8").rstrip('\n'))
+        raise Exception(
+            stdout.read().decode("utf8").rstrip('\n') +
+            stderr.read().decode("utf8").rstrip('\n'))
 
     return stdout.read().decode("utf8").rstrip('\n')
 
