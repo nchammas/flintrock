@@ -217,3 +217,8 @@ There are a few additional peeves I had with spark-ec2 -- some of which are diff
 * Flintrock does not assault stdout with all kinds of unnecessary output during a cluster launch.
 * By default, Flintrock only authorizes the client it is running from to SSH into launched clusters. spark-ec2, on the other hand, allows anyone to make SSH attempts to the cluster.
 * During an EC2 cluster launch Flintrock makes a single request to allocate all the required instances. This eliminates an annoying category of bugs in spark-ec2 related to hitting instance limits or to AWS metadata not propagating quickly enough.
+
+
+## About the Flintrock Logo
+
+The [Flintrock logo](flintrock-logo.png) was created using [Highbrow Cafetorium JNL](http://www.myfonts.com/fonts/jnlevine/highbrow-cafetorium/) and [this icon](https://thenounproject.com/term/stars/40856/). Licenses to use both the font and icon were purchased from their respective owners.
