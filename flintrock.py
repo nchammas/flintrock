@@ -89,7 +89,6 @@ def get_default_modules(install_spark = True):
         from flint.modules.spark import Spark
         spark = Spark(version=DEFAULT_SPARK_VERSION)
         modules += [spark]
-
     return modules
 
 @click.group()
