@@ -192,17 +192,18 @@ class Spark:
 
                     /tmp/install-spark.sh {spark_version} {distribution}
                 """.format(
-                    f=shlex.quote(
-                        get_formatted_template(
-                            path='./install-spark.sh',
-                            mapping=vars(cluster_info))),
-                    spark_version=shlex.quote(self.version),
-                    distribution=shlex.quote(distribution)))
+                        f=shlex.quote(
+                            get_formatted_template(
+                                path='./install-spark.sh',
+                                mapping=vars(cluster_info))),
+                        spark_version=shlex.quote(self.version),
+                        distribution=shlex.quote(distribution)))
         except Exception as e:
-            print("Could not find package for Spark {s} / {d}.".format(
+            print(
+                "Could not find package for Spark {s} / {d}.".format(
                     s=self.version,
-                    d=distribution
-                ), file=sys.stderr)
+                    d=distribution),
+                file=sys.stderr)
             raise
 
         template_path = "./spark/conf/spark-env.sh"
