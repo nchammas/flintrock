@@ -7,7 +7,6 @@ import paramiko
 from collections import namedtuple
 
 # Flintrock modules.
-from ..providers.ec2 import ClusterInfo
 from ..ssh import generate_ssh_key_pair
 from ..ssh import ssh_check_output
 
@@ -27,6 +26,15 @@ def get_formatted_template(path: str, mapping: dict) -> str:
 
     return formatted
 
+SparkTemplateVariables = namedtuple(
+    'SparkTemplateVariables', [
+        'name',
+        'master_host',
+        'slave_hosts',
+        'spark_scratch_dir',
+        'spark_master_opts'
+    ])
+
 # TODO: Turn this into an implementation of an abstract FlintrockModule class. (?)
 class Spark:
     def __init__(self, version):
@@ -35,20 +43,30 @@ class Spark:
     def install(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster_info: ClusterInfo):
+            cluster_provider):
+
         """
         Downloads and installs Spark on a given node.
         """
         # TODO: Allow users to specify the Spark "distribution".
         distribution = 'hadoop1'
 
-        print("[{h}] Installing Spark...".format(
-            h=ssh_client.get_transport().getpeername()[0]))
+        host = ssh_client.get_transport().getpeername()[0]
+        print("[{h}] Installing Spark...".format(h=host))
+
+        # Collect information that is needed to fill in the templates
+        (master_instance, slave_instances) = cluster_provider.get_cluster_instances()
+        template_vars = SparkTemplateVariables(
+            name=cluster_provider.cluster_name,
+            master_host=master_instance.public_dns_name,
+            slave_hosts=[instance.public_dns_name for instance in slave_instances],
+            spark_scratch_dir='/mnt/spark',
+            spark_master_opts="")
 
         try:
             # TODO: Figure out how these non-template paths should work.
             ssh_check_output(
-                client=ssh_client,
+                ssh_client=ssh_client,
                 command="""
                     set -e
 
@@ -60,7 +78,7 @@ class Spark:
                     f=shlex.quote(
                         get_formatted_template(
                             path='./install-spark.sh',
-                            mapping=vars(cluster_info))),
+                            mapping=vars(template_vars))),
                     spark_version=shlex.quote(self.version),
                     distribution=shlex.quote(distribution)))
         except Exception as e:
@@ -70,38 +88,56 @@ class Spark:
                 ), file=sys.stderr)
             raise
 
+
+    def configure(self,
+                  ssh_client: paramiko.client.SSHClient,
+                  cluster_provider):
+        """
+        Runs after all nodes are "ready".
+        """
+
+        host = ssh_client.get_transport().getpeername()[0]
+        print("[{h}] Configuring Spark...".format(h=host))
+
+        # Collect information that is needed to fill in the templates
+        (master_instance, slave_instances) = cluster_provider.get_cluster_instances()
+        template_vars = SparkTemplateVariables(
+            name=cluster_provider.cluster_name,
+            master_host=master_instance.public_dns_name,
+            slave_hosts=[instance.public_dns_name for instance in slave_instances],
+            spark_scratch_dir='/mnt/spark',
+            spark_master_opts="")
+
         template_path = "./spark/conf/spark-env.sh"
         ssh_check_output(
-            client=ssh_client,
+            ssh_client=ssh_client,
             command="""
                 echo {f} > {p}
             """.format(
                 f=shlex.quote(
                     get_formatted_template(
                         path="templates/" + template_path,
-                        mapping=vars(cluster_info))),
+                        mapping=vars(template_vars))),
                 p=shlex.quote(template_path)))
-
-    def configure(self):
-        """
-        Runs after all nodes are "ready".
-        """
-        pass
 
     def configure_master(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster_info: ClusterInfo):
+            cluster_provider):
         """
         Configures the Spark master and starts both the master and slaves.
         """
         host = ssh_client.get_transport().getpeername()[0]
         print("[{h}] Configuring Spark master...".format(h=host))
 
+        (master_instance, slave_instances) = cluster_provider.get_cluster_instances()
+        slave_hosts = [instance.public_dns_name for instance in slave_instances]
+        master_host = master_instance.public_dns_name
+
         # TODO: Maybe move this shell script out to some separate file/folder
         #       for the Spark module.
         ssh_check_output(
-            client=ssh_client,
+            ssh_client=ssh_client,
             command="""
                 set -e
 
@@ -124,16 +160,16 @@ class Spark:
 
                 spark/sbin/start-slaves.sh
             """.format(
-                s=shlex.quote('\n'.join(cluster_info.slave_hosts)),
-                m=shlex.quote(cluster_info.master_host)))
+                s=shlex.quote('\n'.join(slave_hosts)),
+                m=shlex.quote(master_host)))
 
         # Spark health check
         # TODO: Move to health_check() module method?
         # TODO: Research (or implement) way to get Spark to tell you when
         #       it's ready, as opposed to checking after a time delay.
-        time.sleep(30)
+        time.sleep(10)
 
-        spark_master_ui = 'http://{m}:8080/json/'.format(m=cluster_info.master_host)
+        spark_master_ui = 'http://{m}:8080/json/'.format(m=master_host)
 
         spark_ui_info = json.loads(
             urllib.request.urlopen(spark_master_ui).read().decode('utf-8'))
@@ -145,14 +181,15 @@ class Spark:
               * Master: {status}
               * Workers: {workers}
               * Cores: {cores}
-              * Memory: {memory:.1f} GB\
+              * Memory: {memory:.1f} GB
+
             Web UI available at: http://{m}:8080
             """.format(
                 status=spark_ui_info['status'],
                 workers=len(spark_ui_info['workers']),
                 cores=spark_ui_info['cores'],
                 memory=spark_ui_info['memory'] / 1024,
-                m = cluster_info.master_host)))
+                m = master_host)))
 
     def configure_slave(self):
         pass

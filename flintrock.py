@@ -77,10 +77,20 @@ import click
 import yaml
 
 # Flintrock modules.
-import flint.providers.ec2 as ec2
+from flint.providers.ec2 import AmazonEc2Provider
 
 _SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 DEFAULT_SPARK_VERSION = '1.5.0'
+
+def get_default_modules(install_spark = True):
+    modules = []
+
+    if install_spark:
+        from flint.modules.spark import Spark
+        spark = Spark(version=DEFAULT_SPARK_VERSION)
+        modules += [spark]
+
+    return modules
 
 @click.group()
 @click.option('--config', default=_SCRIPT_DIR + '/config.yaml')
@@ -151,16 +161,13 @@ def launch(
     """
     Launch a new cluster.
     """
-    modules = []
-
-    if install_spark:
-        from flint.modules.spark import Spark
-        spark = Spark(version=spark_version)
-        modules += [spark]
 
     if cli_context.obj['provider'] == 'ec2':
-        return ec2.launch(
-            cluster_name=cluster_name, num_slaves=num_slaves, modules=modules,
+        provider = AmazonEc2Provider(cluster_name=cluster_name,
+                                     modules=get_default_modules(),
+                                     region=ec2_region)
+        return provider.launch_cluster(
+            num_slaves=num_slaves,
             key_name=ec2_key_name,
             identity_file=ec2_identity_file,
             instance_type=ec2_instance_type,
@@ -192,10 +199,11 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region):
     Destroy a cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.destroy(
-            cluster_name=cluster_name,
-            assume_yes=assume_yes,
-            region=ec2_region)
+        provider = AmazonEc2Provider(cluster_name=cluster_name,
+                                     modules=get_default_modules(),
+                                     region=ec2_region)
+        provider.destroy_cluster(assume_yes=assume_yes,
+                                 region=ec2_region)
     else:
         # TODO: Create UnsupportedProviderException. (?)
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
@@ -249,8 +257,13 @@ def describe(
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 # TODO: Move identity-file to global, non-provider-specific option. (?)
 @click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
+@click.option('--ssh-tunnel-ports', default=None,
+              help="Set up ssh port forwarding when you login to the cluster.  " +
+              "This provides a convenient alternative to connecting to iPython " +
+              "notebook over an open port using SSL.  You must supply an argument " +
+              "of the form \"local_port:remote_port\".")
 @click.pass_context
-def login(cli_context, cluster_name, ec2_region, ec2_identity_file):
+def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ssh_tunnel_ports):
     """
     Login to the master of an existing cluster.
     """
@@ -258,7 +271,8 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file):
         ec2.login(
             cluster_name=cluster_name,
             region=ec2_region,
-            identity_file=ec2_identity_file)
+            identity_file=ec2_identity_file,
+            ssh_tunnel_ports=ssh_tunnel_ports)
     else:
         # TODO: Create UnsupportedProviderException. (?)
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
@@ -267,13 +281,18 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--ec2-identity-file', help="Path to SSH .pem file for accessing nodes.")
 @click.pass_context
-def start(cli_context, cluster_name, ec2_region):
+def start(cli_context, cluster_name, ec2_identity_file, ec2_region):
     """
     Start an existing, stopped cluster.
     """
+
     if cli_context.obj['provider'] == 'ec2':
-        ec2.start(cluster_name=cluster_name, region=ec2_region)
+        provider = AmazonEc2Provider(cluster_name=cluster_name,
+                                     modules=get_default_modules(),
+                                     region=ec2_region)
+        provider.start_cluster(identity_file = ec2_identity_file)
     else:
         # TODO: Create UnsupportedProviderException. (?)
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
@@ -290,9 +309,13 @@ def stop(cli_context, cluster_name, ec2_region, assume_yes, wait_for_confirmatio
     """
     Stop an existing, running cluster.
     """
+
+    modules = get_default_modules()
     if cli_context.obj['provider'] == 'ec2':
-        ec2.stop(cluster_name=cluster_name, region=ec2_region,
-                 assume_yes=assume_yes, wait_for_confirmation=wait_for_confirmation)
+        provider = AmazonEc2Provider(cluster_name=cluster_name,
+                                     modules=get_default_modules(),
+                                     region=ec2_region)
+        provider.stop_cluster(assume_yes=assume_yes, wait_for_confirmation=wait_for_confirmation)
     else:
         # TODO: Create UnsupportedProviderException. (?)
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
@@ -318,6 +341,8 @@ def config_to_click(config: dict) -> dict:
 
     click = {
         'launch': dict(
+            list(config['launch'].items()) + list(ec2_configs.items())),
+        'start': dict(
             list(config['launch'].items()) + list(ec2_configs.items())),
         'describe': ec2_configs,
         'login': ec2_configs
