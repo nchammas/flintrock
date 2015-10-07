@@ -4,20 +4,12 @@ Flintrock
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-    * Add run-command and maybe also run-script. Rough Flintrock equivalents for pssh
-      to run commands or entire scripts remotely.
-    * Add copy-file command to copy files to all nodes of cluster.
-    * Handle EC2 private IPs / private VPCs.
     * Handling of exceptions / reporting of issues during cluster launch.
         - Spark install goes wrong
         - Spark version is invalid
         - Current exception output is quite ugly. Related to thread executor / asyncio.
-    * Capture option dependencies nicely. For example:
-        - ec2 provider requires ec2-region, ami, etc.
-        - install-spark requires spark-version
--- open source here --
     * "Fix" Hadoop 2.6 S3 setup by installing appropriate Hadoop libraries
-    * Module reorg - EC2 stuff to its own module.
+      See: https://issues.apache.org/jira/browse/SPARK-7442
     * ClusterInfo namedtuple -> FlintrockCluster class
         - Platform-specific (e.g. EC2) implementations of class add methods to
           stop, start, describe (with YAML output) etc. clusters
@@ -26,12 +18,6 @@ Major TODOs:
     * ext4/disk setup.
     * EBS volume setup.
     * Check that EC2 enhanced networking is enabled.
-    * Packaging:
-        - Binary distribution so people don't need to have Python 3 installed.
-            - cx_Freeze and family
-        - pip install deps to venv
-        - setuptools Windows config
-        - See: https://packaging.python.org/en/latest/distributing.html
     * Upgrade to boto3: http://boto3.readthedocs.org/en/latest/
         - What are the long-term benefits?
 
@@ -56,11 +42,7 @@ Other TODOs:
 
 Distant future:
     * Local provider
-    * GCE provider
     * [probably-not] Allow master and slaves to be different (spot, instance type, etc).
-
-Nothing here should be distribution-specific (e.g. yum vs. apt-get).
-That stuff belongs under image-build/.
 """
 
 import os
