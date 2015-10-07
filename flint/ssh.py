@@ -87,7 +87,7 @@ def ssh_check_output(ssh_client: "paramiko.client.SSHClient", command: str, stop
     return exit_status
 
 
-def ssh_login(host, identity_file, ssh_tunnel):
+def ssh_login(host, identity_file, ssh_tunnel_ports):
     """
     SSH into a host for interactive use.
     """
@@ -101,8 +101,8 @@ def ssh_login(host, identity_file, ssh_tunnel):
     #
     # If the user has requested ssh port forwarding, we set
     # that up here.
-    if ssh_tunnel is not None:
-        ssh_ports = ssh_tunnel.split(":")
+    if ssh_tunnel_ports is not None:
+        ssh_ports = ssh_tunnel_ports.split(":")
         if len(ssh_ports) != 2:
             print("\nERROR: Could not parse arguments to \'--ssh-tunnel\'.")
             print("       Be sure you use the syntax \'local_port:remote_port\'")

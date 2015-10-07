@@ -238,8 +238,10 @@ def describe(
     Leave out the cluster name to find all Flintrock-managed clusters.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.describe(
-            cluster_name=cluster_name,
+        provider = AmazonEc2Provider(cluster_name=cluster_name,
+                                     modules=get_default_modules(),
+                                     region=ec2_region)
+        provider.describe_cluster(
             master_hostname_only=master_hostname_only,
             region=ec2_region)
     else:
@@ -267,8 +269,10 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ssh_tunnel_p
     Login to the master of an existing cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.login(
-            cluster_name=cluster_name,
+        provider = AmazonEc2Provider(cluster_name=cluster_name,
+                                     modules=get_default_modules(),
+                                     region=ec2_region)
+        provider.login(
             region=ec2_region,
             identity_file=ec2_identity_file,
             ssh_tunnel_ports=ssh_tunnel_ports)

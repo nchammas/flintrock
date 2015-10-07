@@ -103,46 +103,6 @@ def print_cluster_info(cluster_name: str, cluster_instances: list):
     if get_cluster_state(cluster_instances=cluster_instances) == 'running':
         print('\n    - '.join(['  nodes:'] + [i.public_dns_name for i in cluster_instances]))
 
-def describe(*, cluster_name, master_hostname_only=False, region):
-    connection = boto.ec2.connect_to_region(region_name=region)
-
-    cluster_instances = connection.get_only_instances(
-        filters={
-            'instance.group-name': 'flintrock-' + cluster_name if cluster_name else 'flintrock',
-            'instance-state-name' : 'running'
-        })
-
-    # TODO: Capture this in some reusable method that gets info about a bunch of
-    #       Flintrock clusters and returns a list of FlintrockCluster objects.
-    #
-    #       Then, maybe just serialize that list to screen using YAML.
-    #       You'll have to deal with PyYAML's inability to customize the output
-    #       order of the keys.
-    #
-    #       See: https://issues.apache.org/jira/browse/SPARK-5629?focusedCommentId=14325346#comment-14325346
-    #       Add provider-specific information like EC2 region.
-    import itertools
-    security_groups = itertools.chain.from_iterable([i.groups for i in cluster_instances])
-    security_group_names = {g.name for g in security_groups if g.name.startswith('flintrock-')}
-    cluster_names = [n.replace('flintrock-', '', 1) for n in security_group_names]
-
-    print("{n} cluster{s} found.".format(
-        n=len(cluster_names),
-        s='' if len(cluster_names) == 1 else 's'))
-
-    if cluster_names:
-        print('---')
-
-        for cluster_name in sorted(cluster_names):
-            filtered_instances = []
-
-            for instance in cluster_instances:
-                if ('flintrock-' + cluster_name) in {g.name for g in instance.groups}:
-                    filtered_instances.append(instance)
-
-            print_cluster_info(
-                cluster_name=cluster_name,
-                cluster_instances=filtered_instances)
 
 # ---------------------------------------------------------------------------------
 #                            AmazonEc2Provider Methods
@@ -553,7 +513,7 @@ class AmazonEc2Provider(object):
             print("Cluster '{c}' does not exist.".format(c = self.cluster_name))
             sys.exit(0)
 
-        if master_instance.state is not "running":
+        if master_instance.state != "running":
             print("Could not log into cluster '{c}'.  Master node exists, but is not running.".format(c=self.cluster_name))
             sys.exit(0)
 
@@ -692,3 +652,44 @@ class AmazonEc2Provider(object):
             else:
                 print("Cluster '{c}' is now {ds}.".format(c=self.cluster_name, ds=desired_state))
                 break
+
+    def describe_cluster(self, *, master_hostname_only=False, region):
+        connection = boto.ec2.connect_to_region(region_name=region)
+
+        cluster_instances = connection.get_only_instances(
+            filters={
+                'instance.group-name': 'flintrock-' + self.cluster_name if self.cluster_name else 'flintrock',
+                'instance-state-name' : 'running'
+            })
+
+        # TODO: Capture this in some reusable method that gets info about a bunch of
+        #       Flintrock clusters and returns a list of FlintrockCluster objects.
+        #
+        #       Then, maybe just serialize that list to screen using YAML.
+        #       You'll have to deal with PyYAML's inability to customize the output
+        #       order of the keys.
+        #
+        #       See: https://issues.apache.org/jira/browse/SPARK-5629?focusedCommentId=14325346#comment-14325346
+        #       Add provider-specific information like EC2 region.
+        import itertools
+        security_groups = itertools.chain.from_iterable([i.groups for i in cluster_instances])
+        security_group_names = {g.name for g in security_groups if g.name.startswith('flintrock-')}
+        cluster_names = [n.replace('flintrock-', '', 1) for n in security_group_names]
+
+        print("{n} cluster{s} found.".format(
+            n=len(cluster_names),
+            s='' if len(cluster_names) == 1 else 's'))
+
+        if cluster_names:
+            print('---')
+
+            for cluster_name in sorted(cluster_names):
+                filtered_instances = []
+
+                for instance in cluster_instances:
+                    if ('flintrock-' + self.cluster_name) in {g.name for g in instance.groups}:
+                        filtered_instances.append(instance)
+
+                print_cluster_info(
+                    cluster_name=self.cluster_name,
+                    cluster_instances=filtered_instances)
