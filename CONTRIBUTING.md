@@ -95,12 +95,8 @@ If you are adding or touching lots of code, then be prepared to go through many 
 
 ### Expanding the support matrix
 
-We will generally reject contributions that expand the number of operating systems, configurations, or languages that Flintrock supports, because they impose a large maintenance burden over the project's lifespan.
-
-In some cases, this will mean rejecting contributions that might significantly expand the potential user base for the project, for example, like adding Python 2 support.
+We will generally reject contributions that expand the number of operating systems, configurations, or languages that Flintrock supports, because they impose a large maintenance burden on the project over its lifespan. In some cases this might mean rejecting contributions that could significantly expand the project's potential user base.
 
 We accept this tradeoff because we have seen popular open source projects go to decay because their maintenance burden grew large enough to kill the fun of the project for the core developers.
 
-Small open source projects like Flintrock, which do not have the backing of company, run on the free time and interest of contributors. Keeping the project's maintenance burden as small as possible, sometimes at the cost of reach, makes it more likely that contributors will continue to find the project fun and worth contributing to.
-
-That said, we certainly do want to support enough environments to keep the project relevant and usable to many users, and will do so whenever possible.
+Small open source projects like Flintrock, which do not have the backing of a company, run on the free time and interest of contributors. Keeping the project's maintenance burden as small as possible, sometimes at the cost of reach, makes it more likely that contributors will continue to take interest in the project for a long time. This better serves our user base over the long run.
