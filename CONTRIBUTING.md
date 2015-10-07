@@ -81,6 +81,14 @@ Programming can be like intercourse. A neat new feature can cranked out after a 
 
 When building something new, don't just consider the value it will provide. Consider also how much work it will take to keep it working over the years. Is it worth it in the long run? This is doubly important if you don't see yourself sticking around to take care of your baby. How easy will it be for others take responsibility for your work?
 
+#### Capture one idea in one pull request
+
+*Note: This section is largely a summary of the [guidance given here](https://secure.phabricator.com/book/phabflavor/article/recommendations_on_revision_control/) by Evan Priestley of the Phabricator project.*
+
+Make sure each pull request you submit captures a single coherent idea. This limits the scope of any given pull request and makes it much easier for a reviewer to understand what you are doing and give precise feedback. Don't mix logically independent changes in the same request if they can be submitted separately.
+
+After you and the reviewers agree that a pull request is ready to be accepted, you will be asked to squash your commits into one before your change is merged in. This helps us ensure that every commit in Flintrock's history represents a working state, and makes changes easier to browse through and understand.
+
 #### Expect many revisions
 
 If you are adding or touching lots of code, then be prepared to go through many rounds of revisions before your pull request is accepted. This is normal, especially as you are still getting acquainted with the project's standards and style.
