@@ -20,7 +20,7 @@ def ssh_open(instance, user: str, identity_file: str, max_retries = 100, wait_in
 
     if identity_file == None:
         print("You must supply a valid SSH identity_file.")
-        sys.exit(0)
+        sys.exit(1)
 
     num_tries = 0
     while True:
@@ -51,9 +51,9 @@ def ssh_open(instance, user: str, identity_file: str, max_retries = 100, wait_in
                 timeout=5)
             break
         except socket.timeout as e:
-            time.sleep(wait_interval)
+            time.sleep(wait_interval) # Timeout
         except socket.error as e:
-            if e.errno != 61:
+            if e.errno != 61:         # Connection refused
                 raise
             time.sleep(wait_interval)
         except Exception as e:        # TODO: be more precise about which errors we catch
@@ -87,7 +87,7 @@ def ssh_check_output(ssh_client: "paramiko.client.SSHClient", command: str, stop
     return exit_status
 
 
-def ssh_login(host, identity_file, ssh_tunnel_ports):
+def ssh_login(user: str, host: str, identity_file: str, ssh_tunnel_ports:str = None):
     """
     SSH into a host for interactive use.
     """
@@ -115,7 +115,7 @@ def ssh_login(host, identity_file, ssh_tunnel_ports):
                 '-o', 'StrictHostKeyChecking=no',
                 '-i', identity_file,
                 '-L', '{local}:127.0.0.1:{remote}'.format(local=ssh_ports[0], remote=ssh_ports[1]),
-                '{u}@{h}'.format(u = "ec2-user", h = host)])
+                '{u}@{h}'.format(u = user, h = host)])
         except subprocess.CalledProcessError:
             print("\nERROR: Could not establish ssh connection with port forwarding.")
             print("       Check your Internet connection and make sure that the")
@@ -126,7 +126,7 @@ def ssh_login(host, identity_file, ssh_tunnel_ports):
             'ssh',
             '-o', 'StrictHostKeyChecking=no',
             '-i', identity_file,
-            'ec2-user@{h}'.format(h=host)])
+            '{u}@{h}'.format(u=user, h=host)])
 
     return ret
 

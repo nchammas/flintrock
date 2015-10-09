@@ -517,7 +517,8 @@ class AmazonEc2Provider(object):
             print("Could not log into cluster '{c}'.  Master node exists, but is not running.".format(c=self.cluster_name))
             sys.exit(0)
 
-        ssh_login(host=master_instance.public_dns_name,
+        ssh_login(user = "ec2-user",
+                  host=master_instance.public_dns_name,
                   identity_file=identity_file,
                   ssh_tunnel_ports = ssh_tunnel_ports)
 

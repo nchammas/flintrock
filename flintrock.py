@@ -258,13 +258,13 @@ def describe(
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 # TODO: Move identity-file to global, non-provider-specific option. (?)
 @click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
-@click.option('--ssh-tunnel-ports', default=None,
+@click.option('--ssh-tunnel', default=None,
               help="Set up ssh port forwarding when you login to the cluster.  " +
               "This provides a convenient alternative to connecting to iPython " +
               "notebook over an open port using SSL.  You must supply an argument " +
               "of the form \"local_port:remote_port\".")
 @click.pass_context
-def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ssh_tunnel_ports):
+def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ssh_tunnel):
     """
     Login to the master of an existing cluster.
     """
@@ -275,7 +275,7 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ssh_tunnel_p
         provider.login(
             region=ec2_region,
             identity_file=ec2_identity_file,
-            ssh_tunnel_ports=ssh_tunnel_ports)
+            ssh_tunnel_ports=ssh_tunnel)
     else:
         # TODO: Create UnsupportedProviderException. (?)
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
