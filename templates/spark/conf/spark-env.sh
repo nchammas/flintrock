@@ -4,7 +4,7 @@ export SPARK_LOCAL_DIRS="{spark_scratch_dir}"
 
 # Standalone cluster options
 export SPARK_MASTER_OPTS="{spark_master_opts}"
-export SPARK_WORKER_INSTANCES="1"
+export SPARK_EXECUTOR_INSTANCES="1"
 export SPARK_WORKER_CORES="$(nproc)"
 
 export HADOOP_HOME=""
