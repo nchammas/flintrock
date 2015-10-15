@@ -188,6 +188,15 @@ class Spark:
                 file=sys.stderr)
             raise
 
+    def configure(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster_info: ClusterInfo):
+        """
+        Configures Spark after it's installed.
+
+        This method is master/slave-agnostic.
+        """
         template_path = "./spark/conf/spark-env.sh"
         ssh_check_output(
             client=ssh_client,
@@ -199,12 +208,6 @@ class Spark:
                         path="templates/" + template_path,
                         mapping=vars(cluster_info))),
                 p=shlex.quote(template_path)))
-
-    def configure(self):
-        """
-        Runs after all nodes are "ready".
-        """
-        pass
 
     def configure_master(
             self,
@@ -218,6 +221,7 @@ class Spark:
 
         # TODO: Maybe move this shell script out to some separate file/folder
         #       for the Spark module.
+        # TODO: Add some timeout for waiting on master UI to come up.
         ssh_check_output(
             client=ssh_client,
             command="""
@@ -245,16 +249,24 @@ class Spark:
                 s=shlex.quote('\n'.join(cluster_info.slave_hosts)),
                 m=shlex.quote(cluster_info.master_host)))
 
-        # Spark health check
-        # TODO: Move to health_check() module method?
-        # TODO: Research (or implement) way to get Spark to tell you when
-        #       it's ready, as opposed to checking after a time delay.
-        time.sleep(30)
+    def configure_slave(self):
+        pass
 
-        spark_master_ui = 'http://{m}:8080/json/'.format(m=cluster_info.master_host)
+    def health_check(self, master_host: str):
+        """
+        Check that Spark is functioning.
+        """
+        spark_master_ui = 'http://{m}:8080/json/'.format(m=master_host)
 
-        spark_ui_info = json.loads(
-            urllib.request.urlopen(spark_master_ui).read().decode('utf-8'))
+        try:
+            spark_ui_info = json.loads(
+                urllib.request.urlopen(spark_master_ui).read().decode('utf-8'))
+        except Exception as e:
+            # TODO: Catch a more specific problem known to be related to Spark not
+            #       being up; provide a slightly better error message, and don't
+            #       dump a large stack trace on the user.
+            print("Spark health check failed.", file=sys.stderr)
+            raise
 
         print(textwrap.dedent(
             """\
@@ -268,9 +280,6 @@ class Spark:
                 workers=len(spark_ui_info['workers']),
                 cores=spark_ui_info['cores'],
                 memory=spark_ui_info['memory'] / 1024)))
-
-    def configure_slave(self):
-        pass
 
 
 @click.group()
@@ -524,8 +533,6 @@ def launch_ec2(
                     time.sleep(3)
                     break
             else:
-                print("All {c} instances now running.".format(
-                    c=len(reservation.instances)))
                 break
 
         master_instance = reservation.instances[0]
@@ -574,36 +581,32 @@ def launch_ec2(
         print("All {c} instances provisioned.".format(
             c=len(reservation.instances)))
 
-        # --- This stuff here runs after all the nodes are provisioned. ---
-        with paramiko.client.SSHClient() as client:
-            client.load_system_host_keys()
-            client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
+        master_ssh_client = get_ssh_client(
+            user='ec2-user',
+            host=master_instance.ip_address,
+            identity_file=identity_file)
 
-            client.connect(
-                username="ec2-user",
-                hostname=master_instance.public_dns_name,
-                key_filename=identity_file,
-                timeout=3)
-
+        with master_ssh_client:
             for module in modules:
                 module.configure_master(
-                    ssh_client=client,
+                    ssh_client=master_ssh_client,
                     cluster_info=cluster_info)
+                # NOTE: We sleep here so that Spark (currently the only supported module)
+                #       has time to spin up all its slaves.
+                # TODO: Spark module methods to start_slave() and start_master() which are
+                #       separate from configure_master() and which block until Spark services
+                #       on that node are fully running.
+                time.sleep(30)
+                module.health_check(master_host=cluster_info.master_host)
 
-            # Login to the master for manual inspection.
-            # TODO: Move to master_login() method.
-            # ret = subprocess.call(
-            #     """
-            #     set -x
-            #     ssh -o "StrictHostKeyChecking=no" \
-            #         -i {identity_file} \
-            #         ec2-user@{host}
-            #     """.format(
-            #         identity_file=shlex.quote(identity_file),
-            #         host=shlex.quote(master_instance.public_dns_name)),
-            #     shell=True)
+        # Login to the master for manual inspection.
+        # TODO: Move to master_login() method.
+        # ssh(
+        #   host=master_instance.ip_address,
+        #   identity_file=identity_file)
 
     except KeyboardInterrupt as e:
+        # TODO: Terminate instances. (?)
         print("Exiting...")
         sys.exit(1)
     # finally:
@@ -614,14 +617,46 @@ def launch_ec2(
     #         instance.terminate()
 
 
-# boto is not thread-safe so each task needs to create its own connection.
-# Reference, from boto's primary maintainer: http://stackoverflow.com/a/19542645/
+def get_ssh_client(
+        *,
+        user: str,
+        host: str,
+        identity_file: str,
+        print_status: bool=False) -> paramiko.client.SSHClient:
+    """
+    Get an SSH client for the provided host, waiting as necessary for SSH to become available.
+    """
+    client = paramiko.client.SSHClient()
+
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
+
+    while True:
+        try:
+            client.connect(
+                username="ec2-user",
+                hostname=host,
+                key_filename=identity_file,
+                timeout=3)
+            if print_status:
+                print("[{h}] SSH online.".format(h=host))
+            break
+        except socket.timeout as e:
+            time.sleep(5)
+        except socket.error as e:
+            if e.errno != 61:
+                raise
+            time.sleep(5)
+
+    return client
+
+
 def provision_ec2_node(
         *,
-        modules,
-        host,
-        identity_file,
-        cluster_info):
+        modules: list,
+        host: str,
+        identity_file: str,
+        cluster_info: ClusterInfo):
     """
     Connect to a freshly launched EC2 instance, set it up for SSH access, and
     install the specified modules.
@@ -630,27 +665,14 @@ def provision_ec2_node(
 
     No master- or slave-specific logic should be in this method.
     """
-    with paramiko.client.SSHClient() as client:
-        client.load_system_host_keys()
-        client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
 
-        while True:
-            try:
-                client.connect(
-                    username="ec2-user",
-                    hostname=host,
-                    key_filename=identity_file,
-                    timeout=3)
-                print("[{h}] SSH online.".format(h=host))
-                break
-            except socket.timeout as e:
-                time.sleep(5)
-            except socket.error as e:
-                if e.errno != 61:
-                    raise
-                time.sleep(5)
+    client = get_ssh_client(
+        user='ec2-user',
+        host=host,
+        identity_file=identity_file,
+        print_status=True)
 
-        # --- SSH is now available. ---
+    with client:
         ssh_check_output(
             client=client,
             command="""
@@ -664,14 +686,16 @@ def provision_ec2_node(
                 private_key=shlex.quote(cluster_info.ssh_key_pair.private),
                 public_key=shlex.quote(cluster_info.ssh_key_pair.public)))
 
-        # --- Install Modules. ---
         for module in modules:
             module.install(
                 ssh_client=client,
                 cluster_info=cluster_info)
+            module.configure(
+                ssh_client=client,
+                cluster_info=cluster_info)
 
 
-def ssh_check_output(client: "paramiko.client.SSHClient", command: str):
+def ssh_check_output(client: paramiko.client.SSHClient, command: str):
     """
     Run a command via the provided SSH client and return the output captured
     on stdout.
@@ -689,6 +713,37 @@ def ssh_check_output(client: "paramiko.client.SSHClient", command: str):
             stderr.read().decode("utf8").rstrip('\n'))
 
     return stdout.read().decode("utf8").rstrip('\n')
+
+
+class ClusterNotFound(Exception):
+    pass
+
+
+def get_cluster_instances_ec2(
+        *,
+        cluster_name: str,
+        region: str) -> (boto.ec2.instance.Instance, list):
+    """
+    Get the instances for an EC2 cluster.
+    """
+    connection = boto.ec2.connect_to_region(region_name=region)
+
+    cluster_instances = connection.get_only_instances(
+        filters={
+            'instance.group-name': 'flintrock-' + cluster_name
+        })
+
+    if not cluster_instances:
+        raise ClusterNotFound("No such cluster: {c}".format(c=cluster_name))
+
+    master_instance = list(filter(
+        lambda i: i.tags['flintrock-role'] == 'master',
+        cluster_instances))[0]
+    slave_instances = list(filter(
+        lambda i: i.tags['flintrock-role'] != 'master',
+        cluster_instances))
+
+    return master_instance, slave_instances
 
 
 @cli.command()
@@ -714,7 +769,8 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region):
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
-# assume_yes defaults to True here for library use (as opposed to command-line use).
+# assume_yes defaults to True here for library use (as opposed to command-line use,
+# where the default is configured via Click).
 def destroy_ec2(*, cluster_name, assume_yes=True, region):
     connection = boto.ec2.connect_to_region(region_name=region)
 
@@ -865,7 +921,7 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
                 cluster_instances=filtered_instances)
 
 
-def ssh(host, identity_file):
+def ssh(*, host: str, identity_file: str):
     """
     SSH into a host for interactive use.
     """
@@ -923,30 +979,58 @@ def login_ec2(cluster_name, region, identity_file):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--ec2-region', default='us-east-1', show_default=True)
+# TODO: Move identity-file to global, non-provider-specific option. (?)
+@click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
 @click.pass_context
-def start(cli_context, cluster_name, ec2_region):
+def start(cli_context, cluster_name, ec2_region, ec2_identity_file):
     """
     Start an existing, stopped cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        start_ec2(cluster_name=cluster_name, region=ec2_region)
+        start_ec2(
+            cluster_name=cluster_name,
+            region=ec2_region,
+            identity_file=ec2_identity_file)
     else:
         # TODO: Create UnsupportedProviderException. (?)
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
-def start_ec2(cluster_name, region):
-    # TODO: Replace this with a common get_cluster_info_ec2() method.
-    connection = boto.ec2.connect_to_region(region_name=region)
+def start_ec2_node(
+        *,
+        modules: list,
+        host: str,
+        identity_file: str,
+        cluster_info: ClusterInfo):
+    """
+    Connect to an existing node that has just been started up again and prepare it for
+    work.
+    """
+    ssh_client = get_ssh_client(
+        user='ec2-user',
+        host=host,
+        identity_file=identity_file,
+        print_status=True)
 
-    cluster_instances = connection.get_only_instances(
-        filters={
-            'instance.group-name': 'flintrock-' + cluster_name
-        })
+    with ssh_client:
+        for module in modules:
+            module.configure(
+                ssh_client=ssh_client,
+                cluster_info=cluster_info)
 
-    # Should this be an error? ClusterNotFound exception?
-    if not cluster_instances:
-        print("No such cluster.")
+
+@timeit
+def start_ec2(*, cluster_name: str, region: str, identity_file: str):
+    """
+    Start an existing, stopped cluster on EC2.
+    """
+    try:
+        master_instance, slave_instances = get_cluster_instances_ec2(
+            cluster_name=cluster_name,
+            region=region)
+        cluster_instances = [master_instance] + slave_instances
+    except ClusterNotFound as e:
+        print(e)
         sys.exit(0)
         # Style: Should everything else be under an else: block?
 
@@ -963,8 +1047,55 @@ def start_ec2(cluster_name, region):
                 time.sleep(3)
                 break
         else:
-            print("{c} is now running.".format(c=cluster_name))
             break
+
+    cluster_info = ClusterInfo(
+        name=cluster_name,
+        ssh_key_pair=None,
+        # IP addresses somehow don't work here. ?!
+        master_host=master_instance.public_dns_name,
+        slave_hosts=[i.public_dns_name for i in slave_instances],
+        spark_scratch_dir='/mnt/spark',
+        spark_master_opts="")
+
+    # TODO: Do this only if Flintrock manifest says this cluster has Spark installed.
+    spark = Spark(version='Who knows?!')
+    modules = [spark]
+
+    loop = asyncio.get_event_loop()
+
+    tasks = []
+    for instance in cluster_instances:
+        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
+        #       Until then, we leave them out to maintain compatibility across Python 3.4
+        #       and 3.5.
+        # See: http://stackoverflow.com/q/32873974/
+        task = loop.run_in_executor(
+            None,
+            functools.partial(
+                start_ec2_node,
+                modules=modules,
+                host=instance.ip_address,
+                identity_file=identity_file,
+                cluster_info=cluster_info))
+        tasks.append(task)
+    loop.run_until_complete(asyncio.wait(tasks))
+    loop.close()
+
+    master_ssh_client = get_ssh_client(
+        user='ec2-user',
+        host=master_instance.ip_address,
+        identity_file=identity_file)
+
+    with master_ssh_client:
+        for module in modules:
+            module.configure_master(
+                ssh_client=master_ssh_client,
+                cluster_info=cluster_info)
+
+    time.sleep(30)
+
+    spark.health_check(master_host=master_instance.ip_address)
 
 
 @cli.command()
@@ -983,6 +1114,7 @@ def stop(cli_context, cluster_name, ec2_region, assume_yes):
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
+@timeit
 def stop_ec2(cluster_name, region, assume_yes=True):
     # TODO: Replace this with a common get_cluster_info_ec2() method.
     connection = boto.ec2.connect_to_region(region_name=region)
@@ -1048,7 +1180,9 @@ def config_to_click(config: dict) -> dict:
         'launch': dict(
             list(config['launch'].items()) + list(ec2_configs.items())),
         'describe': ec2_configs,
-        'login': ec2_configs
+        'login': ec2_configs,
+        'start': ec2_configs,
+        'stop': ec2_configs
     }
 
     return click
