@@ -71,7 +71,6 @@ import paramiko
 import yaml
 
 _SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-DEFAULT_SPARK_VERSION = '1.5.0'
 
 
 def timeit(func):
@@ -314,7 +313,7 @@ def cli(cli_context, config, provider):
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=int, required=True)
 @click.option('--install-spark/--no-install-spark', default=True)
-@click.option('--spark-version', default=DEFAULT_SPARK_VERSION, show_default=True)
+@click.option('--spark-version')
 @click.option('--ec2-key-name')
 @click.option('--ec2-identity-file', help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-instance-type', default='m3.medium', show_default=True)
@@ -508,6 +507,8 @@ def launch_ec2(
     security_groups = get_or_create_security_groups(cluster_name=cluster_name, vpc_id=vpc_id)
 
     try:
+        print("Starting {c} instances...".format(c=num_slaves + 1))
+
         reservation = connection.run_instances(
             image_id=ami,
             min_count=(num_slaves + 1),
@@ -1035,6 +1036,7 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str):
         # Style: Should everything else be under an else: block?
 
     print("Starting {c} instances...".format(c=len(cluster_instances)))
+
     for instance in cluster_instances:
         instance.start()
 
@@ -1173,12 +1175,21 @@ def config_to_click(config: dict) -> dict:
     Convert a dictionary of configurations loaded from a Flintrock config file
     to a dictionary that Click can use to set default options.
     """
+    module_configs = {}
+
+    if config['modules']:
+        for module in config['modules'].keys():
+            module_configs.update(
+                {module + '-' + k: v for (k, v) in config['modules'][module].items()})
+
     ec2_configs = {
         'ec2-' + k: v for (k, v) in config['providers']['ec2'].items()}
 
     click = {
         'launch': dict(
-            list(config['launch'].items()) + list(ec2_configs.items())),
+            list(config['launch'].items()) +
+            list(ec2_configs.items()) +
+            list(module_configs.items())),
         'describe': ec2_configs,
         'login': ec2_configs,
         'start': ec2_configs,
