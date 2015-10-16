@@ -18,8 +18,6 @@ Major TODOs:
     * ext4/disk setup.
     * EBS volume setup.
     * Check that EC2 enhanced networking is enabled.
-    * Upgrade to boto3: http://boto3.readthedocs.org/en/latest/
-        - What are the long-term benefits?
 
 Other TODOs:
     * Support for spot instances.
@@ -29,9 +27,6 @@ Other TODOs:
         - Otherwise have a separate YAML file with this info.
         - Maybe support HVM only. AWS seems to position it as the future.
         - Show friendly error when user tries to launch PV instance type.
-    * Move defaults like Spark version to external file. (Maybe to existing user defaults file?)
-        - Poll external resource if default is not specified in file.
-            (e.g. check GitHub tags for latest Spark version) (?)
     * Use IAM roles to launch instead of AWS keys.
     * Setup and teardown VPC, routes, gateway, etc. from scratch.
     * Use SSHAgent instead of .pem files (?).
@@ -42,7 +37,6 @@ Other TODOs:
 
 Distant future:
     * Local provider
-    * [probably-not] Allow master and slaves to be different (spot, instance type, etc).
 """
 
 import os
@@ -377,6 +371,127 @@ def launch(
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
+def get_or_create_ec2_security_groups(
+        *,
+        cluster_name,
+        vpc_id,
+        region) -> 'List[boto.ec2.securitygroup.SecurityGroup]':
+    """
+    If they do not already exist, create all the security groups needed for a
+    Flintrock cluster.
+    """
+    connection = boto.ec2.connect_to_region(region_name=region)
+
+    SecurityGroupRule = namedtuple(
+        'SecurityGroupRule', [
+            'ip_protocol',
+            'from_port',
+            'to_port',
+            'src_group',
+            'cidr_ip'])
+
+    # TODO: Make these into methods, since we need this logic (though simple)
+    #       in multiple places. (?)
+    flintrock_group_name = 'flintrock'
+    cluster_group_name = 'flintrock-' + cluster_name
+
+    search_results = connection.get_all_security_groups(
+        filters={
+            'group-name': [flintrock_group_name, cluster_group_name]
+        })
+
+    # The Flintrock group is common to all Flintrock clusters and authorizes client traffic
+    # to them.
+    flintrock_group = next((sg for sg in search_results if sg.name == flintrock_group_name), None)
+
+    # The cluster group is specific to one Flintrock cluster and authorizes intra-cluster
+    # communication.
+    cluster_group = next((sg for sg in search_results if sg.name == cluster_group_name), None)
+
+    if not flintrock_group:
+        flintrock_group = connection.create_security_group(
+            name=flintrock_group_name,
+            description="flintrock base group",
+            vpc_id=vpc_id)
+
+    # Rules for the client interacting with the cluster.
+    flintrock_client_ip = (
+        urllib.request.urlopen('http://checkip.amazonaws.com/')
+        .read().decode('utf-8').strip())
+    flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+
+    client_rules = [
+        SecurityGroupRule(
+            ip_protocol='tcp',
+            from_port=22,
+            to_port=22,
+            cidr_ip=flintrock_client_cidr,
+            src_group=None),
+        SecurityGroupRule(
+            ip_protocol='tcp',
+            from_port=8080,
+            to_port=8081,
+            cidr_ip=flintrock_client_cidr,
+            src_group=None),
+        SecurityGroupRule(
+            ip_protocol='tcp',
+            from_port=4040,
+            to_port=4040,
+            cidr_ip=flintrock_client_cidr,
+            src_group=None)
+    ]
+
+    # TODO: Don't try adding rules that already exist.
+    # TODO: Add rules in one shot.
+    for rule in client_rules:
+        try:
+            flintrock_group.authorize(**vars(rule))
+        except boto.exception.EC2ResponseError as e:
+            if e.error_code != 'InvalidPermission.Duplicate':
+                print("Error adding rule: {r}".format(r=rule))
+                raise
+
+    # Rules for internal cluster communication.
+    if not cluster_group:
+        cluster_group = connection.create_security_group(
+            name=cluster_group_name,
+            description="Flintrock cluster group",
+            vpc_id=vpc_id)
+
+    cluster_rules = [
+        SecurityGroupRule(
+            ip_protocol='icmp',
+            from_port=-1,
+            to_port=-1,
+            src_group=cluster_group,
+            cidr_ip=None),
+        SecurityGroupRule(
+            ip_protocol='tcp',
+            from_port=0,
+            to_port=65535,
+            src_group=cluster_group,
+            cidr_ip=None),
+        SecurityGroupRule(
+            ip_protocol='udp',
+            from_port=0,
+            to_port=65535,
+            src_group=cluster_group,
+            cidr_ip=None)
+    ]
+
+    # TODO: Don't try adding rules that already exist.
+    # TODO: Add rules in one shot.
+    for rule in cluster_rules:
+        try:
+            cluster_group.authorize(**vars(rule))
+        except boto.exception.EC2ResponseError as e:
+            if e.error_code != 'InvalidPermission.Duplicate':
+                print("Error adding rule: {r}".format(r=rule))
+                raise
+
+    return [flintrock_group, cluster_group]
+
+
 # Move to ec2 module and call as ec2.launch()?
 @timeit
 def launch_ec2(
@@ -395,119 +510,25 @@ def launch_ec2(
     Launch a fully functional cluster on EC2 with the specified configuration
     and installed modules.
     """
-    connection = boto.ec2.connect_to_region(region_name=region)
+    try:
+        get_cluster_instances_ec2(
+            cluster_name=cluster_name,
+            region=region)
+    except ClusterNotFound as e:
+        pass
+    else:
+        print("Cluster already exists: {c}".format(c=cluster_name), file=sys.stderr)
+        sys.exit(1)
 
-    def get_or_create_security_groups(cluster_name, vpc_id) -> 'List[boto.ec2.securitygroup.SecurityGroup]':
-        """
-        If they do not already exist, create all the security groups needed for a
-        Flintrock cluster.
-        """
-        SecurityGroupRule = namedtuple(
-            'SecurityGroupRule', [
-                'ip_protocol',
-                'from_port',
-                'to_port',
-                'src_group',
-                'cidr_ip'])
-        # TODO: Make these into methods, since we need this logic (though simple)
-        #       in multiple places. (?)
-        flintrock_group_name = 'flintrock'
-        cluster_group_name = 'flintrock-' + cluster_name
-
-        search_results = connection.get_all_security_groups(
-            filters={
-                'group-name': [flintrock_group_name, cluster_group_name]
-            })
-        flintrock_group = next((sg for sg in search_results if sg.name == flintrock_group_name), None)
-        cluster_group = next((sg for sg in search_results if sg.name == cluster_group_name), None)
-
-        if not flintrock_group:
-            flintrock_group = connection.create_security_group(
-                name=flintrock_group_name,
-                description="flintrock base group",
-                vpc_id=vpc_id)
-
-        # Rules for the client interacting with the cluster.
-        flintrock_client_ip = (
-            urllib.request.urlopen('http://checkip.amazonaws.com/')
-            .read().decode('utf-8').strip())
-        flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
-
-        client_rules = [
-            SecurityGroupRule(
-                ip_protocol='tcp',
-                from_port=22,
-                to_port=22,
-                cidr_ip=flintrock_client_cidr,
-                src_group=None),
-            SecurityGroupRule(
-                ip_protocol='tcp',
-                from_port=8080,
-                to_port=8081,
-                cidr_ip=flintrock_client_cidr,
-                src_group=None),
-            SecurityGroupRule(
-                ip_protocol='tcp',
-                from_port=4040,
-                to_port=4040,
-                cidr_ip=flintrock_client_cidr,
-                src_group=None)
-        ]
-
-        # TODO: Don't try adding rules that already exist.
-        # TODO: Add rules in one shot.
-        for rule in client_rules:
-            try:
-                flintrock_group.authorize(**vars(rule))
-            except boto.exception.EC2ResponseError as e:
-                if e.error_code != 'InvalidPermission.Duplicate':
-                    print("Error adding rule: {r}".format(r=rule))
-                    raise
-
-        # Rules for internal cluster communication.
-        if not cluster_group:
-            cluster_group = connection.create_security_group(
-                name=cluster_group_name,
-                description="Flintrock cluster group",
-                vpc_id=vpc_id)
-
-        cluster_rules = [
-            SecurityGroupRule(
-                ip_protocol='icmp',
-                from_port=-1,
-                to_port=-1,
-                src_group=cluster_group,
-                cidr_ip=None),
-            SecurityGroupRule(
-                ip_protocol='tcp',
-                from_port=0,
-                to_port=65535,
-                src_group=cluster_group,
-                cidr_ip=None),
-            SecurityGroupRule(
-                ip_protocol='udp',
-                from_port=0,
-                to_port=65535,
-                src_group=cluster_group,
-                cidr_ip=None)
-        ]
-
-        # TODO: Don't try adding rules that already exist.
-        # TODO: Add rules in one shot.
-        for rule in cluster_rules:
-            try:
-                cluster_group.authorize(**vars(rule))
-            except boto.exception.EC2ResponseError as e:
-                if e.error_code != 'InvalidPermission.Duplicate':
-                    print("Error adding rule: {r}".format(r=rule))
-                    raise
-
-        return [flintrock_group, cluster_group]
-
-    security_groups = get_or_create_security_groups(cluster_name=cluster_name, vpc_id=vpc_id)
+    security_groups = get_or_create_ec2_security_groups(
+        cluster_name=cluster_name,
+        vpc_id=vpc_id,
+        region=region)
 
     try:
-        print("Starting {c} instances...".format(c=num_slaves + 1))
+        connection = boto.ec2.connect_to_region(region_name=region)
+
+        print("Launching {c} instances...".format(c=num_slaves + 1))
 
         reservation = connection.run_instances(
             image_id=ami,
@@ -607,7 +628,7 @@ def launch_ec2(
         #   identity_file=identity_file)
 
     except KeyboardInterrupt as e:
-        # TODO: Terminate instances. (?)
+        # TODO: Prompt user if they want to terminate the instances. (?)
         print("Exiting...")
         sys.exit(1)
     # finally:
