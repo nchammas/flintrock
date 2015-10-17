@@ -18,4 +18,4 @@ tar xzf "$file" -C "spark" --strip-components=1
 rm "$file"
 
 sudo mkdir "{spark_scratch_dir}"
-sudo chown ec2-user:ec2-user "{spark_scratch_dir}"
+sudo chown "$(logname)":"$(logname)" "{spark_scratch_dir}"

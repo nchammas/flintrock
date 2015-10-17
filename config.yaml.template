@@ -18,7 +18,10 @@ providers:
     instance-type: m3.medium  # must be 64-bit; small instances won't work
     region: us-east-1
     # availability-zone: <name>
-    ami: ami-146e2a7c
+    # ami: ami-146e2a7c   # Amazon Linux
+    # user: ec2-user
+    ami: ami-61bbf104   # CentOS 7
+    user: centos
     # spot-price: <price>
     # vpc-id: <id>
     # subnet-id: <id>

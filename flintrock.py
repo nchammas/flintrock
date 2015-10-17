@@ -314,6 +314,7 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-availability-zone')
 @click.option('--ec2-ami')
+@click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
 @click.option('--ec2-vpc-id')
 @click.option('--ec2-subnet-id')
@@ -334,6 +335,7 @@ def launch(
         ec2_region,
         ec2_availability_zone,
         ec2_ami,
+        ec2_user,
         ec2_spot_price,
         ec2_vpc_id,
         ec2_subnet_id,
@@ -360,6 +362,7 @@ def launch(
             region=ec2_region,
             availability_zone=ec2_availability_zone,
             ami=ec2_ami,
+            user=ec2_user,
             spot_price=ec2_spot_price,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
@@ -502,6 +505,7 @@ def launch_ec2(
         region,
         availability_zone,
         ami,
+        user,
         spot_price=None,
         vpc_id, subnet_id, placement_group,
         tenancy="default", ebs_optimized=False,
@@ -546,6 +550,8 @@ def launch_ec2(
 
         time.sleep(10)  # AWS metadata eventual consistency tax.
 
+        # TODO: Move this to a reusable function and add a limit on
+        #       wait time.
         while True:
             for instance in reservation.instances:
                 if instance.state == 'running':
@@ -593,18 +599,24 @@ def launch_ec2(
                 functools.partial(
                     provision_ec2_node,
                     modules=modules,
+                    user=user,
                     host=instance.ip_address,
                     identity_file=identity_file,
                     cluster_info=cluster_info))
             tasks.append(task)
-        loop.run_until_complete(asyncio.wait(tasks))
+        done, _ = loop.run_until_complete(asyncio.wait(tasks))
+
+        # Is this is the right way to make sure no coroutine failed?
+        for future in done:
+            future.result()
+
         loop.close()
 
         print("All {c} instances provisioned.".format(
             c=len(reservation.instances)))
 
         master_ssh_client = get_ssh_client(
-            user='ec2-user',
+            user=user,
             host=master_instance.ip_address,
             identity_file=identity_file)
 
@@ -648,6 +660,8 @@ def get_ssh_client(
     """
     Get an SSH client for the provided host, waiting as necessary for SSH to become available.
     """
+    # paramiko.common.logging.basicConfig(level=paramiko.common.DEBUG)
+
     client = paramiko.client.SSHClient()
 
     client.load_system_host_keys()
@@ -656,18 +670,25 @@ def get_ssh_client(
     while True:
         try:
             client.connect(
-                username="ec2-user",
+                username=user,
                 hostname=host,
                 key_filename=identity_file,
+                look_for_keys=False,
                 timeout=3)
             if print_status:
                 print("[{h}] SSH online.".format(h=host))
             break
+        # TODO: Somehow rationalize these expected exceptions.
+        # TODO: Add some kind of limit on number of failures.
         except socket.timeout as e:
             time.sleep(5)
         except socket.error as e:
             if e.errno != 61:
                 raise
+            time.sleep(5)
+        # We get this exception during startup with CentOS but not Amazon Linux,
+        # for some reason.
+        except paramiko.ssh_exception.AuthenticationException as e:
             time.sleep(5)
 
     return client
@@ -676,6 +697,7 @@ def get_ssh_client(
 def provision_ec2_node(
         *,
         modules: list,
+        user: str,
         host: str,
         identity_file: str,
         cluster_info: ClusterInfo):
@@ -689,7 +711,7 @@ def provision_ec2_node(
     """
 
     client = get_ssh_client(
-        user='ec2-user',
+        user=user,
         host=host,
         identity_file=identity_file,
         print_status=True)
@@ -707,6 +729,26 @@ def provision_ec2_node(
             """.format(
                 private_key=shlex.quote(cluster_info.ssh_key_pair.private),
                 public_key=shlex.quote(cluster_info.ssh_key_pair.public)))
+
+        # The default CentOS AMIs on EC2 don't come with Java installed.
+        java_home = ssh_check_output(
+            client=client,
+            command="""
+                echo "$JAVA_HOME"
+            """)
+
+        if not java_home.strip():
+            print("[{h}] Installing Java...".format(h=host))
+
+            ssh_check_output(
+                client=client,
+                command="""
+                    set -e
+
+                    sudo yum install -y java-1.7.0-openjdk
+                    sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/jre >> /etc/environment"
+                    source /etc/environment
+                """)
 
         for module in modules:
             module.install(
@@ -943,7 +985,7 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
                 cluster_instances=filtered_instances)
 
 
-def ssh(*, host: str, identity_file: str):
+def ssh(*, user: str, host: str, identity_file: str):
     """
     SSH into a host for interactive use.
     """
@@ -951,7 +993,7 @@ def ssh(*, host: str, identity_file: str):
         'ssh',
         '-o', 'StrictHostKeyChecking=no',
         '-i', identity_file,
-        'ec2-user@{h}'.format(h=host)])
+        '{u}@{h}'.format(u=user, h=host)])
 
 
 # TODO: Provide different command or option for going straight to Spark Shell.
@@ -960,8 +1002,9 @@ def ssh(*, host: str, identity_file: str):
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 # TODO: Move identity-file to global, non-provider-specific option. (?)
 @click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
+@click.option('--ec2-user')
 @click.pass_context
-def login(cli_context, cluster_name, ec2_region, ec2_identity_file):
+def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
     """
     Login to the master of an existing cluster.
     """
@@ -969,13 +1012,14 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file):
         login_ec2(
             cluster_name=cluster_name,
             region=ec2_region,
-            identity_file=ec2_identity_file)
+            identity_file=ec2_identity_file,
+            user=ec2_user)
     else:
         # TODO: Create UnsupportedProviderException. (?)
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
-def login_ec2(cluster_name, region, identity_file):
+def login_ec2(cluster_name, region, identity_file, user):
     connection = boto.ec2.connect_to_region(region_name=region)
 
     master_instance = next(iter(
@@ -988,6 +1032,7 @@ def login_ec2(cluster_name, region, identity_file):
 
     if master_instance:
         ssh(
+            user=user,
             host=master_instance.public_dns_name,
             identity_file=identity_file)
     else:
@@ -1003,8 +1048,9 @@ def login_ec2(cluster_name, region, identity_file):
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 # TODO: Move identity-file to global, non-provider-specific option. (?)
 @click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
+@click.option('--ec2-user')
 @click.pass_context
-def start(cli_context, cluster_name, ec2_region, ec2_identity_file):
+def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
     """
     Start an existing, stopped cluster.
     """
@@ -1012,7 +1058,8 @@ def start(cli_context, cluster_name, ec2_region, ec2_identity_file):
         start_ec2(
             cluster_name=cluster_name,
             region=ec2_region,
-            identity_file=ec2_identity_file)
+            identity_file=ec2_identity_file,
+            user=ec2_user)
     else:
         # TODO: Create UnsupportedProviderException. (?)
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
@@ -1021,6 +1068,7 @@ def start(cli_context, cluster_name, ec2_region, ec2_identity_file):
 def start_ec2_node(
         *,
         modules: list,
+        user: str,
         host: str,
         identity_file: str,
         cluster_info: ClusterInfo):
@@ -1029,7 +1077,7 @@ def start_ec2_node(
     work.
     """
     ssh_client = get_ssh_client(
-        user='ec2-user',
+        user=user,
         host=host,
         identity_file=identity_file,
         print_status=True)
@@ -1042,7 +1090,7 @@ def start_ec2_node(
 
 
 @timeit
-def start_ec2(*, cluster_name: str, region: str, identity_file: str):
+def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
     """
     Start an existing, stopped cluster on EC2.
     """
@@ -1098,15 +1146,21 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str):
             functools.partial(
                 start_ec2_node,
                 modules=modules,
+                user=user,
                 host=instance.ip_address,
                 identity_file=identity_file,
                 cluster_info=cluster_info))
         tasks.append(task)
-    loop.run_until_complete(asyncio.wait(tasks))
+    done, _ = loop.run_until_complete(asyncio.wait(tasks))
+
+    # Is this is the right way to make sure no coroutine failed?
+    for future in done:
+        future.result()
+
     loop.close()
 
     master_ssh_client = get_ssh_client(
-        user='ec2-user',
+        user=user,
         host=master_instance.ip_address,
         identity_file=identity_file)
 

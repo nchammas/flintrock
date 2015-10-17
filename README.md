@@ -14,7 +14,8 @@ flintrock launch test-cluster \
     --num-slaves 1 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
-    --ec2-ami ami-146e2a7c
+    --ec2-ami ami-146e2a7c \
+    --ec2-user ec2-user
 ```
 
 If you [persist these options to a file](#configurable-cli-defaults), you'll be able to do the same thing simply by typing:
@@ -138,6 +139,7 @@ ec2:
   instance-type: m3.medium
   region: us-east-1
   ami: ami-146e2a7c
+  user: ec2-user
 ```
 
 With a config file like that, you can now launch a cluster with just this:
