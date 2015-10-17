@@ -160,8 +160,16 @@ flintrock launch test-cluster \
 
 Flintrock is really fast. This is how quickly it can launch fully operational clusters on EC2 compared to [`spark-ec2`](https://spark.apache.org/docs/latest/ec2-scripts.html).
 
-* EC2 `m3.large` instances.
-* Best of 6 tries.
+#### Setup
+
+* Provider: EC2
+* Instance type: `m3.large`
+* AMI:
+    * Flintrock: [Default Amazon Linux AMI](https://aws.amazon.com/amazon-linux-ami/)
+    * `spark-ec2`: [Custom spark-ec2 AMI](https://github.com/amplab/spark-ec2/tree/a990752575cd8b0ab25731d7820a55c714798ec3/ami-list)
+* Launch time: Best of 6 tries
+
+#### Results
 
 | Cluster Size  | Flintrock Launch Time | `spark-ec2` Launch Time |
 |---------------|----------------------:|------------------------:|
