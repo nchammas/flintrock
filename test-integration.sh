@@ -11,7 +11,6 @@ function test_echo () {
     echo " ==="
     echo "| $1"
     echo " -"
-    echo ""
 }
 
 
