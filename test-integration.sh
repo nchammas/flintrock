@@ -31,6 +31,9 @@ if [ "$?" -ne 1 ]; then
 fi
 set -e
 
+test_echo "Run a command on a cluster."
+./flintrock run-command "$CLUSTER_NAME" -- ls -l
+
 test_echo "Stop a cluster."
 ./flintrock stop "$CLUSTER_NAME" --assume-yes
 

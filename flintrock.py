@@ -291,7 +291,7 @@ def cli(cli_context, config, provider):
     if os.path.exists(config):
         with open(config) as f:
             raw_config = yaml.safe_load(f)
-            config_map = normalize_keys(config_to_click(raw_config))
+            config_map = config_to_click(normalize_keys(raw_config))
 
         cli_context.default_map = config_map
     else:
@@ -606,7 +606,7 @@ def launch_ec2(
             tasks.append(task)
         done, _ = loop.run_until_complete(asyncio.wait(tasks))
 
-        # Is this is the right way to make sure no coroutine failed?
+        # Is this the right way to make sure no coroutine failed?
         for future in done:
             future.result()
 
@@ -694,6 +694,7 @@ def get_ssh_client(
     return client
 
 
+# TODO: This function is actually provider agnostic.
 def provision_ec2_node(
         *,
         modules: list,
@@ -772,6 +773,8 @@ def ssh_check_output(client: paramiko.client.SSHClient, command: str):
     if exit_status:
         # TODO: Return a custom exception that includes the return code.
         # See: https://docs.python.org/3/library/subprocess.html#subprocess.check_output
+        # NOTE: We are losing the output order here since output from stdout and stderr
+        #       may be interleaved.
         raise Exception(
             stdout.read().decode("utf8").rstrip('\n') +
             stderr.read().decode("utf8").rstrip('\n'))
@@ -1065,6 +1068,7 @@ def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
+# TODO: This function is actually provider agnostic.
 def start_ec2_node(
         *,
         modules: list,
@@ -1235,6 +1239,104 @@ def stop_ec2(cluster_name, region, assume_yes=True):
             break
 
 
+@cli.command(name='run-command')
+@click.argument('cluster-name')
+@click.argument('command', nargs=-1)
+@click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
+@click.option('--ec2-user')
+@click.pass_context
+def run_command(cli_context, cluster_name, command, ec2_region, ec2_identity_file, ec2_user):
+    """
+    Run a shell command on the cluster.
+
+    Examples:
+
+        ./flintrock run-command my-cluster 'touch /tmp/flintrock'
+        ./flintrock run-command my-cluster -- yum install -y package
+
+    Flintrock will return a non-zero code if any of the cluster nodes raise an error
+    while running the command.
+    """
+    if cli_context.obj['provider'] == 'ec2':
+        run_command_ec2(
+            cluster_name=cluster_name,
+            command=command,
+            region=ec2_region,
+            identity_file=ec2_identity_file,
+            user=ec2_user)
+    else:
+        # TODO: Create UnsupportedProviderException. (?)
+        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+
+
+def run_command_node(*, user: str, host: str, identity_file: str, command: tuple):
+    # TODO: Timeout quickly if SSH is not available.
+    ssh_client = get_ssh_client(
+        user=user,
+        host=host,
+        identity_file=identity_file)
+
+    print("[{h}] Running command...".format(h=host))
+
+    command_str = ' '.join(command)
+
+    with ssh_client:
+        ssh_check_output(
+            client=ssh_client,
+            command=command_str)
+
+    print("[{h}] Command complete.".format(h=host))
+
+
+@timeit
+def run_command_ec2(cluster_name, command, region, identity_file, user):
+    try:
+        master_instance, slave_instances = get_cluster_instances_ec2(
+            cluster_name=cluster_name,
+            region=region)
+        cluster_instances = [master_instance] + slave_instances
+    except ClusterNotFound as e:
+        print(e)
+        sys.exit(0)
+
+    if get_cluster_state_ec2(cluster_instances) != 'running':
+        print("Cluster is not in a running state.", file=sys.stderr)
+        sys.exit(1)
+
+    print("Running command on {c} instances...".format(c=len(cluster_instances)))
+
+    loop = asyncio.get_event_loop()
+
+    tasks = []
+    for instance in cluster_instances:
+        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
+        #       Until then, we leave them out to maintain compatibility across Python 3.4
+        #       and 3.5.
+        # See: http://stackoverflow.com/q/32873974/
+        task = loop.run_in_executor(
+            None,
+            functools.partial(
+                run_command_node,
+                user=user,
+                host=instance.ip_address,
+                identity_file=identity_file,
+                command=command))
+        tasks.append(task)
+
+    try:
+        loop.run_until_complete(asyncio.gather(*tasks))
+    # TODO: Cancel cleanly from hung commands. The below doesn't work.
+    #       Probably related to: http://stackoverflow.com/q/29177490/
+    # except KeyboardInterrupt as e:
+    #     sys.exit(1)
+    except Exception as e:
+        print("At least one node raised an error:", e, file=sys.stderr)
+        sys.exit(1)
+
+    loop.close()
+
+
 def normalize_keys(obj):
     """
     Used to map keys from config files to Python parameter names.
@@ -1255,10 +1357,10 @@ def config_to_click(config: dict) -> dict:
     if config['modules']:
         for module in config['modules'].keys():
             module_configs.update(
-                {module + '-' + k: v for (k, v) in config['modules'][module].items()})
+                {module + '_' + k: v for (k, v) in config['modules'][module].items()})
 
     ec2_configs = {
-        'ec2-' + k: v for (k, v) in config['providers']['ec2'].items()}
+        'ec2_' + k: v for (k, v) in config['providers']['ec2'].items()}
 
     click = {
         'launch': dict(
@@ -1268,7 +1370,8 @@ def config_to_click(config: dict) -> dict:
         'describe': ec2_configs,
         'login': ec2_configs,
         'start': ec2_configs,
-        'stop': ec2_configs
+        'stop': ec2_configs,
+        'run-command': ec2_configs
     }
 
     return click
