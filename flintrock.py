@@ -15,13 +15,9 @@ Major TODOs:
           stop, start, describe (with YAML output) etc. clusters
         - Implement method that takes cluster name and returns FlintrockCluster
     * Support submit command for Spark applications. Like a wrapper around spark-submit. (?)
-    * ext4/disk setup.
-    * EBS volume setup.
     * Check that EC2 enhanced networking is enabled.
 
 Other TODOs:
-    * Support for spot instances.
-        - Show wait reason (capcity oversubscribed, price too low, etc.).
     * Instance type <-> AMI type validation/lookup.
         - Maybe this can be automated.
         - Otherwise have a separate YAML file with this info.
@@ -1248,7 +1244,7 @@ def stop_ec2(cluster_name, region, assume_yes=True):
 @click.pass_context
 def run_command(cli_context, cluster_name, command, ec2_region, ec2_identity_file, ec2_user):
     """
-    Run a shell command on the cluster.
+    Run a shell command on a cluster.
 
     Examples:
 
