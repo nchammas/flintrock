@@ -513,6 +513,11 @@ def launch_ec2(
     Launch a fully functional cluster on EC2 with the specified configuration
     and installed modules.
     """
+    if spot_price:
+        print("Psych! Support for spot instances hasn't been implemented yet.", file=sys.stderr)
+        print("See: https://github.com/nchammas/flintrock/issues/30", file=sys.stderr)
+        sys.exit(1)
+
     try:
         get_cluster_instances_ec2(
             cluster_name=cluster_name,
