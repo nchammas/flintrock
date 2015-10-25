@@ -13,8 +13,32 @@ function test_echo () {
     echo " -"
 }
 
+function check_failure () {
+    if [ "$?" -ne 1 ]; then
+        exit 1
+    fi
+}
 
 CLUSTER_NAME="integration-test"
+
+
+test_echo "Try stuff against a non-existent cluster."
+set +e
+./flintrock describe sike
+check_failure
+./flintrock stop sike
+check_failure
+./flintrock start sike
+check_failure
+./flintrock login sike
+check_failure
+./flintrock destroy sike
+check_failure
+./flintrock run-command sike 'pwd'
+check_failure
+./flintrock copy-file sike "$0" /tmp/
+check_failure
+set -e
 
 test_echo "Launch a cluster."
 ./flintrock launch "$CLUSTER_NAME" --num-slaves 1
@@ -25,10 +49,7 @@ test_echo "Describe a running cluster."
 test_echo "Make sure we can't launch a cluster with a duplicate name."
 set +e
 ./flintrock launch "$CLUSTER_NAME"
-
-if [ "$?" -ne 1 ]; then
-    exit 1
-fi
+check_failure
 set -e
 
 test_echo "Run a command on a cluster."
@@ -43,10 +64,7 @@ test_echo "Describe a stopped cluster."
 test_echo "Make sure that a stopped cluster is still detected as a duplicate."
 set +e
 ./flintrock launch "$CLUSTER_NAME"
-
-if [ "$?" -ne 1 ]; then
-    exit 1
-fi
+check_failure
 set -e
 
 test_echo "Start a stopped cluster and make sure Spark is still working."

@@ -807,6 +807,7 @@ def get_cluster_instances_ec2(
     if not cluster_instances:
         raise ClusterNotFound("No such cluster: {c}".format(c=cluster_name))
 
+    # TODO: Raise errors if a cluster has no master or no slaves.
     master_instance = list(filter(
         lambda i: i.tags['flintrock-role'] == 'master',
         cluster_instances))[0]
@@ -843,18 +844,14 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region):
 # assume_yes defaults to True here for library use (as opposed to command-line use,
 # where the default is configured via Click).
 def destroy_ec2(*, cluster_name, assume_yes=True, region):
-    connection = boto.ec2.connect_to_region(region_name=region)
-
-    cluster_instances = connection.get_only_instances(
-        filters={
-            'instance.group-name': 'flintrock-' + cluster_name
-        })
-
-    # Should this be an error? ClusterNotFound exception?
-    if not cluster_instances:
-        print("No such cluster.")
-        sys.exit(0)
-        # Style: Should everything else be under an else: block?
+    try:
+        master_instance, slave_instances = get_cluster_instances_ec2(
+            cluster_name=cluster_name,
+            region=region)
+        cluster_instances = [master_instance] + slave_instances
+    except ClusterNotFound as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
 
     if not assume_yes:
         print_cluster_info_ec2(
@@ -928,8 +925,6 @@ def print_cluster_info_ec2(cluster_name: str, cluster_instances: list):
 @cli.command()
 @click.argument('cluster-name', required=False)
 @click.option('--master-hostname-only', is_flag=True, default=False)
-# TODO: EC2 region is gloal to all EC2 operations. Can that be captured somehow?
-# TODO: Required EC2 options should be required only when the EC2 provider is selected.
 @click.option('--ec2-region')
 @click.pass_context
 def describe(
@@ -953,23 +948,23 @@ def describe(
 
 
 def describe_ec2(*, cluster_name, master_hostname_only=False, region):
-    connection = boto.ec2.connect_to_region(region_name=region)
+    if cluster_name:
+        try:
+            master_instance, slave_instances = get_cluster_instances_ec2(
+                cluster_name=cluster_name,
+                region=region)
+            cluster_instances = [master_instance] + slave_instances
+        except ClusterNotFound as e:
+            print(e, file=sys.stderr)
+            sys.exit(1)
+    else:
+        connection = boto.ec2.connect_to_region(region_name=region)
 
-    cluster_instances = connection.get_only_instances(
-        filters={
-            'instance.group-name': 'flintrock-' + cluster_name if cluster_name else 'flintrock'
-        })
-    # TODO: Exit with 1 if user describes a cluster by name that doesn't exist.
+        cluster_instances = connection.get_only_instances(
+            filters={
+                'instance.group-name': 'flintrock-' + cluster_name if cluster_name else 'flintrock'
+            })
 
-    # TODO: Capture this in some reusable method that gets info about a bunch of
-    #       Flintrock clusters and returns a list of FlintrockCluster objects.
-    #
-    #       Then, maybe just serialize that list to screen using YAML.
-    #       You'll have to deal with PyYAML's inability to customize the output
-    #       order of the keys.
-    #
-    #       See: https://issues.apache.org/jira/browse/SPARK-5629?focusedCommentId=14325346#comment-14325346
-    #       Add provider-specific information like EC2 region.
     security_groups = itertools.chain.from_iterable([i.groups for i in cluster_instances])
     security_group_names = {g.name for g in security_groups if g.name.startswith('flintrock-')}
     cluster_names = [n.replace('flintrock-', '', 1) for n in security_group_names]
@@ -1030,27 +1025,19 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
 
 
 def login_ec2(cluster_name, region, identity_file, user):
-    connection = boto.ec2.connect_to_region(region_name=region)
+    try:
+        master_instance, slave_instances = get_cluster_instances_ec2(
+            cluster_name=cluster_name,
+            region=region)
+        cluster_instances = [master_instance] + slave_instances
+    except ClusterNotFound as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
 
-    master_instance = next(iter(
-        connection.get_only_instances(
-            filters={
-                'instance.group-name': 'flintrock-' + cluster_name,
-                'tag:flintrock-role': 'master'
-            })),
-        None)
-
-    if master_instance:
-        ssh(
-            user=user,
-            host=master_instance.public_dns_name,
-            identity_file=identity_file)
-    else:
-        # TODO: Custom MasterNotFound exception. (?)
-        raise Exception(
-            "Could not find a master for a cluster named '{c}' in the {r} region.".format(
-                c=cluster_name,
-                r=region))
+    ssh(
+        user=user,
+        host=master_instance.public_dns_name,
+        identity_file=identity_file)
 
 
 @cli.command()
@@ -1115,7 +1102,6 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
-        # Style: Should everything else be under an else: block?
 
     print("Starting {c} instances...".format(c=len(cluster_instances)))
 
@@ -1206,19 +1192,14 @@ def stop(cli_context, cluster_name, ec2_region, assume_yes):
 
 @timeit
 def stop_ec2(cluster_name, region, assume_yes=True):
-    # TODO: Replace this with a common get_cluster_info_ec2() method.
-    connection = boto.ec2.connect_to_region(region_name=region)
-
-    cluster_instances = connection.get_only_instances(
-        filters={
-            'instance.group-name': 'flintrock-' + cluster_name
-        })
-
-    # Should this be an error? ClusterNotFound exception?
-    if not cluster_instances:
-        print("No such cluster.")
-        sys.exit(0)
-        # Style: Should everything else be under an else: block?
+    try:
+        master_instance, slave_instances = get_cluster_instances_ec2(
+            cluster_name=cluster_name,
+            region=region)
+        cluster_instances = [master_instance] + slave_instances
+    except ClusterNotFound as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
 
     if not assume_yes:
         print_cluster_info_ec2(
