@@ -513,11 +513,6 @@ def launch_ec2(
     Launch a fully functional cluster on EC2 with the specified configuration
     and installed modules.
     """
-    if spot_price:
-        print("Psych! Support for spot instances hasn't been implemented yet.", file=sys.stderr)
-        print("See: https://github.com/nchammas/flintrock/issues/30", file=sys.stderr)
-        sys.exit(1)
-
     try:
         get_cluster_instances_ec2(
             cluster_name=cluster_name,
@@ -533,31 +528,82 @@ def launch_ec2(
         vpc_id=vpc_id,
         region=region)
 
+    num_instances = num_slaves + 1
     try:
         connection = boto.ec2.connect_to_region(region_name=region)
 
-        print("Launching {c} instances...".format(c=num_slaves + 1))
+        if spot_price is not None:
+            print("Requesting {c} spot instances at a max price of {p}".format(c=num_instances, p=spot_price))
 
-        reservation = connection.run_instances(
-            image_id=ami,
-            min_count=(num_slaves + 1),
-            max_count=(num_slaves + 1),
-            key_name=key_name,
-            instance_type=instance_type,
-            placement=availability_zone,
-            security_group_ids=[sg.id for sg in security_groups],
-            subnet_id=subnet_id,
-            placement_group=placement_group,
-            tenancy=tenancy,
-            ebs_optimized=ebs_optimized,
-            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
+            instance_reqs = connection.request_spot_instances(
+                price=spot_price,
+                image_id=ami,
+                count=(num_instances),
+                key_name=key_name,
+                instance_type=instance_type,
+                placement=availability_zone,
+                security_group_ids=[sg.id for sg in security_groups],
+                subnet_id=subnet_id,
+                placement_group=placement_group,
+                ebs_optimized=ebs_optimized)
 
-        time.sleep(10)  # AWS metadata eventual consistency tax.
+            pending_request_ids = [req.id for req in instance_reqs]
+
+            try:
+
+                while len(pending_request_ids) > 0:
+                    time.sleep(30)
+
+                    spot_requests = connection.get_all_spot_instance_requests(pending_request_ids)
+                    pending_request_ids = [req.id for req in spot_requests if req.state != 'active']
+
+                    if len(pending_request_ids) > 0:
+                        print("{grant} of {req} instances granted, waiting longer".format(
+                            grant=num_instances - len(pending_request_ids), req=num_instances))
+
+                print("All {num_instances} granted".format(num_instances=num_instances))
+                request_ids = [req.id for req in instance_reqs]
+
+                spot_requests = connection.get_all_spot_instance_requests(request_ids)
+                instance_ids = [sr.instance_id for sr in spot_requests]
+                reservation_resultset = connection.get_all_reservations(instance_ids)
+
+                all_instances = []
+                for reservation in reservation_resultset:
+                    all_instances += reservation.instances
+
+            except Exception as e:
+                print(e)
+                print("Canceling spot instance requests...")
+                connection.cancel_spot_instance_requests(instance_reqs)
+                # TODO add warning if any nodes actually launched instances
+
+                sys.exit(1)
+        else:
+            print("Launching {c} instances...".format(c=num_slaves + 1))
+
+            reservation = connection.run_instances(
+                image_id=ami,
+                min_count=(num_slaves + 1),
+                max_count=(num_slaves + 1),
+                key_name=key_name,
+                instance_type=instance_type,
+                placement=availability_zone,
+                security_group_ids=[sg.id for sg in security_groups],
+                subnet_id=subnet_id,
+                placement_group=placement_group,
+                tenancy=tenancy,
+                ebs_optimized=ebs_optimized,
+                instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
+
+            time.sleep(10)  # AWS metadata eventual consistency tax.
+
+            all_instances = reservation.instances
 
         # TODO: Move this to a reusable function and add a limit on
         #       wait time.
         while True:
-            for instance in reservation.instances:
+            for instance in all_instances:
                 if instance.state == 'running':
                     continue
                 else:
@@ -567,8 +613,8 @@ def launch_ec2(
             else:
                 break
 
-        master_instance = reservation.instances[0]
-        slave_instances = reservation.instances[1:]
+        master_instance = all_instances[0]
+        slave_instances = all_instances[1:]
 
         connection.create_tags(
             resource_ids=[master_instance.id],
@@ -593,7 +639,7 @@ def launch_ec2(
         loop = asyncio.get_event_loop()
 
         tasks = []
-        for instance in reservation.instances:
+        for instance in all_instances:
             # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
             #       Until then, we leave them out to maintain compatibility across Python 3.4
             #       and 3.5.
@@ -617,7 +663,7 @@ def launch_ec2(
         loop.close()
 
         print("All {c} instances provisioned.".format(
-            c=len(reservation.instances)))
+            c=len(all_instances)))
 
         master_ssh_client = get_ssh_client(
             user=user,
