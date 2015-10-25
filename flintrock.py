@@ -306,7 +306,9 @@ def cli(cli_context, config, provider):
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-version')
 @click.option('--ec2-key-name')
-@click.option('--ec2-identity-file', help="Path to SSH .pem file for accessing nodes.")
+@click.option('--ec2-identity-file',
+              type=click.Path(exists=True, dir_okay=False),
+              help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-instance-type', default='m3.medium', show_default=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-availability-zone')
@@ -1002,7 +1004,9 @@ def ssh(*, user: str, host: str, identity_file: str):
 @click.argument('cluster-name')
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 # TODO: Move identity-file to global, non-provider-specific option. (?)
-@click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
+@click.option('--ec2-identity-file',
+              type=click.Path(exists=True, dir_okay=False),
+              help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.pass_context
 def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
@@ -1048,7 +1052,9 @@ def login_ec2(cluster_name, region, identity_file, user):
 @click.argument('cluster-name')
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 # TODO: Move identity-file to global, non-provider-specific option. (?)
-@click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
+@click.option('--ec2-identity-file',
+              type=click.Path(exists=True, dir_okay=False),
+              help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.pass_context
 def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
@@ -1241,7 +1247,9 @@ def stop_ec2(cluster_name, region, assume_yes=True):
 @click.argument('cluster-name')
 @click.argument('command', nargs=-1)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
-@click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
+@click.option('--ec2-identity-file',
+              type=click.Path(exists=True, dir_okay=False),
+              help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.pass_context
 def run_command(cli_context, cluster_name, command, ec2_region, ec2_identity_file, ec2_user):
@@ -1341,7 +1349,9 @@ def run_command_ec2(cluster_name, command, region, identity_file, user):
 @click.argument('remote_path', type=click.Path())
 @click.option('--master-only', help="Copy to the master only.", is_flag=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
-@click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
+@click.option('--ec2-identity-file',
+              type=click.Path(exists=True, dir_okay=False),
+              help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.option('--assume-yes/--no-assume-yes', default=False, help="Prompt before large uploads.")
 @click.pass_context
