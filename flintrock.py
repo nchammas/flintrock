@@ -645,7 +645,7 @@ def launch_ec2(
 
     except KeyboardInterrupt as e:
         # TODO: Prompt user if they want to terminate the instances. (?)
-        print("Exiting...")
+        print("Exiting...", file=sys.stderr)
         sys.exit(1)
     # finally:
     #     print("Terminating all {c} instances...".format(
@@ -1113,7 +1113,7 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
             region=region)
         cluster_instances = [master_instance] + slave_instances
     except ClusterNotFound as e:
-        print(e)
+        print(e, file=sys.stderr)
         sys.exit(1)
         # Style: Should everything else be under an else: block?
 
@@ -1308,7 +1308,7 @@ def run_command_ec2(cluster_name, command, region, identity_file, user):
             region=region)
         cluster_instances = [master_instance] + slave_instances
     except ClusterNotFound as e:
-        print(e)
+        print(e, file=sys.stderr)
         sys.exit(1)
 
     if get_cluster_state_ec2(cluster_instances) != 'running':
@@ -1437,7 +1437,7 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
             region=region)
         cluster_instances = [master_instance] + slave_instances
     except ClusterNotFound as e:
-        print(e)
+        print(e, file=sys.stderr)
         sys.exit(1)
 
     if get_cluster_state_ec2(cluster_instances) != 'running':
@@ -1507,7 +1507,6 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
     #     sys.exit(1)
     except Exception as e:
         print("At least one node raised an error:", e, file=sys.stderr)
-        raise
         sys.exit(1)
 
     loop.close()
