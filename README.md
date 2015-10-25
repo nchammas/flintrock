@@ -1,5 +1,8 @@
 ![Flintrock logo](flintrock-logo.png)
 
+[![Build Status](https://travis-ci.org/nchammas/flintrock.svg)](https://travis-ci.org/nchammas/flintrock)
+[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/nchammas/flintrock)
+
 Flintrock is a command-line tool and library for launching [Apache Spark](http://spark.apache.org/) clusters.
 
 **Flintrock is currently undergoing heavy development. Until we make a 1.0 release, you probably should not use Flintrock unless you are ready to keep up with frequent changes to how it works.** Python hackers or heavy spark-ec2 users who are looking to experiment with something new are welcome to try Flintrock out and potentially even [contribute](CONTRIBUTING.md).
