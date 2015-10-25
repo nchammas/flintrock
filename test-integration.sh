@@ -52,6 +52,13 @@ set -e
 test_echo "Start a stopped cluster and make sure Spark is still working."
 ./flintrock start "$CLUSTER_NAME"
 
+test_echo "Copy a file up to a cluster."
+dummy_file="/tmp/flintrock.dummy"
+test ! -f "$dummy_file"  # make sure it doesn't already exist
+truncate --size 1KB "$dummy_file"
+./flintrock copy-file "$CLUSTER_NAME" "$dummy_file" /tmp/
+rm "$dummy_file"
+
 # How do you test this automatically?
 # ./flintrock login "$CLUSTER_NAME"
 

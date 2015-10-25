@@ -30,7 +30,16 @@ Once you're done using a cluster, don't forget to destroy it with:
 flintrock destroy test-cluster
 ```
 
-And if you're lost, do try:
+Other things you can do with Flintrock include:
+
+```sh
+flintrock login test-cluster
+flintrock describe test-cluster
+flintrock run-command test-cluster 'yum install -y package'
+flintrock copy-file test-cluster /local/path /remote/path
+```
+
+To see what else Flintrock can do, or to see detailed help for a specific command, try:
 
 ```sh
 flintrock --help
