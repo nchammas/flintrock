@@ -36,6 +36,7 @@ Distant future:
 """
 
 import os
+import posixpath
 import errno
 import sys
 import shlex
@@ -951,6 +952,7 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
         filters={
             'instance.group-name': 'flintrock-' + cluster_name if cluster_name else 'flintrock'
         })
+    # TODO: Exit with 1 if user describes a cluster by name that doesn't exist.
 
     # TODO: Capture this in some reusable method that gets info about a bunch of
     #       Flintrock clusters and returns a list of FlintrockCluster objects.
@@ -1101,7 +1103,7 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         cluster_instances = [master_instance] + slave_instances
     except ClusterNotFound as e:
         print(e)
-        sys.exit(0)
+        sys.exit(1)
         # Style: Should everything else be under an else: block?
 
     print("Starting {c} instances...".format(c=len(cluster_instances)))
@@ -1251,7 +1253,7 @@ def run_command(cli_context, cluster_name, command, ec2_region, ec2_identity_fil
         ./flintrock run-command my-cluster 'touch /tmp/flintrock'
         ./flintrock run-command my-cluster -- yum install -y package
 
-    Flintrock will return a non-zero code if any of the cluster nodes raise an error
+    Flintrock will return a non-zero code if any of the cluster nodes raises an error
     while running the command.
     """
     if cli_context.obj['provider'] == 'ec2':
@@ -1294,7 +1296,7 @@ def run_command_ec2(cluster_name, command, region, identity_file, user):
         cluster_instances = [master_instance] + slave_instances
     except ClusterNotFound as e:
         print(e)
-        sys.exit(0)
+        sys.exit(1)
 
     if get_cluster_state_ec2(cluster_instances) != 'running':
         print("Cluster is not in a running state.", file=sys.stderr)
@@ -1333,6 +1335,180 @@ def run_command_ec2(cluster_name, command, region, identity_file, user):
     loop.close()
 
 
+@cli.command(name='copy-file')
+@click.argument('cluster-name')
+@click.argument('local_path', type=click.Path(exists=True, dir_okay=False))
+@click.argument('remote_path', type=click.Path())
+@click.option('--master-only', help="Copy to the master only.", is_flag=True)
+@click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--ec2-identity-file', help="Path to .pem file for SSHing into nodes.")
+@click.option('--ec2-user')
+@click.option('--assume-yes/--no-assume-yes', default=False, help="Prompt before large uploads.")
+@click.pass_context
+def copy_file(
+        cli_context,
+        cluster_name,
+        local_path,
+        remote_path,
+        master_only,
+        ec2_region,
+        ec2_identity_file,
+        ec2_user,
+        assume_yes):
+    """
+    Copy a local file up to a cluster.
+
+    This will copy the file to the same path on each node of the cluster.
+
+    Examples:
+
+        ./flintrock copy-file my-cluster /tmp/file.102.txt /tmp/file.txt
+        ./flintrock copy-file my-cluster /tmp/spark-defaults.conf /tmp/
+
+    Flintrock will return a non-zero code if any of the cluster nodes raises an error.
+    """
+    # We assume POSIX for the remote path since Flintrock
+    # only supports clusters running CentOS / Amazon Linux.
+    if not posixpath.basename(remote_path):
+        remote_path = posixpath.join(remote_path, os.path.basename(local_path))
+
+    if cli_context.obj['provider'] == 'ec2':
+        copy_file_ec2(
+            cluster_name=cluster_name,
+            local_path=local_path,
+            remote_path=remote_path,
+            master_only=master_only,
+            region=ec2_region,
+            identity_file=ec2_identity_file,
+            user=ec2_user,
+            assume_yes=assume_yes)
+    else:
+        # TODO: Create UnsupportedProviderException. (?)
+        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+
+
+def copy_file_node(*, user: str, host: str, identity_file: str, local_path: str, remote_path: str):
+    # TODO: Timeout quickly if SSH is not available.
+    ssh_client = get_ssh_client(
+        user=user,
+        host=host,
+        identity_file=identity_file)
+
+    with ssh_client:
+        remote_dir = posixpath.dirname(remote_path)
+
+        try:
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    test -d {path}
+                """.format(path=shlex.quote(remote_dir)))
+        except Exception as e:
+            raise Exception("Remote directory does not exist: {d}".format(d=remote_dir))
+
+        with ssh_client.open_sftp() as sftp:
+            print("[{h}] Copying file...".format(h=host))
+
+            sftp.put(localpath=local_path, remotepath=remote_path)
+
+            print("[{h}] Copy complete.".format(h=host))
+
+
+@timeit
+def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, region, identity_file, user, assume_yes=True):
+    try:
+        master_instance, slave_instances = get_cluster_instances_ec2(
+            cluster_name=cluster_name,
+            region=region)
+        cluster_instances = [master_instance] + slave_instances
+    except ClusterNotFound as e:
+        print(e)
+        sys.exit(1)
+
+    if get_cluster_state_ec2(cluster_instances) != 'running':
+        print("Cluster is not in a running state.", file=sys.stderr)
+        sys.exit(1)
+
+    if not assume_yes and not master_only:
+        file_size_bytes = os.path.getsize(local_path)
+        num_nodes = len(cluster_instances)
+        total_size_bytes = file_size_bytes * num_nodes
+
+        if total_size_bytes > 10 ** 6:
+            print("WARNING:")
+            print(
+                format_message(
+                    message="""\
+                        You are trying to upload {total_size} bytes ({size} bytes x {count}
+                        nodes in {cluster}). Depending on your upload bandwidth, this may take
+                        a long time.
+                        You may be better off uploading this file to a storage service like
+                        Amazon S3 and downloading it from there to the cluster using
+                        `flintrock run-command ...`.
+                        """.format(
+                            size=file_size_bytes,
+                            count=num_nodes,
+                            cluster=cluster_name,
+                            total_size=total_size_bytes),
+                    wrap=60))
+            click.confirm(
+                text="Are you sure you want to continue?",
+                default=True,
+                abort=True)
+
+    loop = asyncio.get_event_loop()
+
+    tasks = []
+    if master_only:
+        target_instances = [master_instance]
+    else:
+        target_instances = cluster_instances
+
+    print("Copying file to {c} instance{s}...".format(
+        c=len(target_instances),
+        s='s' if len(target_instances) > 1 else ''))
+
+    for instance in target_instances:
+        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
+        #       Until then, we leave them out to maintain compatibility across Python 3.4
+        #       and 3.5.
+        # See: http://stackoverflow.com/q/32873974/
+        task = loop.run_in_executor(
+            None,
+            functools.partial(
+                copy_file_node,
+                user=user,
+                host=instance.ip_address,
+                identity_file=identity_file,
+                local_path=local_path,
+                remote_path=remote_path))
+        tasks.append(task)
+
+    try:
+        loop.run_until_complete(asyncio.gather(*tasks))
+    # TODO: Cancel cleanly from hung commands. The below doesn't work.
+    #       Probably related to: http://stackoverflow.com/q/29177490/
+    # except KeyboardInterrupt as e:
+    #     sys.exit(1)
+    except Exception as e:
+        print("At least one node raised an error:", e, file=sys.stderr)
+        raise
+        sys.exit(1)
+
+    loop.close()
+
+
+def format_message(*, message: str, indent: int=4, wrap: int=70):
+    """
+    Format a lengthy message for printing to screen.
+    """
+    return textwrap.indent(
+        textwrap.fill(
+            textwrap.dedent(text=message),
+            width=wrap),
+        prefix=' ' * indent)
+
+
 def normalize_keys(obj):
     """
     Used to map keys from config files to Python parameter names.
@@ -1367,7 +1543,8 @@ def config_to_click(config: dict) -> dict:
         'login': ec2_configs,
         'start': ec2_configs,
         'stop': ec2_configs,
-        'run-command': ec2_configs
+        'run-command': ec2_configs,
+        'copy-file': ec2_configs,
     }
 
     return click
