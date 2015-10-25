@@ -1540,6 +1540,7 @@ def config_to_click(config: dict) -> dict:
             list(ec2_configs.items()) +
             list(module_configs.items())),
         'describe': ec2_configs,
+        'destroy': ec2_configs,
         'login': ec2_configs,
         'start': ec2_configs,
         'stop': ec2_configs,
