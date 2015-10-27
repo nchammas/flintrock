@@ -93,6 +93,18 @@ After you and the reviewers agree that a pull request is ready to be accepted, y
 
 If you are adding or touching lots of code, then be prepared to go through many rounds of revisions before your pull request is accepted. This is normal, especially as you are still getting acquainted with the project's standards and style.
 
+### Testing your changes
+
+Whether your changes are big or small, you'll want to test them. Flintrock includes two types of tests that you should use.
+
+#### Static analysis
+
+[`lint.sh`](./lint.sh) will make sure your code compiles, check for style issues, and look for other potential problems that can be detected without running Flintrock "for real".
+
+#### Integration tests
+
+[`test-integration.sh`](./test-integration.sh) will launch and manipulate a real cluster to test Flintrock's various commands. This is the most valuable type of test for Flintrock, but it also costs money to run. Use it judiciously.
+
 ### Expanding the support matrix
 
 We will generally reject contributions that expand the number of operating systems, configurations, or languages that Flintrock supports, because they impose a large maintenance burden on the project over its lifespan. In some cases this might mean rejecting contributions that could significantly expand the project's potential user base.
