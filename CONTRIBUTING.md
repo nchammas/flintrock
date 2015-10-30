@@ -20,13 +20,9 @@ Don't underestimate the power of a thank you. If Flintrock helped you in some wa
 
 Most projects have various kinds of tests to make sure things are working correctly. The most valuable test for an orchestration tool like Flintrock is a full acceptance test, since the fundamental thing Flintrock does is manage remote resources.
 
-This means that as Flintrock developers we are always launching and destroying instances on some cloud provider, which costs money.
+This means that as Flintrock developers we are always launching and destroying instances on some cloud provider, which costs money. Any money you contribute will go towards paying those bills.
 
-Any money you contribute will go towards paying those bills.
-
-Contribute money in one of the following ways:
-
-* [Amazon Allowance](http://www.amazon.com/b?ie=UTF8&node=11453461011)
+We're still figuring out how best to accept donations for these purposes, but [Amazon Allowance](http://www.amazon.com/b?ie=UTF8&node=11453461011) looks promising.
 
 
 ## Contributing Bug Reports
@@ -93,7 +89,7 @@ After you and the reviewers agree that a pull request is ready to be accepted, y
 
 If you are adding or touching lots of code, then be prepared to go through many rounds of revisions before your pull request is accepted. This is normal, especially as you are still getting acquainted with the project's standards and style.
 
-### Testing your changes
+### Test your changes
 
 Whether your changes are big or small, you'll want to test them. Flintrock includes two types of tests that you should use.
 
@@ -105,7 +101,7 @@ Whether your changes are big or small, you'll want to test them. Flintrock inclu
 
 [`test-integration.sh`](./test-integration.sh) will launch and manipulate a real cluster to test Flintrock's various commands. This is the most valuable type of test for Flintrock, but it also costs money to run. Use it judiciously.
 
-### Expanding the support matrix
+### Don't expand the support matrix
 
 We will generally reject contributions that expand the number of operating systems, configurations, or languages that Flintrock supports, because they impose a large maintenance burden on the project over its lifespan. In some cases this might mean rejecting contributions that could significantly expand the project's potential user base.
 
