@@ -171,6 +171,7 @@ class Spark:
                         spark_version=shlex.quote(self.version),
                         distribution=shlex.quote(distribution)))
         except Exception as e:
+            # TODO: This should be a more specific exception.
             print(
                 "Could not find package for Spark {s} / {d}.".format(
                     s=self.version,
@@ -513,11 +514,6 @@ def launch_ec2(
     Launch a fully functional cluster on EC2 with the specified configuration
     and installed modules.
     """
-    if spot_price:
-        print("Psych! Support for spot instances hasn't been implemented yet.", file=sys.stderr)
-        print("See: https://github.com/nchammas/flintrock/issues/30", file=sys.stderr)
-        sys.exit(1)
-
     try:
         get_cluster_instances_ec2(
             cluster_name=cluster_name,
@@ -533,31 +529,69 @@ def launch_ec2(
         vpc_id=vpc_id,
         region=region)
 
+    num_instances = num_slaves + 1
+    spot_requests = []
+    cluster_instances = []
+
     try:
         connection = boto.ec2.connect_to_region(region_name=region)
 
-        print("Launching {c} instances...".format(c=num_slaves + 1))
+        if spot_price:
+            print("Requesting {c} spot instances at a max price of ${p}...".format(
+                c=num_instances, p=spot_price))
 
-        reservation = connection.run_instances(
-            image_id=ami,
-            min_count=(num_slaves + 1),
-            max_count=(num_slaves + 1),
-            key_name=key_name,
-            instance_type=instance_type,
-            placement=availability_zone,
-            security_group_ids=[sg.id for sg in security_groups],
-            subnet_id=subnet_id,
-            placement_group=placement_group,
-            tenancy=tenancy,
-            ebs_optimized=ebs_optimized,
-            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
+            spot_requests = connection.request_spot_instances(
+                price=spot_price,
+                image_id=ami,
+                count=num_instances,
+                key_name=key_name,
+                instance_type=instance_type,
+                placement=availability_zone,
+                security_group_ids=[sg.id for sg in security_groups],
+                subnet_id=subnet_id,
+                placement_group=placement_group,
+                ebs_optimized=ebs_optimized)
 
-        time.sleep(10)  # AWS metadata eventual consistency tax.
+            request_ids = [r.id for r in spot_requests]
+            pending_request_ids = request_ids
+
+            while pending_request_ids:
+                print("{grant} of {req} instances granted. Waiting...".format(
+                    grant=num_instances - len(pending_request_ids),
+                    req=num_instances))
+                time.sleep(30)
+                spot_requests = connection.get_all_spot_instance_requests(request_ids=request_ids)
+                pending_request_ids = [r.id for r in spot_requests if r.state != 'active']
+
+            print("All {c} instances granted.".format(c=num_instances))
+
+            cluster_instances = connection.get_only_instances(
+                instance_ids=[r.instance_id for r in spot_requests])
+        else:
+            print("Launching {c} instances...".format(c=num_instances))
+
+            reservation = connection.run_instances(
+                image_id=ami,
+                min_count=num_instances,
+                max_count=num_instances,
+                key_name=key_name,
+                instance_type=instance_type,
+                placement=availability_zone,
+                security_group_ids=[sg.id for sg in security_groups],
+                subnet_id=subnet_id,
+                placement_group=placement_group,
+                tenancy=tenancy,
+                ebs_optimized=ebs_optimized,
+                instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
+
+            cluster_instances = reservation.instances
+
+            time.sleep(10)  # AWS metadata eventual consistency tax.
 
         # TODO: Move this to a reusable function and add a limit on
         #       wait time.
         while True:
-            for instance in reservation.instances:
+            for instance in cluster_instances:
                 if instance.state == 'running':
                     continue
                 else:
@@ -567,8 +601,8 @@ def launch_ec2(
             else:
                 break
 
-        master_instance = reservation.instances[0]
-        slave_instances = reservation.instances[1:]
+        master_instance = cluster_instances[0]
+        slave_instances = cluster_instances[1:]
 
         connection.create_tags(
             resource_ids=[master_instance.id],
@@ -593,7 +627,7 @@ def launch_ec2(
         loop = asyncio.get_event_loop()
 
         tasks = []
-        for instance in reservation.instances:
+        for instance in cluster_instances:
             # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
             #       Until then, we leave them out to maintain compatibility across Python 3.4
             #       and 3.5.
@@ -617,7 +651,7 @@ def launch_ec2(
         loop.close()
 
         print("All {c} instances provisioned.".format(
-            c=len(reservation.instances)))
+            c=len(cluster_instances)))
 
         master_ssh_client = get_ssh_client(
             user=user,
@@ -636,22 +670,39 @@ def launch_ec2(
                 #       on that node are fully running.
                 time.sleep(30)
                 module.health_check(master_host=cluster_info.master_host)
+    except (Exception, KeyboardInterrupt) as e:
+        print(e, file=sys.stderr)
 
-        # Login to the master for manual inspection.
-        # TODO: Move to master_login() method.
-        # ssh(
-        #   host=master_instance.ip_address,
-        #   identity_file=identity_file)
+        if spot_requests:
+            print("Canceling spot instance requests...", file=sys.stderr)
+            request_ids = [r.id for r in spot_requests]
+            connection.cancel_spot_instance_requests(
+                request_ids=request_ids)
+            # Make sure we have the latest information on any launched spot instances.
+            spot_requests = connection.get_all_spot_instance_requests(
+                request_ids=request_ids)
+            instance_ids = [r.instance_id for r in spot_requests if r.instance_id]
+            if instance_ids:
+                cluster_instances = connection.get_only_instances(
+                    instance_ids=instance_ids)
 
-    except KeyboardInterrupt as e:
-        # TODO: Prompt user if they want to terminate the instances. (?)
-        print("Exiting...", file=sys.stderr)
+        if cluster_instances:
+            yes = click.confirm(
+                text="Do you want to terminate the {c} instances created by this operation?"
+                     .format(c=len(cluster_instances)),
+                err=True,
+                default=True)
+
+            if yes:
+                print("Terminating instances...", file=sys.stderr)
+                for instance in cluster_instances:
+                    instance.terminate()
+
         sys.exit(1)
     # finally:
     #     print("Terminating all {c} instances...".format(
-    #         c=len(reservation.instances)))
-
-    #     for instance in reservation.instances:
+    #         c=len(cluster_instances)))
+    #     for instance in cluster_instances:
     #         instance.terminate()
 
 
