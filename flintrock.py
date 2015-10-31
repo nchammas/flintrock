@@ -686,15 +686,15 @@ def launch_ec2(
 
             if yes:
                 print("Terminating instances...", file=sys.stderr)
-                for instance in cluster_instances:
-                    instance.terminate()
+                connection.terminate_instances(
+                    instance_ids=[instance.id for instance in cluster_instances])
 
         sys.exit(1)
     # finally:
     #     print("Terminating all {c} instances...".format(
     #         c=len(cluster_instances)))
-    #     for instance in cluster_instances:
-    #         instance.terminate()
+    #     connection.terminate_instances(
+    #         instance_ids=[instance.id for instance in cluster_instances])
 
 
 def get_ssh_client(
@@ -910,8 +910,9 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
     #       communicating with the user, even if we're talking about doing things
     #       to EC2 instances. Spark docs definitely favor "node".
     print("Terminating {c} instances...".format(c=len(cluster_instances)))
-    for instance in cluster_instances:
-        instance.terminate()
+    connection = boto.ec2.connect_to_region(region_name=region)
+    connection.terminate_instances(
+        instance_ids=[instance.id for instance in cluster_instances])
 
     # TODO: Destroy cluster security group. We're not reusing it.
 
@@ -1162,9 +1163,9 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         sys.exit(1)
 
     print("Starting {c} instances...".format(c=len(cluster_instances)))
-
-    for instance in cluster_instances:
-        instance.start()
+    connection = boto.ec2.connect_to_region(region_name=region)
+    connection.start_instances(
+        instance_ids=[instance.id for instance in cluster_instances])
 
     wait_for_cluster_state_ec2(
         cluster_instances=cluster_instances,
@@ -1264,8 +1265,9 @@ def stop_ec2(cluster_name, region, assume_yes=True):
             abort=True)
 
     print("Stopping {c} instances...".format(c=len(cluster_instances)))
-    for instance in cluster_instances:
-        instance.stop()
+    connection = boto.ec2.connect_to_region(region_name=region)
+    connection.stop_instances(
+        instance_ids=[instance.id for instance in cluster_instances])
 
     wait_for_cluster_state_ec2(
         cluster_instances=cluster_instances,
