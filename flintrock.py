@@ -588,18 +588,9 @@ def launch_ec2(
 
             time.sleep(10)  # AWS metadata eventual consistency tax.
 
-        # TODO: Move this to a reusable function and add a limit on
-        #       wait time.
-        while True:
-            for instance in cluster_instances:
-                if instance.state == 'running':
-                    continue
-                else:
-                    instance.update()
-                    time.sleep(3)
-                    break
-            else:
-                break
+        wait_for_cluster_state_ec2(
+            cluster_instances=cluster_instances,
+            state='running')
 
         master_instance = cluster_instances[0]
         slave_instances = cluster_instances[1:]
@@ -943,6 +934,22 @@ def remove_slaves_ec2(cluster_name, num_slaves, assume_yes=True):
     pass
 
 
+def wait_for_cluster_state_ec2(*, cluster_instances: list, state: str):
+    """
+    Wait for all the instances in a cluster to reach a specific state.
+    """
+    while True:
+        for instance in cluster_instances:
+            if instance.state == state:
+                continue
+            else:
+                time.sleep(3)
+                instance.update()
+                break
+        else:
+            break
+
+
 def get_cluster_state_ec2(cluster_instances: list) -> str:
     """
     Get the state of an EC2 cluster.
@@ -1159,16 +1166,9 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
     for instance in cluster_instances:
         instance.start()
 
-    while True:
-        for instance in cluster_instances:
-            if instance.state == 'running':
-                continue
-            else:
-                instance.update()
-                time.sleep(3)
-                break
-        else:
-            break
+    wait_for_cluster_state_ec2(
+        cluster_instances=cluster_instances,
+        state='running')
 
     cluster_info = ClusterInfo(
         name=cluster_name,
@@ -1267,17 +1267,10 @@ def stop_ec2(cluster_name, region, assume_yes=True):
     for instance in cluster_instances:
         instance.stop()
 
-    while True:
-        for instance in cluster_instances:
-            if instance.state == 'stopped':
-                continue
-            else:
-                instance.update()
-                time.sleep(3)
-                break
-        else:
-            print("{c} is now stopped.".format(c=cluster_name))
-            break
+    wait_for_cluster_state_ec2(
+        cluster_instances=cluster_instances,
+        state='stopped')
+    print("{c} is now stopped.".format(c=cluster_name))
 
 
 @cli.command(name='run-command')
