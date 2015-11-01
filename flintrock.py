@@ -297,10 +297,6 @@ def cli(cli_context, config, provider):
             raise FileNotFoundError(errno.ENOENT, 'No such file or directory', config)
 
 
-# @timeit  # Why doesn't this work?
-# TODO: Required EC2 parameters shouldn't be required for non-EC2 providers.
-#       Click doesn't support this kind of flow directly.
-#       See: https://github.com/mitsuhiko/click/issues/257
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=int, required=True)
@@ -626,7 +622,7 @@ def launch_ec2(
             task = loop.run_in_executor(
                 None,
                 functools.partial(
-                    provision_ec2_node,
+                    provision_node,
                     modules=modules,
                     user=user,
                     host=instance.ip_address,
@@ -665,6 +661,7 @@ def launch_ec2(
         print(e, file=sys.stderr)
 
         if spot_requests:
+            # TODO: Do this only if there are pending requests.
             print("Canceling spot instance requests...", file=sys.stderr)
             request_ids = [r.id for r in spot_requests]
             connection.cancel_spot_instance_requests(
@@ -740,8 +737,7 @@ def get_ssh_client(
     return client
 
 
-# TODO: This function is actually provider agnostic.
-def provision_ec2_node(
+def provision_node(
         *,
         modules: list,
         user: str,
@@ -749,14 +745,13 @@ def provision_ec2_node(
         identity_file: str,
         cluster_info: ClusterInfo):
     """
-    Connect to a freshly launched EC2 instance, set it up for SSH access, and
+    Connect to a freshly launched node, set it up for SSH access, and
     install the specified modules.
 
     This function is intended to be called on all cluster nodes in parallel.
 
     No master- or slave-specific logic should be in this method.
     """
-
     client = get_ssh_client(
         user=user,
         host=host,
@@ -1123,8 +1118,7 @@ def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
 
 
-# TODO: This function is actually provider agnostic.
-def start_ec2_node(
+def start_node(
         *,
         modules: list,
         user: str,
@@ -1195,7 +1189,7 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         task = loop.run_in_executor(
             None,
             functools.partial(
-                start_ec2_node,
+                start_node,
                 modules=modules,
                 user=user,
                 host=instance.ip_address,
