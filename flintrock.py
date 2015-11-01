@@ -122,14 +122,9 @@ ClusterInfo = namedtuple(
 #       are so small.
 # NOTE: functools.lru_cache() doesn't work here because the mapping is
 #       not hashable.
-# TODO: Get rid of this. Just escape braces à la {{ and }}.
 def get_formatted_template(path: str, mapping: dict) -> str:
-    class TemplateDict(dict):
-        def __missing__(self, key):
-            return '{' + key + '}'
-
     with open(path) as f:
-        formatted = f.read().format_map(TemplateDict(**mapping))
+        formatted = f.read().format(**mapping)
 
     return formatted
 
@@ -153,23 +148,21 @@ class Spark:
             h=ssh_client.get_transport().getpeername()[0]))
 
         try:
-            # TODO: Figure out how these non-template paths should work.
+            with ssh_client.open_sftp() as sftp:
+                sftp.put(
+                    localpath='./install-spark.sh',
+                    remotepath='/tmp/install-spark.sh')
+                sftp.chmod(path='/tmp/install-spark.sh', mode=0o755)
             ssh_check_output(
                 client=ssh_client,
                 command="""
                     set -e
-
-                    echo {f} > /tmp/install-spark.sh
-                    chmod 755 /tmp/install-spark.sh
-
-                    /tmp/install-spark.sh {spark_version} {distribution}
+                    /tmp/install-spark.sh {spark_version} {distribution} {spark_scratch_dir}
+                    rm -f /tmp/install-spark.sh
                 """.format(
-                        f=shlex.quote(
-                            get_formatted_template(
-                                path='./install-spark.sh',
-                                mapping=vars(cluster_info))),
                         spark_version=shlex.quote(self.version),
-                        distribution=shlex.quote(distribution)))
+                        distribution=shlex.quote(distribution),
+                        spark_scratch_dir=shlex.quote(cluster_info.spark_scratch_dir)))
         except Exception as e:
             # TODO: This should be a more specific exception.
             print(
