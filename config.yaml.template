@@ -1,6 +1,8 @@
 modules:
   spark:
     version: 1.5.1
+  hdfs:
+    version: 2.7.1
 
 provider: ec2
 
@@ -25,3 +27,5 @@ providers:
 
 launch:
   num-slaves: 1
+  # install-hdfs: False
+  # install-spark: False
