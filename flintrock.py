@@ -4,10 +4,6 @@ Flintrock
 A command-line tool and library for launching Apache Spark clusters.
 
 Major TODOs:
-    * Handling of exceptions / reporting of issues during cluster launch.
-        - Spark install goes wrong
-        - Spark version is invalid
-        - Current exception output is quite ugly. Related to thread executor / asyncio.
     * "Fix" Hadoop 2.6 S3 setup by installing appropriate Hadoop libraries
       See: https://issues.apache.org/jira/browse/SPARK-7442
     * ClusterInfo namedtuple -> FlintrockCluster class
@@ -311,6 +307,8 @@ class Spark:
 
     # TODO: Convert this into start_master() and split master- or slave-specific
     #       stuff out of configure() into configure_master() and configure_slave().
+    #       start_slave() can block until slave is fully up; that way we don't need
+    #       a sleep() before starting the master.
     def configure_master(
             self,
             ssh_client: paramiko.client.SSHClient,
@@ -627,7 +625,6 @@ def get_or_create_ec2_security_groups(
     return [flintrock_group, cluster_group]
 
 
-# Move to ec2 module and call as ec2.launch()?
 @timeit
 def launch_ec2(
         *,
@@ -804,13 +801,16 @@ def launch_ec2(
                 module.configure_master(
                     ssh_client=master_ssh_client,
                     cluster_info=cluster_info)
-                # NOTE: We sleep here so that Spark (currently the only supported module)
-                #       has time to spin up all its slaves.
-                # TODO: Spark module methods to start_slave() and start_master() which are
-                #       separate from configure_master() and which block until Spark services
-                #       on that node are fully running.
-                time.sleep(30)
-                module.health_check(master_host=cluster_info.master_host)
+
+        # NOTE: We sleep here so that the slave services have time to come up.
+        #       If we refactor stuff to have a start_slave() that blocks until
+        #       the slave is fully up, then we won't need this sleep anymore.
+        if modules:
+            time.sleep(30)
+
+        for module in modules:
+            module.health_check(master_host=cluster_info.master_host)
+
     except (Exception, KeyboardInterrupt) as e:
         print(e, file=sys.stderr)
 
@@ -1392,7 +1392,11 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
                 ssh_client=master_ssh_client,
                 cluster_info=cluster_info)
 
-    time.sleep(30)
+    # NOTE: We sleep here so that the slave services have time to come up.
+    #       If we refactor stuff to have a start_slave() that blocks until
+    #       the slave is fully up, then we won't need this sleep anymore.
+    if modules:
+        time.sleep(30)
 
     for module in modules:
         module.health_check(master_host=master_instance.ip_address)
