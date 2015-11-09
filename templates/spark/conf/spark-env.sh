@@ -7,12 +7,10 @@ export SPARK_MASTER_OPTS="{spark_master_opts}"
 export SPARK_EXECUTOR_INSTANCES="1"
 export SPARK_WORKER_CORES="$(nproc)"
 
-export HADOOP_HOME=""
 export SPARK_MASTER_IP="{master_host}"
-export MASTER="spark://{master_host}:7077"
 
-export SPARK_SUBMIT_LIBRARY_PATH="$SPARK_SUBMIT_LIBRARY_PATH"
-export SPARK_SUBMIT_CLASSPATH="$SPARK_SUBMIT_CLASSPATH"
+# TODO: Make this dependent on HDFS install.
+export HADOOP_CONF_DIR="/home/{user}/hadoop/conf"
 
 # TODO: Make this non-EC2-specific.
 # Bind Spark's web UIs to this machine's public EC2 hostname

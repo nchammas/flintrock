@@ -1,6 +1,8 @@
 modules:
   spark:
     version: 1.5.1
+  hdfs:
+    version: 2.7.1
 
 provider: ec2
 
@@ -11,10 +13,10 @@ providers:
     instance-type: m3.medium  # must be 64-bit; small instances won't work
     region: us-east-1
     # availability-zone: <name>
-    # ami: ami-146e2a7c   # Amazon Linux
-    # user: ec2-user
-    ami: ami-61bbf104   # CentOS 7
-    user: centos
+    ami: ami-60b6c60a   # Amazon Linux
+    user: ec2-user
+    # ami: ami-61bbf104   # CentOS 7
+    # user: centos
     # spot-price: <price>
     # vpc-id: <id>
     # subnet-id: <id>
@@ -25,3 +27,5 @@ providers:
 
 launch:
   num-slaves: 1
+  # install-hdfs: False
+  # install-spark: False

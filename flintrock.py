@@ -110,11 +110,28 @@ ClusterInfo = namedtuple(
     'ClusterInfo', [
         'name',
         'ssh_key_pair',
+        'user',
         'master_host',
         'slave_hosts',
         'spark_scratch_dir',
         'spark_master_opts'
     ])
+
+
+def cluster_info_to_template_mapping(cluster_info: ClusterInfo) -> dict:
+    """
+    Convert a ClusterInfo tuple to a dictionary that we can use to fill in template
+    parameters.
+    """
+    template_mapping = {}
+
+    for k, v in vars(cluster_info).items():
+        if k in ['slave_hosts']:
+            template_mapping.update({k: '\n'.join(v)})
+        else:
+            template_mapping.update({k: v})
+
+    return template_mapping
 
 
 # TODO: Cache these files. (?) They are being read potentially tens or
@@ -127,6 +144,101 @@ def get_formatted_template(path: str, mapping: dict) -> str:
         formatted = f.read().format(**mapping)
 
     return formatted
+
+
+class HDFS:
+    def __init__(self, version):
+        self.version = version
+
+    def install(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster_info: ClusterInfo):
+        print("[{h}] Installing HDFS...".format(
+            h=ssh_client.get_transport().getpeername()[0]))
+
+        with ssh_client.open_sftp() as sftp:
+            sftp.put(
+                localpath='./get-best-apache-mirror.py',
+                remotepath='/tmp/get-best-apache-mirror.py')
+
+        ssh_check_output(
+            client=ssh_client,
+            command="""
+                set -e
+
+                curl --silent --remote-name "$(
+                    python /tmp/get-best-apache-mirror.py "http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{version}/hadoop-{version}.tar.gz?as_json")"
+
+                mkdir "hadoop"
+                mkdir "hadoop/conf"
+
+                tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
+                rm "hadoop-{version}.tar.gz"
+
+                sudo mkdir /mnt/hdfs
+                sudo chown "$(logname)":"$(logname)" /mnt/hdfs
+            """.format(version=self.version))
+
+    def configure(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster_info: ClusterInfo):
+        template_paths = [
+            './hadoop/conf/masters',
+            './hadoop/conf/slaves',
+            './hadoop/conf/hadoop-env.sh',
+            './hadoop/conf/core-site.xml',
+            './hadoop/conf/hdfs-site.xml']
+
+        for template_path in template_paths:
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    echo {f} > {p}
+                """.format(
+                    f=shlex.quote(
+                        get_formatted_template(
+                            path="templates/" + template_path,
+                            mapping=cluster_info_to_template_mapping(cluster_info))),
+                    p=shlex.quote(template_path)))
+
+    # TODO: Convert this into start_master() and split master- or slave-specific
+    #       stuff out of configure() into configure_master() and configure_slave().
+    def configure_master(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster_info: ClusterInfo):
+        host = ssh_client.get_transport().getpeername()[0]
+        print("[{h}] Configuring HDFS master...".format(h=host))
+
+        ssh_check_output(
+            client=ssh_client,
+            command="""
+                ./hadoop/bin/hdfs namenode -format -nonInteractive
+                ./hadoop/sbin/start-dfs.sh
+            """)
+
+    def configure_slave(self):
+        pass
+
+    def health_check(self, master_host: str):
+        """
+        Check that HDFS is functioning.
+        """
+        # This info is not helpful as a detailed health check, but it gives us
+        # an up / not up signal.
+        hdfs_master_ui = 'http://{m}:50070/webhdfs/v1/?op=GETCONTENTSUMMARY'.format(m=master_host)
+
+        try:
+            hdfs_ui_info = json.loads(
+                urllib.request.urlopen(hdfs_master_ui).read().decode('utf-8'))
+        except Exception as e:
+            # TODO: Catch a more specific problem.
+            print("HDFS health check failed.", file=sys.stderr)
+            raise
+
+        print("HDFS online.")
 
 
 # TODO: Turn this into an implementation of an abstract FlintrockModule class. (?)
@@ -142,7 +254,7 @@ class Spark:
         Downloads and installs Spark on a given node.
         """
         # TODO: Allow users to specify the Spark "distribution".
-        distribution = 'hadoop1'
+        distribution = 'hadoop2.6'
 
         print("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
@@ -165,6 +277,7 @@ class Spark:
                         spark_scratch_dir=shlex.quote(cluster_info.spark_scratch_dir)))
         except Exception as e:
             # TODO: This should be a more specific exception.
+            print(e, file=sys.stderr)
             print(
                 "Could not find package for Spark {s} / {d}.".format(
                     s=self.version,
@@ -181,18 +294,23 @@ class Spark:
 
         This method is master/slave-agnostic.
         """
-        template_path = "./spark/conf/spark-env.sh"
-        ssh_check_output(
-            client=ssh_client,
-            command="""
-                echo {f} > {p}
-            """.format(
-                f=shlex.quote(
-                    get_formatted_template(
-                        path="templates/" + template_path,
-                        mapping=vars(cluster_info))),
-                p=shlex.quote(template_path)))
+        template_paths = [
+            './spark/conf/spark-env.sh',
+            './spark/conf/slaves']
+        for template_path in template_paths:
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    echo {f} > {p}
+                """.format(
+                    f=shlex.quote(
+                        get_formatted_template(
+                            path="templates/" + template_path,
+                            mapping=cluster_info_to_template_mapping(cluster_info))),
+                    p=shlex.quote(template_path)))
 
+    # TODO: Convert this into start_master() and split master- or slave-specific
+    #       stuff out of configure() into configure_master() and configure_slave().
     def configure_master(
             self,
             ssh_client: paramiko.client.SSHClient,
@@ -211,8 +329,6 @@ class Spark:
             command="""
                 set -e
 
-                echo {s} > spark/conf/slaves
-
                 spark/sbin/start-master.sh
 
                 set +e
@@ -230,7 +346,6 @@ class Spark:
 
                 spark/sbin/start-slaves.sh
             """.format(
-                s=shlex.quote('\n'.join(cluster_info.slave_hosts)),
                 m=shlex.quote(cluster_info.master_host)))
 
     def configure_slave(self):
@@ -293,6 +408,8 @@ def cli(cli_context, config, provider):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=int, required=True)
+@click.option('--install-hdfs/--no-install-hdfs', default=True)
+@click.option('--hdfs-version')
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-version')
 @click.option('--ec2-key-name')
@@ -316,6 +433,8 @@ def cli(cli_context, config, provider):
 def launch(
         cli_context,
         cluster_name, num_slaves,
+        install_hdfs,
+        hdfs_version,
         install_spark,
         spark_version,
         ec2_key_name,
@@ -338,7 +457,22 @@ def launch(
 
     modules = []
 
+    if install_hdfs:
+        if not hdfs_version:
+            # TODO: Custom exception for option dependencies.
+            print(
+                "Error: Cannot install HDFS. Missing option \"--hdfs-version\".",
+                file=sys.stderr)
+            sys.exit(2)
+        hdfs = HDFS(version=hdfs_version)
+        modules += [hdfs]
     if install_spark:
+        if not spark_version:
+            # TODO: Custom exception for option dependencies.
+            print(
+                "Error: Cannot install Spark. Missing option \"--spark-version\".",
+                file=sys.stderr)
+            sys.exit(2)
         spark = Spark(version=spark_version)
         modules += [spark]
 
@@ -413,12 +547,21 @@ def get_or_create_ec2_security_groups(
     flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
 
     client_rules = [
+        # SSH
         SecurityGroupRule(
             ip_protocol='tcp',
             from_port=22,
             to_port=22,
             cidr_ip=flintrock_client_cidr,
             src_group=None),
+        # HDFS
+        SecurityGroupRule(
+            ip_protocol='tcp',
+            from_port=50070,
+            to_port=50070,
+            cidr_ip=flintrock_client_cidr,
+            src_group=None),
+        # Spark
         SecurityGroupRule(
             ip_protocol='tcp',
             from_port=8080,
@@ -598,8 +741,12 @@ def launch_ec2(
         cluster_info = ClusterInfo(
             name=cluster_name,
             ssh_key_pair=generate_ssh_key_pair(),
+            user=user,
+            # Mystery: Why don't IP addresses work here?
+            # master_host=master_instance.ip_address,
+            # slave_hosts=[i.ip_address for i in slave_instances],
             master_host=master_instance.public_dns_name,
-            slave_hosts=[instance.public_dns_name for instance in slave_instances],
+            slave_hosts=[i.public_dns_name for i in slave_instances],
             spark_scratch_dir='/mnt/spark',
             spark_master_opts="")
 
@@ -639,6 +786,20 @@ def launch_ec2(
             identity_file=identity_file)
 
         with master_ssh_client:
+            # TODO: This manifest may need to be more full-featured to support
+            #       adding nodes to a cluster.
+            manifest = {
+                'modules': [[type(m).__name__, m.version] for m in modules]}
+            # The manifest tells us how the cluster is configured. We'll need this
+            # when we resize the cluster or restart it.
+            ssh_check_output(
+                client=master_ssh_client,
+                command="""
+                    echo {m} > /home/{u}/.flintrock-manifest.json
+                """.format(
+                    m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
+                    u=shlex.quote(user)))
+
             for module in modules:
                 module.configure_master(
                     ssh_client=master_ssh_client,
@@ -1149,6 +1310,11 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         print(e, file=sys.stderr)
         sys.exit(1)
 
+    cluster_state = get_cluster_state_ec2(cluster_instances)
+    if cluster_state != 'stopped':
+        print("Cannot start cluster in state:", cluster_state, file=sys.stderr)
+        sys.exit(1)
+
     print("Starting {c} instances...".format(c=len(cluster_instances)))
     connection = boto.ec2.connect_to_region(region_name=region)
     connection.start_instances(
@@ -1158,18 +1324,36 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         cluster_instances=cluster_instances,
         state='running')
 
+    master_ssh_client = get_ssh_client(
+        user=user,
+        host=master_instance.ip_address,
+        identity_file=identity_file)
+
+    with master_ssh_client:
+        raw_manifest = ssh_check_output(
+            client=master_ssh_client,
+            command="""
+                cat /home/{u}/.flintrock-manifest.json
+            """.format(u=shlex.quote(user)))
+
+    manifest = json.loads(raw_manifest)
+
     cluster_info = ClusterInfo(
         name=cluster_name,
         ssh_key_pair=None,
-        # IP addresses somehow don't work here. ?!
+        user=user,
+        # Mystery: Why don't IP addresses work here?
+        # master_host=master_instance.ip_address,
+        # slave_hosts=[i.ip_address for i in slave_instances],
         master_host=master_instance.public_dns_name,
         slave_hosts=[i.public_dns_name for i in slave_instances],
         spark_scratch_dir='/mnt/spark',
         spark_master_opts="")
 
-    # TODO: Do this only if Flintrock manifest says this cluster has Spark installed.
-    spark = Spark(version='Who knows?!')
-    modules = [spark]
+    modules = []
+    for [module_name, version] in manifest['modules']:
+        module = globals()[module_name](version)
+        modules.append(module)
 
     loop = asyncio.get_event_loop()
 
@@ -1210,7 +1394,8 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
 
     time.sleep(30)
 
-    spark.health_check(master_host=master_instance.ip_address)
+    for module in modules:
+        module.health_check(master_host=master_instance.ip_address)
 
 
 @cli.command()
@@ -1239,6 +1424,11 @@ def stop_ec2(cluster_name, region, assume_yes=True):
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
+
+    cluster_state = get_cluster_state_ec2(cluster_instances)
+    if cluster_state == 'stopped':
+        print("Cluster is already stopped.")
+        sys.exit(0)
 
     if not assume_yes:
         print_cluster_info_ec2(
@@ -1554,10 +1744,11 @@ def config_to_click(config: dict) -> dict:
     """
     module_configs = {}
 
-    if config['modules']:
-        for module in config['modules'].keys():
-            module_configs.update(
-                {module + '_' + k: v for (k, v) in config['modules'][module].items()})
+    if 'modules' in config:
+        for module in config['modules']:
+            if config['modules'][module]:
+                module_configs.update(
+                    {module + '_' + k: v for (k, v) in config['modules'][module].items()})
 
     ec2_configs = {
         'ec2_' + k: v for (k, v) in config['providers']['ec2'].items()}
@@ -1580,4 +1771,6 @@ def config_to_click(config: dict) -> dict:
 
 
 if __name__ == "__main__":
+    # TODO: try, catch
+    #       print and exit from exception metadata
     cli(obj={})

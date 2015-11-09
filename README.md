@@ -15,6 +15,7 @@ Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
+    --spark-version 1.5.1 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
     --ec2-ami ami-146e2a7c \
@@ -141,6 +142,10 @@ Flintrock lets you persist your desired configuration to a file (called `config.
 
 ```yaml
 provider: ec2
+
+modules:
+  spark:
+    version: 1.5.1
 
 launch:
   num-slaves: 1
