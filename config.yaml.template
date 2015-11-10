@@ -10,7 +10,7 @@ providers:
   ec2:
     key-name: key_name
     identity-file: /path/to/key.pem
-    instance-type: m3.medium  # must be 64-bit; small instances won't work
+    instance-type: m3.medium
     region: us-east-1
     # availability-zone: <name>
     ami: ami-60b6c60a   # Amazon Linux
