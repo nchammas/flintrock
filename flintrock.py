@@ -625,6 +625,31 @@ def get_or_create_ec2_security_groups(
     return [flintrock_group, cluster_group]
 
 
+def get_ec2_block_device_map(
+        *,
+        ami: str,
+        region: str) -> boto.ec2.blockdevicemapping.BlockDeviceMapping:
+    """
+    Get the block device map we should assign to instances launched from a given AMI.
+
+    This is how we configure storage on the instance.
+    """
+    connection = boto.ec2.connect_to_region(region_name=region)
+
+    image = connection.get_image(ami)
+    root_device = boto.ec2.blockdevicemapping.BlockDeviceType(
+        # Max root volume size for instance store-backed AMIs is 10 GiB.
+        # See: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/add-instance-store-volumes.html
+        size=30 if image.root_device_type == 'ebs' else 10,  # GiB
+        volume_type='gp2',  # general-purpose SSD
+        delete_on_termination=True)
+
+    block_device_map = boto.ec2.blockdevicemapping.BlockDeviceMapping()
+    block_device_map[image.root_device_name] = root_device
+
+    return block_device_map
+
+
 @timeit
 def launch_ec2(
         *,
@@ -657,14 +682,17 @@ def launch_ec2(
         cluster_name=cluster_name,
         vpc_id=vpc_id,
         region=region)
+    block_device_map = get_ec2_block_device_map(
+        ami=ami,
+        region=region)
+
+    connection = boto.ec2.connect_to_region(region_name=region)
 
     num_instances = num_slaves + 1
     spot_requests = []
     cluster_instances = []
 
     try:
-        connection = boto.ec2.connect_to_region(region_name=region)
-
         if spot_price:
             print("Requesting {c} spot instances at a max price of ${p}...".format(
                 c=num_instances, p=spot_price))
@@ -675,6 +703,7 @@ def launch_ec2(
                 count=num_instances,
                 key_name=key_name,
                 instance_type=instance_type,
+                block_device_map=block_device_map,
                 placement=availability_zone,
                 security_group_ids=[sg.id for sg in security_groups],
                 subnet_id=subnet_id,
@@ -705,6 +734,7 @@ def launch_ec2(
                 max_count=num_instances,
                 key_name=key_name,
                 instance_type=instance_type,
+                block_device_map=block_device_map,
                 placement=availability_zone,
                 security_group_ids=[sg.id for sg in security_groups],
                 subnet_id=subnet_id,
