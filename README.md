@@ -15,10 +15,11 @@ Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
+    --no-install-hdfs \
     --spark-version 1.5.1 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
-    --ec2-ami ami-146e2a7c \
+    --ec2-ami ami-60b6c60a \
     --ec2-user ec2-user
 ```
 
@@ -114,7 +115,7 @@ Flintrock is meant for launching Spark clusters that include closely related ser
 
   Flintrock is not for launching external datasources (e.g. Cassandra), or other services that are not closely integrated with Spark (e.g. Tez).
 
-  If you are looking for an easy way to launch other services from the Hadoop ecosystem, look at the [Apache Bigtop](http://bigtop.apache.org/) and [Apache Whirr](https://whirr.apache.org/) projects.
+  If you are looking for an easy way to launch other services from the Hadoop ecosystem, look at the [Apache Bigtop](http://bigtop.apache.org/) project.
 
 ### Launching out-of-date services
 
@@ -149,13 +150,14 @@ modules:
 
 launch:
   num-slaves: 1
+  install-hdfs: False
 
 ec2:
   key-name: key_name
   identity-file: /path/to/.ssh/key.pem
   instance-type: m3.medium
   region: us-east-1
-  ami: ami-146e2a7c
+  ami: ami-60b6c60a
   user: ec2-user
 ```
 
