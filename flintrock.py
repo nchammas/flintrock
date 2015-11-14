@@ -1018,6 +1018,9 @@ class ClusterNotFound(Exception):
     pass
 
 
+# TODO: This function should probably return a ClusterInfo tuple with additional,
+#       provider-specific fields. This can eventually morph into a proper class
+#       with provider specific implementations.
 def get_cluster_instances_ec2(
         *,
         cluster_name: str,
@@ -1084,10 +1087,8 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
     if not assume_yes:
         print_cluster_info_ec2(
             cluster_name=cluster_name,
-            cluster_instances=cluster_instances)
-
-        print('---')
-
+            master_instance=master_instance,
+            slave_instances=slave_instances)
         click.confirm(
             text="Are you sure you want to destroy this cluster?",
             abort=True)
@@ -1152,19 +1153,32 @@ def get_cluster_state_ec2(cluster_instances: list) -> str:
         return 'inconsistent'
 
 
-def print_cluster_info_ec2(cluster_name: str, cluster_instances: list):
+def print_cluster_info_ec2(
+        *,
+        cluster_name: str,
+        master_instance: boto.ec2.instance.Instance,
+        slave_instances: list):
     """
     Print information about an EC2 cluster to screen in a YAML-compatible format.
 
     This is the current solution until cluster methods are centralized under a
     FlintrockCluster class, or something similar.
     """
-    print(cluster_name + ':')
-    print('  state: {s}'.format(s=get_cluster_state_ec2(cluster_instances=cluster_instances)))
-    print('  node-count: {nc}'.format(nc=len(cluster_instances)))
+    cluster_state = get_cluster_state_ec2(
+        cluster_instances=[master_instance] + slave_instances)
 
-    if get_cluster_state_ec2(cluster_instances=cluster_instances) == 'running':
-        print('\n    - '.join(['  nodes:'] + [i.public_dns_name for i in cluster_instances]))
+    # Mark boundaries of YAML output.
+    # See: http://yaml.org/spec/current.html#id2525905
+    # print('---')
+
+    print(cluster_name + ':')
+    print('  state: {s}'.format(s=cluster_state))
+    print('  node-count: {nc}'.format(nc=1 + len(slave_instances)))
+    if cluster_state == 'running':
+        print('  master:', master_instance.public_dns_name)
+        print('\n    - '.join(['  slaves:'] + [i.public_dns_name for i in slave_instances]))
+
+    # print('...')
 
 
 @cli.command()
@@ -1202,35 +1216,55 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
         except ClusterNotFound as e:
             print(e, file=sys.stderr)
             sys.exit(1)
+
+        if master_hostname_only:
+            print(master_instance.public_dns_name)
+        else:
+            print_cluster_info_ec2(
+                cluster_name=cluster_name,
+                master_instance=master_instance,
+                slave_instances=slave_instances)
     else:
         connection = boto.ec2.connect_to_region(region_name=region)
 
-        cluster_instances = connection.get_only_instances(
+        all_clusters_instances = connection.get_only_instances(
             filters={
                 'instance.group-name': 'flintrock-' + cluster_name if cluster_name else 'flintrock'
             })
+        security_groups = itertools.chain.from_iterable(
+            [i.groups for i in all_clusters_instances])
+        security_group_names = {g.name for g in security_groups if g.name.startswith('flintrock-')}
+        cluster_names = [n.replace('flintrock-', '', 1) for n in security_group_names]
 
-    security_groups = itertools.chain.from_iterable([i.groups for i in cluster_instances])
-    security_group_names = {g.name for g in security_groups if g.name.startswith('flintrock-')}
-    cluster_names = [n.replace('flintrock-', '', 1) for n in security_group_names]
+        clusters = {}
+        for cluster_name in cluster_names:
+            master_instance = None
+            slave_instances = []
 
-    print("{n} cluster{s} found.".format(
-        n=len(cluster_names),
-        s='' if len(cluster_names) == 1 else 's'))
-
-    if cluster_names:
-        print('---')
-
-        for cluster_name in sorted(cluster_names):
-            filtered_instances = []
-
-            for instance in cluster_instances:
+            for instance in all_clusters_instances:
                 if ('flintrock-' + cluster_name) in {g.name for g in instance.groups}:
-                    filtered_instances.append(instance)
+                    if instance.tags['flintrock-role'] == 'master':
+                        master_instance = instance
+                    elif instance.tags['flintrock-role'] != 'master':
+                        slave_instances.append(instance)
 
-            print_cluster_info_ec2(
-                cluster_name=cluster_name,
-                cluster_instances=filtered_instances)
+            clusters[cluster_name] = {
+                'master_instance': master_instance,
+                'slave_instances': slave_instances}
+
+        if master_hostname_only:
+            for cluster_name in sorted(cluster_names):
+                print(cluster_name + ':', clusters[cluster_name]['master_instance'].public_dns_name)
+        else:
+            print("{n} cluster{s} found.".format(
+                n=len(cluster_names),
+                s='' if len(cluster_names) == 1 else 's'))
+            print('---')
+            for cluster_name in sorted(cluster_names):
+                print_cluster_info_ec2(
+                    cluster_name=cluster_name,
+                    master_instance=clusters[cluster_name]['master_instance'],
+                    slave_instances=clusters[cluster_name]['slave_instances'])
 
 
 def ssh(*, user: str, host: str, identity_file: str):
@@ -1474,10 +1508,8 @@ def stop_ec2(cluster_name, region, assume_yes=True):
     if not assume_yes:
         print_cluster_info_ec2(
             cluster_name=cluster_name,
-            cluster_instances=cluster_instances)
-
-        print('---')
-
+            master_instance=master_instance,
+            slave_instances=slave_instances)
         click.confirm(
             text="Are you sure you want to stop this cluster?",
             abort=True)
