@@ -422,6 +422,7 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-spot-price', type=float)
 @click.option('--ec2-vpc-id')
 @click.option('--ec2-subnet-id')
+@click.option('--ec2-instance-profile-name')
 @click.option('--ec2-placement-group')
 @click.option('--ec2-tenancy', default='default')
 @click.option('--ec2-ebs-optimized/--no-ec2-ebs-optimized', default=False)
@@ -445,6 +446,7 @@ def launch(
         ec2_spot_price,
         ec2_vpc_id,
         ec2_subnet_id,
+        ec2_instance_profile_name,
         ec2_placement_group,
         ec2_tenancy,
         ec2_ebs_optimized,
@@ -487,6 +489,7 @@ def launch(
             spot_price=ec2_spot_price,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
+            instance_profile_name=ec2_instance_profile_name,
             placement_group=ec2_placement_group,
             tenancy=ec2_tenancy,
             ebs_optimized=ec2_ebs_optimized,
@@ -661,7 +664,9 @@ def launch_ec2(
         ami,
         user,
         spot_price=None,
-        vpc_id, subnet_id, placement_group,
+        vpc_id, subnet_id,
+        instance_profile_name,
+        placement_group,
         tenancy="default", ebs_optimized=False,
         instance_initiated_shutdown_behavior="stop"):
     """
@@ -704,6 +709,7 @@ def launch_ec2(
                 key_name=key_name,
                 instance_type=instance_type,
                 block_device_map=block_device_map,
+                instance_profile_name=instance_profile_name,
                 placement=availability_zone,
                 security_group_ids=[sg.id for sg in security_groups],
                 subnet_id=subnet_id,
@@ -738,6 +744,7 @@ def launch_ec2(
                 placement=availability_zone,
                 security_group_ids=[sg.id for sg in security_groups],
                 subnet_id=subnet_id,
+                instance_profile_name=instance_profile_name,
                 placement_group=placement_group,
                 tenancy=tenancy,
                 ebs_optimized=ebs_optimized,
