@@ -4,6 +4,6 @@ python:
   - "3.5"
 install:
   - "pip install -r requirements.txt"
-  - "pip install pep8"
+  - "pip install -r requirements-dev.txt"
 script:
-  - "./lint.sh"
+  - "py.test ./tests/test_style.py"

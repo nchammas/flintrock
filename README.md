@@ -202,6 +202,10 @@ The spark-ec2 launch times are sourced from [SPARK-5189](https://issues.apache.o
 
 Flintrock automatically configures any available [ephemeral storage](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html) on the cluster and makes it available to installed modules like HDFS and Spark. This storage is fast and is perfect for use as a temporary store by those services.
 
+### Tests
+
+Flintrock comes with a set of automated, end-to-end [tests](./tests). These tests help us develop Flintrock with confidence and guarantee a certain level of quality.
+
 ### Low-level Provider Options
 
 Flintrock exposes low-level provider options (e.g. [instance-initiated shutdown behavior](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/terminating-instances.html#Using_ChangingInstanceInitiatedShutdownBehavior)) so you can control the details of how your cluster is setup if you want.
