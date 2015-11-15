@@ -1259,12 +1259,13 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
             print("{n} cluster{s} found.".format(
                 n=len(cluster_names),
                 s='' if len(cluster_names) == 1 else 's'))
-            print('---')
-            for cluster_name in sorted(cluster_names):
-                print_cluster_info_ec2(
-                    cluster_name=cluster_name,
-                    master_instance=clusters[cluster_name]['master_instance'],
-                    slave_instances=clusters[cluster_name]['slave_instances'])
+            if cluster_names:
+                print('---')
+                for cluster_name in sorted(cluster_names):
+                    print_cluster_info_ec2(
+                        cluster_name=cluster_name,
+                        master_instance=clusters[cluster_name]['master_instance'],
+                        slave_instances=clusters[cluster_name]['slave_instances'])
 
 
 def ssh(*, user: str, host: str, identity_file: str):
@@ -1528,13 +1529,21 @@ def stop_ec2(cluster_name, region, assume_yes=True):
 @cli.command(name='run-command')
 @click.argument('cluster-name')
 @click.argument('command', nargs=-1)
+@click.option('--master-only', help="Run on the master only.", is_flag=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.pass_context
-def run_command(cli_context, cluster_name, command, ec2_region, ec2_identity_file, ec2_user):
+def run_command(
+        cli_context,
+        cluster_name,
+        command,
+        master_only,
+        ec2_region,
+        ec2_identity_file,
+        ec2_user):
     """
     Run a shell command on a cluster.
 
@@ -1550,6 +1559,7 @@ def run_command(cli_context, cluster_name, command, ec2_region, ec2_identity_fil
         run_command_ec2(
             cluster_name=cluster_name,
             command=command,
+            master_only=master_only,
             region=ec2_region,
             identity_file=ec2_identity_file,
             user=ec2_user)
@@ -1578,7 +1588,7 @@ def run_command_node(*, user: str, host: str, identity_file: str, command: tuple
 
 
 @timeit
-def run_command_ec2(cluster_name, command, region, identity_file, user):
+def run_command_ec2(cluster_name, command, master_only, region, identity_file, user):
     try:
         master_instance, slave_instances = get_cluster_instances_ec2(
             cluster_name=cluster_name,
@@ -1592,12 +1602,19 @@ def run_command_ec2(cluster_name, command, region, identity_file, user):
         print("Cluster is not in a running state.", file=sys.stderr)
         sys.exit(1)
 
-    print("Running command on {c} instances...".format(c=len(cluster_instances)))
-
     loop = asyncio.get_event_loop()
 
+    if master_only:
+        target_instances = [master_instance]
+    else:
+        target_instances = cluster_instances
+
+    print("Running command on {c} instance{s}...".format(
+        c=len(target_instances),
+        s='' if len(target_instances) == 1 else 's'))
+
     tasks = []
-    for instance in cluster_instances:
+    for instance in target_instances:
         # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
         #       Until then, we leave them out to maintain compatibility across Python 3.4
         #       and 3.5.
@@ -1750,7 +1767,6 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
 
     loop = asyncio.get_event_loop()
 
-    tasks = []
     if master_only:
         target_instances = [master_instance]
     else:
@@ -1758,8 +1774,9 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
 
     print("Copying file to {c} instance{s}...".format(
         c=len(target_instances),
-        s='s' if len(target_instances) > 1 else ''))
+        s='' if len(target_instances) == 1 else 's'))
 
+    tasks = []
     for instance in target_instances:
         # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
         #       Until then, we leave them out to maintain compatibility across Python 3.4
