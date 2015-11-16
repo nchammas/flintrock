@@ -34,6 +34,7 @@ Distant future:
 import os
 import posixpath
 import errno
+import string
 import sys
 import shlex
 import subprocess
@@ -650,6 +651,12 @@ def get_ec2_block_device_map(
     block_device_map = boto.ec2.blockdevicemapping.BlockDeviceMapping()
     block_device_map[image.root_device_name] = root_device
 
+    for i in range(12):
+        ephemeral_device = boto.ec2.blockdevicemapping.BlockDeviceType(
+            ephemeral_name='ephemeral' + str(i))
+        ephemeral_device_name = '/dev/sd' + string.ascii_lowercase[i + 1]
+        block_device_map[ephemeral_device_name] = ephemeral_device
+
     return block_device_map
 
 
@@ -962,6 +969,22 @@ def provision_node(
             """.format(
                 private_key=shlex.quote(cluster_info.ssh_key_pair.private),
                 public_key=shlex.quote(cluster_info.ssh_key_pair.public)))
+
+        with client.open_sftp() as sftp:
+            sftp.put(
+                localpath='./setup-ephemeral-storage.py',
+                remotepath='/tmp/setup-ephemeral-storage.py')
+
+        print("[{h}] Configuring ephemeral storage...".format(h=host))
+        # TODO: Print some kind of warning if storage is large, since formatting
+        #       will take several minutes (~4 minutes for 2TB).
+        ssh_check_output(
+            client=client,
+            command="""
+                set -e
+                python /tmp/setup-ephemeral-storage.py
+                rm -f /tmp/setup-ephemeral-storage.py
+            """)
 
         # The default CentOS AMIs on EC2 don't come with Java installed.
         java_home = ssh_check_output(
