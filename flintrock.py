@@ -14,11 +14,6 @@ Major TODOs:
     * Check that EC2 enhanced networking is enabled.
 
 Other TODOs:
-    * Instance type <-> AMI type validation/lookup.
-        - Maybe this can be automated.
-        - Otherwise have a separate YAML file with this info.
-        - Maybe support HVM only. AWS seems to position it as the future.
-        - Show friendly error when user tries to launch PV instance type.
     * Use IAM roles to launch instead of AWS keys.
     * Setup and teardown VPC, routes, gateway, etc. from scratch.
     * Use SSHAgent instead of .pem files (?).
@@ -110,12 +105,14 @@ ClusterInfo = namedtuple(
         'user',
         'master_host',
         'slave_hosts',
-        'spark_scratch_dir',
-        'spark_master_opts'
+        'storage_dirs',
     ])
 
 
-def cluster_info_to_template_mapping(cluster_info: ClusterInfo) -> dict:
+def cluster_info_to_template_mapping(
+        *,
+        cluster_info: ClusterInfo,
+        module: str) -> dict:
     """
     Convert a ClusterInfo tuple to a dictionary that we can use to fill in template
     parameters.
@@ -123,8 +120,22 @@ def cluster_info_to_template_mapping(cluster_info: ClusterInfo) -> dict:
     template_mapping = {}
 
     for k, v in vars(cluster_info).items():
-        if k in ['slave_hosts']:
+        if k == 'slave_hosts':
             template_mapping.update({k: '\n'.join(v)})
+        elif k == 'storage_dirs':
+            template_mapping.update({
+                'root_dir': v['root'] + '/' + module,
+                'ephemeral_dirs': ','.join(path + '/' + module for path in v['ephemeral'])})
+
+            # If ephemeral storage is available, it replaces the root volume, which is
+            # typically persistent. We don't want to mix persistent and ephemeral
+            # storage since that causes problems after cluster stop/start; some volumes
+            # have leftover data, whereas others start fresh.
+            root_ephemeral_dirs = template_mapping['root_dir']
+            if template_mapping['ephemeral_dirs']:
+                root_ephemeral_dirs = template_mapping['ephemeral_dirs']
+            template_mapping.update({
+                'root_ephemeral_dirs': root_ephemeral_dirs})
         else:
             template_mapping.update({k: v})
 
@@ -172,9 +183,6 @@ class HDFS:
 
                 tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
                 rm "hadoop-{version}.tar.gz"
-
-                sudo mkdir /mnt/hdfs
-                sudo chown "$(logname)":"$(logname)" /mnt/hdfs
             """.format(version=self.version))
 
     def configure(
@@ -197,7 +205,9 @@ class HDFS:
                     f=shlex.quote(
                         get_formatted_template(
                             path="templates/" + template_path,
-                            mapping=cluster_info_to_template_mapping(cluster_info))),
+                            mapping=cluster_info_to_template_mapping(
+                                cluster_info=cluster_info,
+                                module='hdfs'))),
                     p=shlex.quote(template_path)))
 
     # TODO: Convert this into start_master() and split master- or slave-specific
@@ -266,12 +276,11 @@ class Spark:
                 client=ssh_client,
                 command="""
                     set -e
-                    /tmp/install-spark.sh {spark_version} {distribution} {spark_scratch_dir}
+                    /tmp/install-spark.sh {spark_version} {distribution}
                     rm -f /tmp/install-spark.sh
                 """.format(
                         spark_version=shlex.quote(self.version),
-                        distribution=shlex.quote(distribution),
-                        spark_scratch_dir=shlex.quote(cluster_info.spark_scratch_dir)))
+                        distribution=shlex.quote(distribution)))
         except Exception as e:
             # TODO: This should be a more specific exception.
             print(e, file=sys.stderr)
@@ -303,7 +312,9 @@ class Spark:
                     f=shlex.quote(
                         get_formatted_template(
                             path="templates/" + template_path,
-                            mapping=cluster_info_to_template_mapping(cluster_info))),
+                            mapping=cluster_info_to_template_mapping(
+                                cluster_info=cluster_info,
+                                module='spark'))),
                     p=shlex.quote(template_path)))
 
     # TODO: Convert this into start_master() and split master- or slave-specific
@@ -395,8 +406,8 @@ def cli(cli_context, config, provider):
 
     if os.path.exists(config):
         with open(config) as f:
-            raw_config = yaml.safe_load(f)
-            config_map = config_to_click(normalize_keys(raw_config))
+            config_raw = yaml.safe_load(f)
+            config_map = config_to_click(normalize_keys(config_raw))
 
         cli_context.default_map = config_map
     else:
@@ -788,8 +799,11 @@ def launch_ec2(
             # slave_hosts=[i.ip_address for i in slave_instances],
             master_host=master_instance.public_dns_name,
             slave_hosts=[i.public_dns_name for i in slave_instances],
-            spark_scratch_dir='/mnt/spark',
-            spark_master_opts="")
+            storage_dirs={
+                'root': None,
+                'ephemeral': None,
+                'persistent': None
+            })
 
         # TODO: Abstract away. No-one wants to see this async shite here.
         loop = asyncio.get_event_loop()
@@ -978,13 +992,17 @@ def provision_node(
         print("[{h}] Configuring ephemeral storage...".format(h=host))
         # TODO: Print some kind of warning if storage is large, since formatting
         #       will take several minutes (~4 minutes for 2TB).
-        ssh_check_output(
+        storage_dirs_raw = ssh_check_output(
             client=client,
             command="""
                 set -e
                 python /tmp/setup-ephemeral-storage.py
                 rm -f /tmp/setup-ephemeral-storage.py
             """)
+        storage_dirs = json.loads(storage_dirs_raw)
+
+        cluster_info.storage_dirs['root'] = storage_dirs['root']
+        cluster_info.storage_dirs['ephemeral'] = storage_dirs['ephemeral']
 
         # The default CentOS AMIs on EC2 don't come with Java installed.
         java_home = ssh_check_output(
@@ -1385,6 +1403,17 @@ def start_node(
         print_status=True)
 
     with ssh_client:
+        # TODO: Consider consolidating ephemeral storage code under a dedicated
+        #       Flintrock module.
+        if cluster_info.storage_dirs['ephemeral']:
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    sudo chown "{u}:{u}" {d}
+                """.format(
+                    u=user,
+                    d=' '.join(cluster_info.storage_dirs['ephemeral'])))
+
         for module in modules:
             module.configure(
                 ssh_client=ssh_client,
@@ -1425,13 +1454,35 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         identity_file=identity_file)
 
     with master_ssh_client:
-        raw_manifest = ssh_check_output(
+        manifest_raw = ssh_check_output(
             client=master_ssh_client,
             command="""
                 cat /home/{u}/.flintrock-manifest.json
             """.format(u=shlex.quote(user)))
+        # TODO: Reconsider where this belongs. In the manifest? We can implement
+        #       ephemeral storage support as a Flintrock module, and add methods to
+        #       serialize and deserialize critical module info like installed versions
+        #       or ephemeral drives to the to/from the manifest.
+        #       Another approach is to auto-detect storage inside a start_node()
+        #       method. Yet another approach is to determine storage upfront by the
+        #       instance type.
+        # NOTE: As for why we aren't using ls here, see:
+        #       http://mywiki.wooledge.org/ParsingLs
+        ephemeral_dirs_raw = ssh_check_output(
+            client=master_ssh_client,
+            command="""
+                shopt -s nullglob
+                for f in /media/ephemeral*; do
+                    echo "$f"
+                done
+            """)
 
-    manifest = json.loads(raw_manifest)
+    manifest = json.loads(manifest_raw)
+    storage_dirs = {
+        'root': '/media/root',
+        'ephemeral': sorted(ephemeral_dirs_raw.splitlines()),
+        'persistent': None
+    }
 
     cluster_info = ClusterInfo(
         name=cluster_name,
@@ -1442,8 +1493,7 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         # slave_hosts=[i.ip_address for i in slave_instances],
         master_host=master_instance.public_dns_name,
         slave_hosts=[i.public_dns_name for i in slave_instances],
-        spark_scratch_dir='/mnt/spark',
-        spark_master_opts="")
+        storage_dirs=storage_dirs)
 
     modules = []
     for [module_name, version] in manifest['modules']:

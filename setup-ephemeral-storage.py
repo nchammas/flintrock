@@ -1,10 +1,27 @@
 """
 Setup ephemeral storage on a newly launched Linux host.
 
-Since this runs on the remote nodes, it will probably run in Python 2.
+This script was developed against EC2, where ephemeral volumes are by
+default haphazardly and inconsistently mounted. Therefore, we unmount
+all volumes that we detect and explicitly format and remount them as
+we please.
+
+The resulting structure we create is as follows:
+
+    /media
+        /root: The instance's root volume.
+        /ephemeral[0-N]: Instance store volumes.
+        /persistent[0-N]: EBS volumes.
+
+NOTE: Since this script runs on the remote nodes, it will probably
+      run in Python 2.
+
+WARNING: Be conscious about what this script prints to stdout, as that
+         output is parsed by Flintrock.
 """
 from __future__ import print_function
 
+import json
 import subprocess
 import sys
 from collections import namedtuple
@@ -26,21 +43,6 @@ BlockDevice = namedtuple(
         'mount_point'
     ])
 BlockDevice.__new__.__defaults__ = (None, None)
-
-
-def unmount_non_root_devices():
-    """
-    Unmount any non-root devices.
-
-    For example, EC2 sometimes randomly mounts an ephemeral drive. We might want to
-    unmount it so we can format and remount it as we please.
-    """
-    with open('/proc/mounts') as m:
-        mounts = [Mount(*line.split()) for line in m.read().splitlines()]
-
-    for mount in mounts:
-        if mount.device_name.startswith('/dev/') and mount.mount_point != '/':
-            subprocess.check_call(['sudo', 'umount', mount.device_name])
 
 
 def get_non_root_block_devices():
@@ -65,6 +67,18 @@ def get_non_root_block_devices():
     return non_root_block_devices
 
 
+def unmount_devices(devices):
+    """
+    Unmount the provided devices.
+    """
+    with open('/proc/mounts') as m:
+        mounts = [Mount(*line.split()) for line in m.read().splitlines()]
+
+    for mount in mounts:
+        if mount.device_name in [d.name for d in devices]:
+            subprocess.check_output(['sudo', 'umount', mount.device_name])
+
+
 def format_devices(devices):
     """
     Create an ext4 filesystem on the provided devices.
@@ -76,11 +90,14 @@ def format_devices(devices):
             '-F',
             '-E',
             'lazy_itable_init=0,lazy_journal_init=0',
-            device.name])
+            device.name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
         format_processes.append(p)
 
     for p in format_processes:
-        return_code = p.wait()
+        p.communicate()
+        return_code = p.returncode
         if return_code != 0:
             raise Exception(
                 "Format process returned non-zero exit code: {c}".format(c=return_code))
@@ -88,47 +105,77 @@ def format_devices(devices):
 
 def mount_devices(devices):
     """
-    Mount the provided devices. Additionally, add the appropriate entries to /etc/fstab
-    so that the mounts persist across cluster stop/start.
-    """
-    mount_prefix = '/media/ephemeral'
-    mount_num = 0
-    for device in devices:
-        mount_name = mount_prefix + str(mount_num)
+    Mount the provided devices at the provided mount points.
 
-        subprocess.check_call([
-            'sudo', 'mkdir', '-p', mount_name])
+    Additionally, add the appropriate entries to /etc/fstab so that the mounts
+    persist across cluster stop/start.
+    """
+    for device in devices:
+        subprocess.check_output([
+            'sudo', 'mkdir', '-p', device.mount_point])
 
         # Replace any existing fstab entries with our own.
-        subprocess.check_call(
+        subprocess.check_output(
             """
             grep -v -e "^{device_name}" /etc/fstab | sudo tee /etc/fstab
             """.format(device_name=device.name),
             shell=True)
-        subprocess.check_call(
+        subprocess.check_output(
             """
             echo "{fstab_entry}" | sudo tee -a /etc/fstab
             """.format(fstab_entry='   '.join([
                 device.name,
-                mount_name,
+                device.mount_point,
                 'ext4',
                 'defaults,users,noatime,nodiratime',
                 '0',
                 '0'])),
             shell=True)
 
-        mount_num += 1
+        subprocess.check_output([
+            'sudo', 'mount', '--source', device.name])
+        # NOTE: `mount` changes the mount point owner to root, so we have
+        #       to set it to what we want here, after `mount` runs.
+        subprocess.check_output(
+            'sudo chown "$(logname):$(logname)" {m}'.format(m=device.mount_point),
+            shell=True)
 
-    subprocess.check_call([
-        'sudo', 'mount', '--all'])
-    # mount changes the owner to root, so we have to set it to what we want here.
-    subprocess.check_call(
-        'sudo chown "$(logname):$(logname)" {m}*'.format(m=mount_prefix),
+
+def create_root_dir():
+    """
+    Create a folder that modules like HDFS and Spark can refer to to access
+    local storage on the root volume.
+    """
+    path = '/media/root'
+    subprocess.check_output([
+        'sudo', 'mkdir', '-p', path])
+    subprocess.check_output(
+        'sudo chown "$(logname):$(logname)" {p}'.format(p=path),
         shell=True)
+    return path
 
 
 if __name__ == '__main__':
-    unmount_non_root_devices()
     non_root_block_devices = get_non_root_block_devices()
-    format_devices(non_root_block_devices)
-    mount_devices(non_root_block_devices)
+
+    # NOTE: For now we are assuming that all non-root devices are ephemeral devices.
+    #       We're going to assign them the mount points we want them to have once we're
+    #       done with the unmount -> format -> mount cycle.
+    ephemeral_devices = []
+    for (num, device) in enumerate(sorted(non_root_block_devices, key=lambda d: d.name)):
+        ephemeral_devices.append(
+            BlockDevice(
+                name=device.name,
+                mount_point='/media/ephemeral' + str(num)))
+
+    unmount_devices(ephemeral_devices)
+    format_devices(ephemeral_devices)
+    mount_devices(ephemeral_devices)
+
+    root_dir = create_root_dir()
+
+    print(json.dumps(
+        {
+            'root': root_dir,
+            'ephemeral': [d.mount_point for d in ephemeral_devices]
+        }))
