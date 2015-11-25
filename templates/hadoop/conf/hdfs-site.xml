@@ -9,6 +9,6 @@
 
   <property>
     <name>dfs.datanode.data.dir</name>
-    <value>/mnt/hdfs</value>
+    <value>{root_ephemeral_dirs}</value>
   </property>
 </configuration>

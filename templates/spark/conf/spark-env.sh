@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
-export SPARK_LOCAL_DIRS="{spark_scratch_dir}"
+export SPARK_LOCAL_DIRS="{root_ephemeral_dirs}"
 
 # Standalone cluster options
-export SPARK_MASTER_OPTS="{spark_master_opts}"
 export SPARK_EXECUTOR_INSTANCES="1"
 export SPARK_WORKER_CORES="$(nproc)"
 

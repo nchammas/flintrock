@@ -2,7 +2,6 @@
 
 spark_version="$1"
 distribution="$2"
-spark_scratch_dir="$3"
 
 echo "Installing Spark..."
 echo "  version: ${spark_version}"
@@ -17,6 +16,3 @@ mkdir "spark"
 # strip-components puts the files in the root of spark/
 tar xzf "$file" -C "spark" --strip-components=1
 rm "$file"
-
-sudo mkdir "${spark_scratch_dir}"
-sudo chown "$(logname)":"$(logname)" "${spark_scratch_dir}"
