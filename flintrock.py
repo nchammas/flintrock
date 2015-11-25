@@ -250,8 +250,16 @@ class HDFS:
 
 # TODO: Turn this into an implementation of an abstract FlintrockModule class. (?)
 class Spark:
-    def __init__(self, version):
+    def __init__(self, version: str=None, git_commit: str=None, git_repository: str=None):
+        # TODO: Convert these checks into something that throws a proper exception.
+        #       Perhaps reuse logic from CLI.
+        assert bool(version) ^ bool(git_commit)
+        if git_commit:
+            assert git_repository
+
         self.version = version
+        self.git_commit = git_commit
+        self.git_repository = git_repository
 
     def install(
             self,
@@ -260,35 +268,51 @@ class Spark:
         """
         Downloads and installs Spark on a given node.
         """
-        # TODO: Allow users to specify the Spark "distribution".
+        # TODO: Allow users to specify the Spark "distribution". (?)
         distribution = 'hadoop2.6'
 
         print("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
         try:
-            with ssh_client.open_sftp() as sftp:
-                sftp.put(
-                    localpath='./install-spark.sh',
-                    remotepath='/tmp/install-spark.sh')
-                sftp.chmod(path='/tmp/install-spark.sh', mode=0o755)
-            ssh_check_output(
-                client=ssh_client,
-                command="""
-                    set -e
-                    /tmp/install-spark.sh {spark_version} {distribution}
-                    rm -f /tmp/install-spark.sh
-                """.format(
-                        spark_version=shlex.quote(self.version),
-                        distribution=shlex.quote(distribution)))
+            if self.version:
+                with ssh_client.open_sftp() as sftp:
+                    sftp.put(
+                        localpath='./install-spark.sh',
+                        remotepath='/tmp/install-spark.sh')
+                    sftp.chmod(path='/tmp/install-spark.sh', mode=0o755)
+                ssh_check_output(
+                    client=ssh_client,
+                    command="""
+                        set -e
+                        /tmp/install-spark.sh {spark_version} {distribution}
+                        rm -f /tmp/install-spark.sh
+                    """.format(
+                            spark_version=shlex.quote(self.version),
+                            distribution=shlex.quote(distribution)))
+            else:
+                ssh_check_output(
+                    client=ssh_client,
+                    command="""
+                        set -e
+                        sudo yum install -y git
+                        sudo yum install -y java-devel
+                        """)
+                ssh_check_output(
+                    client=ssh_client,
+                    command="""
+                        set -e
+                        git clone {repo} spark
+                        cd spark
+                        git reset --hard {commit}
+                        ./make-distribution.sh -T 1C -Phadoop-2.6
+                    """.format(
+                        repo=shlex.quote(self.git_repository),
+                        commit=shlex.quote(self.git_commit)))
         except Exception as e:
             # TODO: This should be a more specific exception.
+            print("Error: Failed to install Spark.", file=sys.stderr)
             print(e, file=sys.stderr)
-            print(
-                "Could not find package for Spark {s} / {d}.".format(
-                    s=self.version,
-                    d=distribution),
-                file=sys.stderr)
             raise
 
     def configure(
@@ -421,7 +445,15 @@ def cli(cli_context, config, provider):
 @click.option('--install-hdfs/--no-install-hdfs', default=True)
 @click.option('--hdfs-version')
 @click.option('--install-spark/--no-install-spark', default=True)
-@click.option('--spark-version')
+@click.option('--spark-version',
+              help="Spark release version to install.")
+@click.option('--spark-git-commit',
+              help="Git commit hash to build Spark from. "
+                   "--spark-version and --spark-git-commit are mutually exclusive.")
+@click.option('--spark-git-repository',
+              help="Git repository to clone Spark from.",
+              default='https://github.com/apache/spark.git',
+              show_default=True)
 @click.option('--ec2-key-name')
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
@@ -448,6 +480,8 @@ def launch(
         hdfs_version,
         install_spark,
         spark_version,
+        spark_git_commit,
+        spark_git_repository,
         ec2_key_name,
         ec2_identity_file,
         ec2_instance_type,
@@ -466,7 +500,6 @@ def launch(
     """
     Launch a new cluster.
     """
-
     modules = []
 
     if install_hdfs:
@@ -479,14 +512,25 @@ def launch(
         hdfs = HDFS(version=hdfs_version)
         modules += [hdfs]
     if install_spark:
-        if not spark_version:
-            # TODO: Custom exception for option dependencies.
+        if ((not spark_version and not spark_git_commit) or
+                (spark_version and spark_git_commit)):
+            # TODO: API for capturing option dependencies like this.
             print(
-                "Error: Cannot install Spark. Missing option \"--spark-version\".",
+                'Error: Cannot install Spark. Exactly one of "--spark-version" or '
+                '"--spark-git-commit" must be specified.',
                 file=sys.stderr)
+            print("--spark-version:", spark_version, file=sys.stderr)
+            print("--spark-git-commit:", spark_git_commit, file=sys.stderr)
             sys.exit(2)
-        spark = Spark(version=spark_version)
-        modules += [spark]
+        else:
+            if spark_version:
+                spark = Spark(version=spark_version)
+            elif spark_git_commit:
+                print("Warning: Building Spark takes a long time. "
+                      "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
+                spark = Spark(git_commit=spark_git_commit,
+                              git_repository=spark_git_repository)
+            modules += [spark]
 
     if cli_context.obj['provider'] == 'ec2':
         return launch_ec2(
@@ -1041,18 +1085,22 @@ def ssh_check_output(client: paramiko.client.SSHClient, command: str):
     Raise an exception if the command returns a non-zero code.
     """
     stdin, stdout, stderr = client.exec_command(command, get_pty=True)
+
+    # NOTE: Paramiko doesn't clearly document this, but we must read() before
+    #       calling recv_exit_status().
+    #       See: https://github.com/paramiko/paramiko/issues/448#issuecomment-159481997
+    stdout_output = stdout.read().decode('utf8').rstrip('\n')
+    stderr_output = stderr.read().decode('utf8').rstrip('\n')
     exit_status = stdout.channel.recv_exit_status()
 
     if exit_status:
         # TODO: Return a custom exception that includes the return code.
-        # See: https://docs.python.org/3/library/subprocess.html#subprocess.check_output
+        #       See: https://docs.python.org/3/library/subprocess.html#subprocess.check_output
         # NOTE: We are losing the output order here since output from stdout and stderr
         #       may be interleaved.
-        raise Exception(
-            stdout.read().decode("utf8").rstrip('\n') +
-            stderr.read().decode("utf8").rstrip('\n'))
+        raise Exception(stdout_output + stderr_output)
 
-    return stdout.read().decode("utf8").rstrip('\n')
+    return stdout_output
 
 
 class ClusterNotFound(Exception):
