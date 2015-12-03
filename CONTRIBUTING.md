@@ -91,15 +91,7 @@ If you are adding or touching lots of code, then be prepared to go through many 
 
 ### Test your changes
 
-Whether your changes are big or small, you'll want to test them. Flintrock includes two types of tests that you should use.
-
-#### Static analysis
-
-[`lint.sh`](./lint.sh) will make sure your code compiles, check for style issues, and look for other potential problems that can be detected without running Flintrock "for real".
-
-#### Integration tests
-
-[`test-integration.sh`](./test-integration.sh) will launch and manipulate a real cluster to test Flintrock's various commands. This is the most valuable type of test for Flintrock, but it also costs money to run. Use it judiciously.
+Whether your changes are big or small, you'll want to test them. Flintrock includes [tests](./tests/) which you should use.
 
 ### Don't expand the support matrix
 

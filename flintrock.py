@@ -53,7 +53,7 @@ import click
 import paramiko
 import yaml
 
-_SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+FLINTROCK_ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
 def timeit(func):
@@ -416,7 +416,7 @@ class Spark:
 
 
 @click.group()
-@click.option('--config', default=_SCRIPT_DIR + '/config.yaml')
+@click.option('--config', default=FLINTROCK_ROOT_DIR + '/config.yaml')
 @click.option('--provider', default='ec2', type=click.Choice(['ec2']))
 @click.version_option(version='dev')  # TODO: Replace with setuptools auto-detect.
 @click.pass_context
@@ -435,7 +435,7 @@ def cli(cli_context, config, provider):
 
         cli_context.default_map = config_map
     else:
-        if config != (_SCRIPT_DIR + '/config.yaml'):
+        if config != (FLINTROCK_ROOT_DIR + '/config.yaml'):
             raise FileNotFoundError(errno.ENOENT, 'No such file or directory', config)
 
 
