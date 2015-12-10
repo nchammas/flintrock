@@ -1,11 +1,11 @@
-![Flintrock logo](flintrock-logo.png)
+![Flintrock logo](https://raw.githubusercontent.com/nchammas/flintrock/master/flintrock-logo.png)
 
 [![Build Status](https://travis-ci.org/nchammas/flintrock.svg)](https://travis-ci.org/nchammas/flintrock)
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/nchammas/flintrock)
 
 Flintrock is a command-line tool and library for launching [Apache Spark](http://spark.apache.org/) clusters.
 
-**Flintrock is currently undergoing heavy development. Until we make a 1.0 release, you probably should not use Flintrock unless you are ready to keep up with frequent changes to how it works.** Python hackers or heavy spark-ec2 users who are looking to experiment with something new are welcome to try Flintrock out and potentially even [contribute](CONTRIBUTING.md).
+**Flintrock is currently undergoing heavy development. Until we make a 1.0 release, you probably should not use Flintrock unless you are ready to keep up with frequent changes to how it works.** Python hackers or heavy spark-ec2 users who are looking to experiment with something new are welcome to try Flintrock out and potentially even [contribute](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md).
 
 
 ## Usage
@@ -56,7 +56,7 @@ That's not all. Flintrock has a few more [features](#features) that you may find
 
 ## Installation
 
-Before using Flintrock, take a quick look at the [copyright](COPYRIGHT) notice and [license](LICENSE) and make sure you're OK with their terms.
+Before using Flintrock, take a quick look at the [copyright](https://github.com/nchammas/flintrock/blob/master/COPYRIGHT) notice and [license](https://github.com/nchammas/flintrock/blob/master/LICENSE) and make sure you're OK with their terms.
 
 Flintrock requires Python 3.4 or newer. Since we don't have any releases yet, the only way to install Flintrock at the moment is as follows:
 
@@ -204,7 +204,7 @@ Flintrock automatically configures any available [ephemeral storage](http://docs
 
 ### Tests
 
-Flintrock comes with a set of automated, end-to-end [tests](./tests). These tests help us develop Flintrock with confidence and guarantee a certain level of quality.
+Flintrock comes with a set of automated, end-to-end [tests](https://github.com/nchammas/flintrock/tree/master/tests). These tests help us develop Flintrock with confidence and guarantee a certain level of quality.
 
 ### Low-level Provider Options
 
@@ -257,4 +257,4 @@ There are a few additional peeves I had with spark-ec2 -- some of which are diff
 
 ## About the Flintrock Logo
 
-The [Flintrock logo](flintrock-logo.png) was created using [Highbrow Cafetorium JNL](http://www.myfonts.com/fonts/jnlevine/highbrow-cafetorium/) and [this icon](https://thenounproject.com/term/stars/40856/). Licenses to use both the font and icon were purchased from their respective owners.
+The [Flintrock logo](https://github.com/nchammas/flintrock/blob/master/flintrock-logo.png) was created using [Highbrow Cafetorium JNL](http://www.myfonts.com/fonts/jnlevine/highbrow-cafetorium/) and [this icon](https://thenounproject.com/term/stars/40856/). Licenses to use both the font and icon were purchased from their respective owners.

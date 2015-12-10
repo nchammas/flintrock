@@ -18,7 +18,7 @@ def random_string():
 
 def launch_cluster(cluster_name, instance_type):
     p = subprocess.run([
-        './flintrock', 'launch', cluster_name,
+        'flintrock', 'launch', cluster_name,
         '--num-slaves', '1',
         '--install-hdfs',
         '--hdfs-version', HADOOP_VERSION,
@@ -31,13 +31,13 @@ def launch_cluster(cluster_name, instance_type):
 
 def stop_cluster(cluster_name):
     p = subprocess.run([
-        './flintrock', 'stop', cluster_name, '--assume-yes'])
+        'flintrock', 'stop', cluster_name, '--assume-yes'])
     assert p.returncode == 0
 
 
 def start_cluster(cluster_name):
     p = subprocess.run([
-        './flintrock', 'start', cluster_name])
+        'flintrock', 'start', cluster_name])
     assert p.returncode == 0
 
 
@@ -67,7 +67,7 @@ def running_cluster(request):
 
     def destroy():
         p = subprocess.run([
-            './flintrock', 'destroy', cluster_name, '--assume-yes'])
+            'flintrock', 'destroy', cluster_name, '--assume-yes'])
         assert p.returncode == 0
     request.addfinalizer(destroy)
 
@@ -78,7 +78,7 @@ def running_cluster(request):
 def stopped_cluster(request):
     cluster_name = 'running-cluster-' + random_string()
     p = subprocess.run([
-        './flintrock', 'launch', cluster_name,
+        'flintrock', 'launch', cluster_name,
         '--num-slaves', '1',
         '--no-install-hdfs',
         '--no-install-spark',
@@ -86,12 +86,12 @@ def stopped_cluster(request):
     assert p.returncode == 0
 
     p = subprocess.run([
-        './flintrock', 'stop', cluster_name, '--assume-yes'])
+        'flintrock', 'stop', cluster_name, '--assume-yes'])
     assert p.returncode == 0
 
     def destroy():
         p = subprocess.run([
-            './flintrock', 'destroy', cluster_name, '--assume-yes'])
+            'flintrock', 'destroy', cluster_name, '--assume-yes'])
         assert p.returncode == 0
     request.addfinalizer(destroy)
 
@@ -105,7 +105,7 @@ def remote_file(request, running_cluster):
     """
     file_path = '/tmp/remote_dummy_file_for_testing'
     p = subprocess.run([
-        './flintrock', 'run-command', running_cluster, '--',
+        'flintrock', 'run-command', running_cluster, '--',
         'echo -e "{data}" > {path}'.format(
             data='test\n' * 3,
             path=file_path)])
@@ -113,7 +113,7 @@ def remote_file(request, running_cluster):
 
     def destroy():
         p = subprocess.run([
-            './flintrock', 'run-command', running_cluster, '--',
+            'flintrock', 'run-command', running_cluster, '--',
             'rm', '-f', file_path])
         assert p.returncode == 0
     request.addfinalizer(destroy)
