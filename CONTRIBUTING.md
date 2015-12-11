@@ -1,19 +1,16 @@
 # Contributing Guide
 
-*Note: This guide was inspired in part by the excellent [Phabricator contributor docs](https://secure.phabricator.com/book/phabcontrib/).*
-
-**Flintrock is still under heavy development and has no releases at this time.**
-
-**Until we make an initial release, most PRs will be rejected.** We are likely already fixing or making that thing you want to open a PR for, and major components are rapidly evolving so your PR is likely to be invalidated by upcoming changes you may not know about.
-
+There are many ways to contribute to Flintrock.
 
 ## Contributing Thanks
 
-When we put our time and enthusiasm into an open source project like this, we hope that somewhere out there we are helping people by saving them time and frustration. But most of the time, we'll never know what kind of impact we made, if any, on people's lives.
+When we put our time and enthusiasm into an open source project like this, we hope that somewhere out there we are putting a smile on someone's face.
 
-Hearing first-hand of the positive impact we had on someone else's day, even if it is minor, can be a huge boost of joy and motivation.
+Most of the time we'll never know, though. When people reach out within an open source community, it's typically to report a problem, ask for help, or share an idea.
 
-Don't underestimate the power of a thank you. If Flintrock helped you in some way, share your story, no matter how long or short, and know that at times it can be the most valuable way to contribute to the project.
+That's a bummer, because hearing first-hand that we made a positive impact on someone else's day, even if it's minor, can be a huge boost of joy and motivation.
+
+Don't underestimate the power of a thank you. If Flintrock helped you in some way, share your story, even if it's "trivial", and know that at times this can be the most valuable way to contribute to the project.
 
 
 ## Contributing Money

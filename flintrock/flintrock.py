@@ -32,6 +32,7 @@ import errno
 import string
 import sys
 import shlex
+import shutil
 import subprocess
 import pprint
 import asyncio
@@ -67,6 +68,15 @@ def timeit(func):
         print("{f} finished in {t}.".format(f=func.__name__, t=(end - start)))
         return res
     return wrapper
+
+
+def get_config_file() -> str:
+    """
+    Get the path to Flintrock's default configuration file.
+    """
+    config_dir = click.get_app_dir(app_name='Flintrock')
+    config_file = os.path.join(config_dir, 'config.yaml')
+    return config_file
 
 
 def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
@@ -419,7 +429,7 @@ class Spark:
 
 
 @click.group()
-@click.option('--config', default=os.path.join(THIS_DIR, 'config.yaml'))
+@click.option('--config', default=get_config_file())
 @click.option('--provider', default='ec2', type=click.Choice(['ec2']))
 @click.version_option(version=__version__)
 @click.pass_context
@@ -431,15 +441,15 @@ def cli(cli_context, config, provider):
     """
     cli_context.obj['provider'] = provider
 
-    if os.path.exists(config):
+    if os.path.isfile(config):
         with open(config) as f:
             config_raw = yaml.safe_load(f)
             config_map = config_to_click(normalize_keys(config_raw))
 
         cli_context.default_map = config_map
     else:
-        if config != os.path.join(THIS_DIR, 'config.yaml'):
-            raise FileNotFoundError(errno.ENOENT, 'No such file or directory', config)
+        if config != get_config_file():
+            raise FileNotFoundError(errno.ENOENT, 'No such file', config)
 
 
 @cli.command()
@@ -1983,6 +1993,31 @@ def config_to_click(config: dict) -> dict:
 
     # TODO: Use a different name. click is a module.
     return click
+
+
+@cli.command()
+@click.option('--locate', is_flag=True, default=False,
+              help="Don't open an editor. "
+              "Just open the folder containing the configuration file.")
+@click.pass_context
+def configure(cli_context, locate):
+    """
+    Configure Flintrock's defaults.
+
+    This will open Flintrock's configuration file in your default YAML editor so
+    you can set your defaults.
+    """
+    config_file = get_config_file()
+
+    if not os.path.isfile(config_file):
+        print("Initializing config file from template...")
+        os.makedirs(os.path.dirname(config_file), exist_ok=True)
+        shutil.copyfile(
+            src=os.path.join(THIS_DIR, 'config.yaml.template'),
+            dst=config_file)
+        os.chmod(config_file, mode=0o644)
+
+    click.launch(config_file, locate=locate)
 
 
 def main():

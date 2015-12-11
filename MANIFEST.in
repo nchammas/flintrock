@@ -7,6 +7,3 @@ include LICENSE
 
 global-exclude *.py[cod] __pycache__ .DS_Store
 global-exclude config.yaml
-
-#graft tests
-#include tox.ini
