@@ -758,13 +758,21 @@ def launch_ec2(
         print("Cluster already exists: {c}".format(c=cluster_name), file=sys.stderr)
         sys.exit(1)
 
-    security_groups = get_or_create_ec2_security_groups(
-        cluster_name=cluster_name,
-        vpc_id=vpc_id,
-        region=region)
-    block_device_map = get_ec2_block_device_map(
-        ami=ami,
-        region=region)
+    try:
+        security_groups = get_or_create_ec2_security_groups(
+            cluster_name=cluster_name,
+            vpc_id=vpc_id,
+            region=region)
+        block_device_map = get_ec2_block_device_map(
+            ami=ami,
+            region=region)
+    except boto.exception.EC2ResponseError as e:
+        if e.error_code == 'InvalidAMIID.NotFound':
+            print("Error: Could not find {ami} in region {region}."
+                  .format(ami=ami, region=region), file=sys.stderr)
+            sys.exit(1)
+        else:
+            raise
 
     connection = boto.ec2.connect_to_region(region_name=region)
 

@@ -15,9 +15,9 @@ providers:
     instance-type: m3.medium
     region: us-east-1
     # availability-zone: <name>
-    ami: ami-60b6c60a   # Amazon Linux
+    ami: ami-60b6c60a   # Amazon Linux, us-east-1
     user: ec2-user
-    # ami: ami-61bbf104   # CentOS 7
+    # ami: ami-61bbf104   # CentOS 7, us-east-1
     # user: centos
     # spot-price: <price>
     # vpc-id: <id>
