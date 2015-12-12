@@ -1,11 +1,11 @@
-![Flintrock logo](flintrock-logo.png)
+![Flintrock logo](https://raw.githubusercontent.com/nchammas/flintrock/master/flintrock-logo.png)
 
 [![Build Status](https://travis-ci.org/nchammas/flintrock.svg)](https://travis-ci.org/nchammas/flintrock)
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/nchammas/flintrock)
 
 Flintrock is a command-line tool and library for launching [Apache Spark](http://spark.apache.org/) clusters.
 
-**Flintrock is currently undergoing heavy development. Until we make a 1.0 release, you probably should not use Flintrock unless you are ready to keep up with frequent changes to how it works.** Python hackers or heavy spark-ec2 users who are looking to experiment with something new are welcome to try Flintrock out and potentially even [contribute](CONTRIBUTING.md).
+**Flintrock is currently undergoing heavy development. Until we make a 1.0 release, you probably should not use Flintrock unless you are ready to keep up with frequent changes to how it works.** Python hackers or heavy spark-ec2 users who are looking to experiment with something new are welcome to try Flintrock out and potentially even [contribute](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md).
 
 
 ## Usage
@@ -16,7 +16,7 @@ Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS
 flintrock launch test-cluster \
     --num-slaves 1 \
     --no-install-hdfs \
-    --spark-version 1.5.1 \
+    --spark-version 1.5.2 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
     --ec2-ami ami-60b6c60a \
@@ -40,7 +40,7 @@ Other things you can do with Flintrock include:
 ```sh
 flintrock login test-cluster
 flintrock describe test-cluster
-flintrock run-command test-cluster 'yum install -y package'
+flintrock run-command test-cluster 'sudo yum install -y package'
 flintrock copy-file test-cluster /local/path /remote/path
 ```
 
@@ -56,30 +56,47 @@ That's not all. Flintrock has a few more [features](#features) that you may find
 
 ## Installation
 
-Before using Flintrock, take a quick look at the [copyright](COPYRIGHT) notice and [license](LICENSE) and make sure you're OK with their terms.
+Before using Flintrock, take a quick look at the [copyright](https://github.com/nchammas/flintrock/blob/master/COPYRIGHT) notice and [license](https://github.com/nchammas/flintrock/blob/master/LICENSE) and make sure you're OK with their terms.
 
-Flintrock requires Python 3.4 or newer. Since we don't have any releases yet, the only way to install Flintrock at the moment is as follows:
+Flintrock requires Python 3.4 or newer. It's currently been tested only on OS X, but it should run on all POSIX systems. We have plans to [add Windows support](https://github.com/nchammas/flintrock/issues/46) in the future, too.
 
-```sh
-# Download Flintrock.
-git clone https://github.com/nchammas/flintrock
+Eventually, we also plan to release stand-alone executables so that you can install Flintrock without having to worry about having Python installed.
 
-# Set your defaults.
-cd flintrock
-cp config.yaml.template config.yaml
-# vi config.yaml
+### Release version
 
-# Install Flintrock's dependencies.
-python3 -m venv venv
-source venv/bin/activate
-python3 -m pip install -r requirements.txt
-deactivate
+To get the latest release of Flintrock, simply run [pip](https://pip.pypa.io/en/stable/):
 
-# You're good to go now.
-./flintrock --help
+```
+python3 -m pip install flintrock
 ```
 
-Eventually, we plan to release binaries so that you can install Flintrock without having to worry about having Python installed.
+This will install Flintrock and place it on your path. You should be good to go now!
+
+You'll probably want to get started with the following two commands:
+
+```sh
+flintrock --help
+flintrock configure
+```
+
+### Development version
+
+If you like living on the edge, or if you want to [contribute](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md), you can install the development version of Flintrock like this:
+
+```sh
+git clone https://github.com/nchammas/flintrock
+cd flintrock
+
+# Setup a virtual environment.
+# Optional, but *strongly recommended*.
+python3 -m venv venv
+source venv/bin/activate
+
+# Install Flintrock.
+# If you want to contribute, install the developer requirements.
+python3 -m pip install -r requirements/user.pip
+python3 -m pip install -r requirements/developer.pip
+```
 
 
 ## Use Cases
@@ -137,7 +154,9 @@ flintrock launch test-cluster --num-slaves 10
 
 ### Configurable CLI Defaults
 
-Flintrock lets you persist your desired configuration to a file (called `config.yaml` by default) so that you don't have to keep typing out the same options over and over at the command line.
+Flintrock lets you persist your desired configuration to a YAML file so that you don't have to keep typing out the same options over and over at the command line.
+
+To setup and edit the default config file, call `flintrock configure`. You can also point Flintrock to a non-default config file by using the `--config` option.
 
 #### Sample `config.yaml`
 
@@ -204,7 +223,7 @@ Flintrock automatically configures any available [ephemeral storage](http://docs
 
 ### Tests
 
-Flintrock comes with a set of automated, end-to-end [tests](./tests). These tests help us develop Flintrock with confidence and guarantee a certain level of quality.
+Flintrock comes with a set of automated, end-to-end [tests](https://github.com/nchammas/flintrock/tree/master/tests). These tests help us develop Flintrock with confidence and guarantee a certain level of quality.
 
 ### Low-level Provider Options
 
@@ -257,4 +276,4 @@ There are a few additional peeves I had with spark-ec2 -- some of which are diff
 
 ## About the Flintrock Logo
 
-The [Flintrock logo](flintrock-logo.png) was created using [Highbrow Cafetorium JNL](http://www.myfonts.com/fonts/jnlevine/highbrow-cafetorium/) and [this icon](https://thenounproject.com/term/stars/40856/). Licenses to use both the font and icon were purchased from their respective owners.
+The [Flintrock logo](https://github.com/nchammas/flintrock/blob/master/flintrock-logo.png) was created using [Highbrow Cafetorium JNL](http://www.myfonts.com/fonts/jnlevine/highbrow-cafetorium/) and [this icon](https://thenounproject.com/term/stars/40856/). Licenses to use both the font and icon were purchased from their respective owners.

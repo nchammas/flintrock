@@ -32,6 +32,7 @@ import errno
 import string
 import sys
 import shlex
+import shutil
 import subprocess
 import pprint
 import asyncio
@@ -53,7 +54,9 @@ import click
 import paramiko
 import yaml
 
-FLINTROCK_ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
+from flintrock import __version__
+
+THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
 def timeit(func):
@@ -65,6 +68,15 @@ def timeit(func):
         print("{f} finished in {t}.".format(f=func.__name__, t=(end - start)))
         return res
     return wrapper
+
+
+def get_config_file() -> str:
+    """
+    Get the path to Flintrock's default configuration file.
+    """
+    config_dir = click.get_app_dir(app_name='Flintrock')
+    config_file = os.path.join(config_dir, 'config.yaml')
+    return config_file
 
 
 def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
@@ -119,7 +131,7 @@ def cluster_info_to_template_mapping(
     """
     template_mapping = {}
 
-    for k, v in vars(cluster_info).items():
+    for k, v in cluster_info._asdict().items():
         if k == 'slave_hosts':
             template_mapping.update({k: '\n'.join(v)})
         elif k == 'storage_dirs':
@@ -167,7 +179,7 @@ class HDFS:
 
         with ssh_client.open_sftp() as sftp:
             sftp.put(
-                localpath='./get-best-apache-mirror.py',
+                localpath=os.path.join(THIS_DIR, 'get-best-apache-mirror.py'),
                 remotepath='/tmp/get-best-apache-mirror.py')
 
         ssh_check_output(
@@ -189,12 +201,13 @@ class HDFS:
             self,
             ssh_client: paramiko.client.SSHClient,
             cluster_info: ClusterInfo):
+        # TODO: os.walk() through these files.
         template_paths = [
-            './hadoop/conf/masters',
-            './hadoop/conf/slaves',
-            './hadoop/conf/hadoop-env.sh',
-            './hadoop/conf/core-site.xml',
-            './hadoop/conf/hdfs-site.xml']
+            'hadoop/conf/masters',
+            'hadoop/conf/slaves',
+            'hadoop/conf/hadoop-env.sh',
+            'hadoop/conf/core-site.xml',
+            'hadoop/conf/hdfs-site.xml']
 
         for template_path in template_paths:
             ssh_check_output(
@@ -204,7 +217,7 @@ class HDFS:
                 """.format(
                     f=shlex.quote(
                         get_formatted_template(
-                            path="templates/" + template_path,
+                            path=os.path.join(THIS_DIR, "templates", template_path),
                             mapping=cluster_info_to_template_mapping(
                                 cluster_info=cluster_info,
                                 module='hdfs'))),
@@ -278,7 +291,7 @@ class Spark:
             if self.version:
                 with ssh_client.open_sftp() as sftp:
                     sftp.put(
-                        localpath='./install-spark.sh',
+                        localpath=os.path.join(THIS_DIR, 'install-spark.sh'),
                         remotepath='/tmp/install-spark.sh')
                     sftp.chmod(path='/tmp/install-spark.sh', mode=0o755)
                 ssh_check_output(
@@ -325,8 +338,8 @@ class Spark:
         This method is master/slave-agnostic.
         """
         template_paths = [
-            './spark/conf/spark-env.sh',
-            './spark/conf/slaves']
+            'spark/conf/spark-env.sh',
+            'spark/conf/slaves']
         for template_path in template_paths:
             ssh_check_output(
                 client=ssh_client,
@@ -335,7 +348,7 @@ class Spark:
                 """.format(
                     f=shlex.quote(
                         get_formatted_template(
-                            path="templates/" + template_path,
+                            path=os.path.join(THIS_DIR, "templates", template_path),
                             mapping=cluster_info_to_template_mapping(
                                 cluster_info=cluster_info,
                                 module='spark'))),
@@ -416,9 +429,9 @@ class Spark:
 
 
 @click.group()
-@click.option('--config', default=FLINTROCK_ROOT_DIR + '/config.yaml')
+@click.option('--config', default=get_config_file())
 @click.option('--provider', default='ec2', type=click.Choice(['ec2']))
-@click.version_option(version='dev')  # TODO: Replace with setuptools auto-detect.
+@click.version_option(version=__version__)
 @click.pass_context
 def cli(cli_context, config, provider):
     """
@@ -428,15 +441,15 @@ def cli(cli_context, config, provider):
     """
     cli_context.obj['provider'] = provider
 
-    if os.path.exists(config):
+    if os.path.isfile(config):
         with open(config) as f:
             config_raw = yaml.safe_load(f)
             config_map = config_to_click(normalize_keys(config_raw))
 
         cli_context.default_map = config_map
     else:
-        if config != (FLINTROCK_ROOT_DIR + '/config.yaml'):
-            raise FileNotFoundError(errno.ENOENT, 'No such file or directory', config)
+        if config != get_config_file():
+            raise FileNotFoundError(errno.ENOENT, 'No such file', config)
 
 
 @cli.command()
@@ -637,7 +650,7 @@ def get_or_create_ec2_security_groups(
     # TODO: Add rules in one shot.
     for rule in client_rules:
         try:
-            flintrock_group.authorize(**vars(rule))
+            flintrock_group.authorize(**rule._asdict())
         except boto.exception.EC2ResponseError as e:
             if e.error_code != 'InvalidPermission.Duplicate':
                 print("Error adding rule: {r}".format(r=rule))
@@ -675,7 +688,7 @@ def get_or_create_ec2_security_groups(
     # TODO: Add rules in one shot.
     for rule in cluster_rules:
         try:
-            cluster_group.authorize(**vars(rule))
+            cluster_group.authorize(**rule._asdict())
         except boto.exception.EC2ResponseError as e:
             if e.error_code != 'InvalidPermission.Duplicate':
                 print("Error adding rule: {r}".format(r=rule))
@@ -1030,7 +1043,7 @@ def provision_node(
 
         with client.open_sftp() as sftp:
             sftp.put(
-                localpath='./setup-ephemeral-storage.py',
+                localpath=os.path.join(THIS_DIR, 'setup-ephemeral-storage.py'),
                 remotepath='/tmp/setup-ephemeral-storage.py')
 
         print("[{h}] Configuring ephemeral storage...".format(h=host))
@@ -1670,8 +1683,8 @@ def run_command(
 
     Examples:
 
-        ./flintrock run-command my-cluster 'touch /tmp/flintrock'
-        ./flintrock run-command my-cluster -- yum install -y package
+        flintrock run-command my-cluster 'touch /tmp/flintrock'
+        flintrock run-command my-cluster -- yum install -y package
 
     Flintrock will return a non-zero code if any of the cluster nodes raises an error
     while running the command.
@@ -1792,8 +1805,8 @@ def copy_file(
 
     Examples:
 
-        ./flintrock copy-file my-cluster /tmp/file.102.txt /tmp/file.txt
-        ./flintrock copy-file my-cluster /tmp/spark-defaults.conf /tmp/
+        flintrock copy-file my-cluster /tmp/file.102.txt /tmp/file.txt
+        flintrock copy-file my-cluster /tmp/spark-defaults.conf /tmp/
 
     Flintrock will return a non-zero code if any of the cluster nodes raises an error.
     """
@@ -1978,10 +1991,37 @@ def config_to_click(config: dict) -> dict:
         'copy-file': ec2_configs,
     }
 
+    # TODO: Use a different name. click is a module.
     return click
 
 
-if __name__ == "__main__":
-    # TODO: try, catch
-    #       print and exit from exception metadata
+@cli.command()
+@click.option('--locate', is_flag=True, default=False,
+              help="Don't open an editor. "
+              "Just open the folder containing the configuration file.")
+@click.pass_context
+def configure(cli_context, locate):
+    """
+    Configure Flintrock's defaults.
+
+    This will open Flintrock's configuration file in your default YAML editor so
+    you can set your defaults.
+    """
+    config_file = get_config_file()
+
+    if not os.path.isfile(config_file):
+        print("Initializing config file from template...")
+        os.makedirs(os.path.dirname(config_file), exist_ok=True)
+        shutil.copyfile(
+            src=os.path.join(THIS_DIR, 'config.yaml.template'),
+            dst=config_file)
+        os.chmod(config_file, mode=0o644)
+
+    click.launch(config_file, locate=locate)
+
+
+def main():
+    # We pass in obj so we can add attributes to it, like provider, which
+    # get shared by all commands.
+    # See: http://click.pocoo.org/6/api/#click.Context
     cli(obj={})

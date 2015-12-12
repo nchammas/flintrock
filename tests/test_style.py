@@ -10,8 +10,8 @@ FLINTROCK_ROOT_DIR = (
             os.path.realpath(__file__))))
 
 TEST_TARGETS = [
-    'flintrock.py',
-    'setup-ephemeral-storage.py',
+    'setup.py',
+    'flintrock/',
     'tests/']
 
 TEST_PATHS = [
@@ -26,6 +26,7 @@ def test_code_compiles():
             result = compileall.compile_file(path)
         # NOTE: This is not publicly documented, but a return of 1 means
         #       the compilation succeeded.
+        #       See: http://bugs.python.org/issue25768
         assert result == 1
 
 

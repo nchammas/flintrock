@@ -5,7 +5,7 @@ Use the tests in this directory to help you catch bugs as you work on Flintrock.
 The instructions here assume the following things:
 
 1. You're working from Flintrock's root directory.
-2. You're working in a Python [virtual environment](https://docs.python.org/3/library/venv.html). (We set this up under `venv/` when we [installed Flintrock](../README.md#Installation).)
+2. You're working in a Python [virtual environment](https://docs.python.org/3/library/venv.html). (We set this up under `venv/` when we [installed Flintrock](../README.md#development-version).)
 3. You're running Python 3.5+.
 4. You've already setup your Flintrock config file and can launch clusters.
 
@@ -15,7 +15,7 @@ The instructions here assume the following things:
 Flintrock's tests have their own dependencies which you can install as follows:
 
 ```sh
-python3 -m pip install -r requirements-dev.txt
+python3 -m pip install -r requirements/developer.pip
 ```
 
 Among other things, this will make [pytest](http://pytest.readthedocs.org/en/latest/) available at the command line. We'll use it to run our tests.
@@ -28,10 +28,10 @@ Among other things, this will make [pytest](http://pytest.readthedocs.org/en/lat
 To run all of Flintrock's tests, just run:
 
 ```sh
-py.test --verbose
+py.test
 ```
 
-The complete test run is quite long, so you'll want the `--verbose` flag so you can track pytest's progress.
+Keep in mind that the complete test run is quite long.
 
 
 ## Style Tests
