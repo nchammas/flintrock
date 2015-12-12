@@ -2,6 +2,7 @@
 graft flintrock
 
 include README.md
+include CHANGELOG.md
 include COPYRIGHT
 include LICENSE
 
