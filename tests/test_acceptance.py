@@ -2,8 +2,6 @@ import json
 import subprocess
 import urllib.request
 
-# TODO: Parallelize tests.
-
 
 def test_describe_stopped_cluster(stopped_cluster):
     p = subprocess.run([
@@ -106,3 +104,12 @@ def test_operations_against_non_existent_cluster():
             stderr=subprocess.PIPE)
         assert p.returncode == 1
         assert p.stderr.startswith(expected_error_message)
+
+
+def test_launch_with_bad_ami():
+    p = subprocess.run([
+        'flintrock', 'launch', 'whatever-cluster',
+        '--ec2-ami', 'ami-badbad00'],
+        stderr=subprocess.PIPE)
+    assert p.returncode == 1
+    assert p.stderr.startswith(b"Error: Could not find")
