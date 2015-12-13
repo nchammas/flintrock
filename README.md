@@ -81,7 +81,7 @@ flintrock configure
 
 ### Development version
 
-If you like living on the edge, or if you want to [contribute](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md), you can install the development version of Flintrock like this:
+If you like living on the edge, or if you want to [contribute](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md), install the development version of Flintrock:
 
 ```sh
 git clone https://github.com/nchammas/flintrock
@@ -97,6 +97,8 @@ source venv/bin/activate
 python3 -m pip install -r requirements/user.pip
 python3 -m pip install -r requirements/developer.pip
 ```
+
+When you `git pull` the latest changes, don't forget to also rerun the `pip install` step so that Flintrock's dependencies stay up-to-date.
 
 
 ## Use Cases
