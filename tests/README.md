@@ -53,4 +53,4 @@ py.test tests/test_acceptance.py
 
 Acceptance tests are the most valuable type of test for an orchestration tool like Flintrock, but they also **cost money** (less than $1 for the full test run) and take many minutes to run. Use them judiciously.
 
-Note that in some cases **a failed test run may leave behind running clusters**. You'll need to delete these manually.
+Note that, depending on your changes, **a failed test run may leave behind running clusters**. You'll need to delete these manually.

@@ -25,6 +25,7 @@ def launch_cluster(cluster_name, instance_type):
         '--install-spark',
         '--spark-version', SPARK_VERSION,
         '--spark-git-commit', '',
+        '--assume-yes',
         '--ec2-instance-type', instance_type])
     assert p.returncode == 0
 
@@ -82,6 +83,7 @@ def stopped_cluster(request):
         '--num-slaves', '1',
         '--no-install-hdfs',
         '--no-install-spark',
+        '--assume-yes',
         '--ec2-instance-type', 't2.small'])
     assert p.returncode == 0
 

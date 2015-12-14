@@ -467,6 +467,7 @@ def cli(cli_context, config, provider):
               help="Git repository to clone Spark from.",
               default='https://github.com/apache/spark.git',
               show_default=True)
+@click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-key-name')
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
@@ -495,6 +496,7 @@ def launch(
         spark_version,
         spark_git_commit,
         spark_git_repository,
+        assume_yes,
         ec2_key_name,
         ec2_identity_file,
         ec2_instance_type,
@@ -548,6 +550,7 @@ def launch(
     if cli_context.obj['provider'] == 'ec2':
         return launch_ec2(
             cluster_name=cluster_name, num_slaves=num_slaves, modules=modules,
+            assume_yes=assume_yes,
             key_name=ec2_key_name,
             identity_file=ec2_identity_file,
             instance_type=ec2_instance_type,
@@ -732,6 +735,7 @@ def get_ec2_block_device_map(
 def launch_ec2(
         *,
         cluster_name, num_slaves, modules,
+        assume_yes,
         key_name, identity_file,
         instance_type,
         region,
@@ -952,13 +956,14 @@ def launch_ec2(
                     instance_ids=instance_ids)
 
         if cluster_instances:
-            yes = click.confirm(
-                text="Do you want to terminate the {c} instances created by this operation?"
-                     .format(c=len(cluster_instances)),
-                err=True,
-                default=True)
+            if not assume_yes:
+                yes = click.confirm(
+                    text="Do you want to terminate the {c} instances created by this operation?"
+                        .format(c=len(cluster_instances)),
+                    err=True,
+                    default=True)
 
-            if yes:
+            if assume_yes or yes:
                 print("Terminating instances...", file=sys.stderr)
                 connection.terminate_instances(
                     instance_ids=[instance.id for instance in cluster_instances])
