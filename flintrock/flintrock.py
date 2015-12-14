@@ -959,7 +959,7 @@ def launch_ec2(
             if not assume_yes:
                 yes = click.confirm(
                     text="Do you want to terminate the {c} instances created by this operation?"
-                        .format(c=len(cluster_instances)),
+                         .format(c=len(cluster_instances)),
                     err=True,
                     default=True)
 
