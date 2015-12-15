@@ -45,9 +45,12 @@ setuptools.setup(
     # We pin dependencies because sometimes projects do not
     # strictly follow semantic versioning, so new "feature"
     # releases end up making backwards-incompatible changes.
+    # Sometimes, new releases even introduce bugs which
+    # totally break Flintrock.
+    # For example: https://github.com/paramiko/paramiko/issues/615
     install_requires=[
         'boto == 2.38.0',
-        'click == 5.1',
+        'click == 6.2',
         'paramiko == 1.15.4',
         'PyYAML == 3.11'
     ],

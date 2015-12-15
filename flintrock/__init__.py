@@ -1,1 +1,2 @@
-__version__ = '0.2.0.dev'
+# See: https://packaging.python.org/en/latest/distributing/#standards-compliance-for-interoperability
+__version__ = '0.2.0.dev0'
