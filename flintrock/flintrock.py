@@ -179,16 +179,15 @@ class HDFS:
 
         with ssh_client.open_sftp() as sftp:
             sftp.put(
-                localpath=os.path.join(THIS_DIR, 'get-best-apache-mirror.py'),
-                remotepath='/tmp/get-best-apache-mirror.py')
+                localpath=os.path.join(THIS_DIR, 'download-hadoop.py'),
+                remotepath='/tmp/download-hadoop.py')
 
         ssh_check_output(
             client=ssh_client,
             command="""
                 set -e
 
-                curl --silent --remote-name "$(
-                    python /tmp/get-best-apache-mirror.py "http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{version}/hadoop-{version}.tar.gz?as_json")"
+                python /tmp/download-hadoop.py "{version}"
 
                 mkdir "hadoop"
                 mkdir "hadoop/conf"
