@@ -454,7 +454,7 @@ def cli(cli_context, config, provider):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=int, required=True)
-@click.option('--install-hdfs/--no-install-hdfs', default=True)
+@click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version')
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-version',
