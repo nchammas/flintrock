@@ -609,7 +609,7 @@ def get_or_create_ec2_security_groups(
     if not flintrock_group:
         flintrock_group = connection.create_security_group(
             name=flintrock_group_name,
-            description="flintrock base group",
+            description="Flintrock base group",
             vpc_id=vpc_id)
 
     # Rules for the client interacting with the cluster.
@@ -1207,15 +1207,26 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
             text="Are you sure you want to destroy this cluster?",
             abort=True)
 
+    connection = boto.ec2.connect_to_region(region_name=region)
+
+    # TODO: Centralize logic to get Flintrock base security group. (?)
+    flintrock_base_group = connection.get_all_security_groups(groupnames=['flintrock'])
+    # TODO: Is there a way to do this in one call? Do we need to throttle these calls?
+    for instance in cluster_instances:
+        connection.modify_instance_attribute(
+            instance_id=instance.id,
+            attribute='groupSet',
+            value=flintrock_base_group)
+
     # TODO: Figure out if we want to use "node" instead of "instance" when
     #       communicating with the user, even if we're talking about doing things
     #       to EC2 instances. Spark docs definitely favor "node".
     print("Terminating {c} instances...".format(c=len(cluster_instances)))
-    connection = boto.ec2.connect_to_region(region_name=region)
     connection.terminate_instances(
         instance_ids=[instance.id for instance in cluster_instances])
 
-    # TODO: Destroy cluster security group. We're not reusing it.
+    # TODO: Centralize logic to get cluster security group name from cluster name.
+    connection.delete_security_group(name='flintrock-' + cluster_name)
 
 
 def add_slaves(provider, cluster_name, num_slaves, provider_options):
