@@ -44,6 +44,7 @@ import time
 import urllib.request
 import tempfile
 import textwrap
+import warnings
 from datetime import datetime
 from collections import namedtuple
 
@@ -2043,7 +2044,27 @@ def configure(cli_context, locate):
     click.launch(config_file, locate=locate)
 
 
+def flintrock_is_in_development_mode() -> bool:
+    """
+    Check if Flintrock was installed in development mode.
+
+    Use this function to toggle behavior that only Flintrock developers should
+    see.
+    """
+    # This esoteric technique was pulled from pip.
+    # See: https://github.com/pypa/pip/pull/3258/files#diff-ab583908279e865537dec218246edcfcR310
+    for path_item in sys.path:
+        egg_link = os.path.join(path_item, 'Flintrock.egg-link')
+        if os.path.isfile(egg_link):
+            return True
+    else:
+        return False
+
+
 def main():
+    if flintrock_is_in_development_mode():
+        warnings.simplefilter(action='error', category=DeprecationWarning)
+
     # We pass in obj so we can add attributes to it, like provider, which
     # get shared by all commands.
     # See: http://click.pocoo.org/6/api/#click.Context
