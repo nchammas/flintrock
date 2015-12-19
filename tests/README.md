@@ -34,12 +34,12 @@ py.test
 Keep in mind that the complete test run is quite long.
 
 
-## Style Tests
+## Static Analysis
 
 These tests will make sure your code compiles, check for style issues, and look for other potential problems that can be detected without running Flintrock "for real".
 
 ```sh
-py.test tests/test_style.py
+py.test tests/test_static.py
 ```
 
 

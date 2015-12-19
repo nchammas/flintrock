@@ -5,4 +5,4 @@ python:
 install:
   - "pip install -r requirements/developer.pip"
 script:
-  - "py.test ./tests/test_style.py"
+  - "py.test ./tests/test_static.py"

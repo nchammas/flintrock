@@ -3,6 +3,7 @@ import os
 
 # External modules.
 import pep8
+import yaml
 
 FLINTROCK_ROOT_DIR = (
     os.path.dirname(
@@ -35,3 +36,9 @@ def test_pep8_compliance():
         config_file=os.path.join(FLINTROCK_ROOT_DIR, 'tox.ini'))
     result = style.check_files(TEST_PATHS)
     assert result.total_errors == 0
+
+
+def test_config_template_is_valid():
+    config_template = os.path.join(FLINTROCK_ROOT_DIR, 'flintrock', 'config.yaml.template')
+    with open(config_template) as f:
+        yaml.safe_load(f)
