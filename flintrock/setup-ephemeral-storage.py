@@ -23,7 +23,6 @@ from __future__ import print_function
 
 import json
 import subprocess
-import sys
 from collections import namedtuple
 
 # Taken from: http://man7.org/linux/man-pages/man5/fstab.5.html
