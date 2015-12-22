@@ -1,0 +1,2 @@
+class ClusterNotFound(Exception):
+    pass
