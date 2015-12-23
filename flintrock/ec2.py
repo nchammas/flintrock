@@ -21,7 +21,10 @@ from .core import ClusterInfo
 from .core import format_message, generate_ssh_key_pair
 from .core import get_ssh_client, ssh_check_output, ssh
 from .core import HDFS, Spark  # Used by start_ec2
-from .core import provision_node, start_node, run_command_node, copy_file_node
+from .core import provision_cluster, provision_node
+from .core import start_cluster, start_node
+from .core import run_command_cluster, run_command_node
+from .core import copy_file_cluster, copy_file_node
 from .exceptions import ClusterNotFound
 
 
@@ -328,86 +331,19 @@ def launch_ec2(
                 'flintrock-role': 'slave',
                 'Name': '{c}-slave'.format(c=cluster_name)})
 
-# -- SPLIT HERE --
-
         cluster_info = ClusterInfo(
             name=cluster_name,
             ssh_key_pair=generate_ssh_key_pair(),
             user=user,
-            # Mystery: Why don't IP addresses work here?
-            # master_host=master_instance.ip_address,
-            # slave_hosts=[i.ip_address for i in slave_instances],
+            master_ip=master_instance.ip_address,
             master_host=master_instance.public_dns_name,
-            slave_hosts=[i.public_dns_name for i in slave_instances],
-            storage_dirs={
-                'root': None,
-                'ephemeral': None,
-                'persistent': None
-            })
+            slave_ips=[i.ip_address for i in slave_instances],
+            slave_hosts=[i.public_dns_name for i in slave_instances])
 
-        # TODO: Abstract away. No-one wants to see this async shite here.
-        loop = asyncio.get_event_loop()
-
-        tasks = []
-        for instance in cluster_instances:
-            # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
-            #       Until then, we leave them out to maintain compatibility across Python 3.4
-            #       and 3.5.
-            # See: http://stackoverflow.com/q/32873974/
-            task = loop.run_in_executor(
-                None,
-                functools.partial(
-                    provision_node,
-                    modules=modules,
-                    user=user,
-                    host=instance.ip_address,
-                    identity_file=identity_file,
-                    cluster_info=cluster_info))
-            tasks.append(task)
-        done, _ = loop.run_until_complete(asyncio.wait(tasks))
-
-        # Is this the right way to make sure no coroutine failed?
-        for future in done:
-            future.result()
-
-        loop.close()
-
-        print("All {c} instances provisioned.".format(
-            c=len(cluster_instances)))
-
-        master_ssh_client = get_ssh_client(
-            user=user,
-            host=master_instance.ip_address,
+        provision_cluster(
+            cluster_info=cluster_info,
+            modules=modules,
             identity_file=identity_file)
-
-        with master_ssh_client:
-            # TODO: This manifest may need to be more full-featured to support
-            #       adding nodes to a cluster.
-            manifest = {
-                'modules': [[type(m).__name__, m.version] for m in modules]}
-            # The manifest tells us how the cluster is configured. We'll need this
-            # when we resize the cluster or restart it.
-            ssh_check_output(
-                client=master_ssh_client,
-                command="""
-                    echo {m} > /home/{u}/.flintrock-manifest.json
-                """.format(
-                    m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
-                    u=shlex.quote(user)))
-
-            for module in modules:
-                module.configure_master(
-                    ssh_client=master_ssh_client,
-                    cluster_info=cluster_info)
-
-        # NOTE: We sleep here so that the slave services have time to come up.
-        #       If we refactor stuff to have a start_slave() that blocks until
-        #       the slave is fully up, then we won't need this sleep anymore.
-        if modules:
-            time.sleep(30)
-
-        for module in modules:
-            module.health_check(master_host=cluster_info.master_host)
 
     except (Exception, KeyboardInterrupt) as e:
         print(e, file=sys.stderr)
@@ -440,11 +376,6 @@ def launch_ec2(
                     instance_ids=[instance.id for instance in cluster_instances])
 
         sys.exit(1)
-    # finally:
-    #     print("Terminating all {c} instances...".format(
-    #         c=len(cluster_instances)))
-    #     connection.terminate_instances(
-    #         instance_ids=[instance.id for instance in cluster_instances])
 
 
 # TODO: This function should probably return a ClusterInfo tuple with additional,
@@ -581,6 +512,8 @@ def print_cluster_info_ec2(
 
 
 def describe_ec2(*, cluster_name, master_hostname_only=False, region):
+    # TODO: This function should construct ClusterInfo objects and
+    #       use those to print info to screen.
     if cluster_name:
         try:
             master_instance, slave_instances = get_cluster_instances_ec2(
@@ -686,103 +619,15 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         cluster_instances=cluster_instances,
         state='running')
 
-    master_ssh_client = get_ssh_client(
-        user=user,
-        host=master_instance.ip_address,
-        identity_file=identity_file)
-
-    with master_ssh_client:
-        manifest_raw = ssh_check_output(
-            client=master_ssh_client,
-            command="""
-                cat /home/{u}/.flintrock-manifest.json
-            """.format(u=shlex.quote(user)))
-        # TODO: Reconsider where this belongs. In the manifest? We can implement
-        #       ephemeral storage support as a Flintrock module, and add methods to
-        #       serialize and deserialize critical module info like installed versions
-        #       or ephemeral drives to the to/from the manifest.
-        #       Another approach is to auto-detect storage inside a start_node()
-        #       method. Yet another approach is to determine storage upfront by the
-        #       instance type.
-        # NOTE: As for why we aren't using ls here, see:
-        #       http://mywiki.wooledge.org/ParsingLs
-        ephemeral_dirs_raw = ssh_check_output(
-            client=master_ssh_client,
-            command="""
-                shopt -s nullglob
-                for f in /media/ephemeral*; do
-                    echo "$f"
-                done
-            """)
-
-    manifest = json.loads(manifest_raw)
-    storage_dirs = {
-        'root': '/media/root',
-        'ephemeral': sorted(ephemeral_dirs_raw.splitlines()),
-        'persistent': None
-    }
-
     cluster_info = ClusterInfo(
         name=cluster_name,
-        ssh_key_pair=None,
         user=user,
-        # Mystery: Why don't IP addresses work here?
-        # master_host=master_instance.ip_address,
-        # slave_hosts=[i.ip_address for i in slave_instances],
+        master_ip=master_instance.ip_address,
         master_host=master_instance.public_dns_name,
-        slave_hosts=[i.public_dns_name for i in slave_instances],
-        storage_dirs=storage_dirs)
+        slave_ips=[i.ip_address for i in slave_instances],
+        slave_hosts=[i.public_dns_name for i in slave_instances])
 
-    modules = []
-    for [module_name, version] in manifest['modules']:
-        module = globals()[module_name](version)
-        modules.append(module)
-
-    loop = asyncio.get_event_loop()
-
-    tasks = []
-    for instance in cluster_instances:
-        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
-        #       Until then, we leave them out to maintain compatibility across Python 3.4
-        #       and 3.5.
-        # See: http://stackoverflow.com/q/32873974/
-        task = loop.run_in_executor(
-            None,
-            functools.partial(
-                start_node,
-                modules=modules,
-                user=user,
-                host=instance.ip_address,
-                identity_file=identity_file,
-                cluster_info=cluster_info))
-        tasks.append(task)
-    done, _ = loop.run_until_complete(asyncio.wait(tasks))
-
-    # Is this is the right way to make sure no coroutine failed?
-    for future in done:
-        future.result()
-
-    loop.close()
-
-    master_ssh_client = get_ssh_client(
-        user=user,
-        host=master_instance.ip_address,
-        identity_file=identity_file)
-
-    with master_ssh_client:
-        for module in modules:
-            module.configure_master(
-                ssh_client=master_ssh_client,
-                cluster_info=cluster_info)
-
-    # NOTE: We sleep here so that the slave services have time to come up.
-    #       If we refactor stuff to have a start_slave() that blocks until
-    #       the slave is fully up, then we won't need this sleep anymore.
-    if modules:
-        time.sleep(30)
-
-    for module in modules:
-        module.health_check(master_host=master_instance.ip_address)
+    start_cluster(cluster_info=cluster_info, identity_file=identity_file)
 
 
 @timeit
@@ -836,44 +681,23 @@ def run_command_ec2(cluster_name, command, master_only, region, identity_file, u
         print("Cluster is not in a running state.", file=sys.stderr)
         sys.exit(1)
 
-    loop = asyncio.get_event_loop()
-
-    if master_only:
-        target_instances = [master_instance]
-    else:
-        target_instances = cluster_instances
-
-    print("Running command on {c} instance{s}...".format(
-        c=len(target_instances),
-        s='' if len(target_instances) == 1 else 's'))
-
-    tasks = []
-    for instance in target_instances:
-        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
-        #       Until then, we leave them out to maintain compatibility across Python 3.4
-        #       and 3.5.
-        # See: http://stackoverflow.com/q/32873974/
-        task = loop.run_in_executor(
-            None,
-            functools.partial(
-                run_command_node,
-                user=user,
-                host=instance.ip_address,
-                identity_file=identity_file,
-                command=command))
-        tasks.append(task)
+    cluster_info = ClusterInfo(
+        name=cluster_name,
+        user=user,
+        master_ip=master_instance.ip_address,
+        master_host=master_instance.public_dns_name,
+        slave_ips=[i.ip_address for i in slave_instances],
+        slave_hosts=[i.public_dns_name for i in slave_instances])
 
     try:
-        loop.run_until_complete(asyncio.gather(*tasks))
-    # TODO: Cancel cleanly from hung commands. The below doesn't work.
-    #       Probably related to: http://stackoverflow.com/q/29177490/
-    # except KeyboardInterrupt as e:
-    #     sys.exit(1)
+        run_command_cluster(
+            master_only=master_only,
+            cluster_info=cluster_info,
+            identity_file=identity_file,
+            command=command)
     except Exception as e:
         print("At least one node raised an error:", e, file=sys.stderr)
         sys.exit(1)
-
-    loop.close()
 
 
 @timeit
@@ -891,6 +715,8 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
         print("Cluster is not in a running state.", file=sys.stderr)
         sys.exit(1)
 
+    # TODO: This if block needs to be factored out because it is not provider-
+    #       specific. A future gce.py, for example, will need this same logic.
     if not assume_yes and not master_only:
         file_size_bytes = os.path.getsize(local_path)
         num_nodes = len(cluster_instances)
@@ -918,42 +744,21 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
                 default=True,
                 abort=True)
 
-    loop = asyncio.get_event_loop()
-
-    if master_only:
-        target_instances = [master_instance]
-    else:
-        target_instances = cluster_instances
-
-    print("Copying file to {c} instance{s}...".format(
-        c=len(target_instances),
-        s='' if len(target_instances) == 1 else 's'))
-
-    tasks = []
-    for instance in target_instances:
-        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
-        #       Until then, we leave them out to maintain compatibility across Python 3.4
-        #       and 3.5.
-        # See: http://stackoverflow.com/q/32873974/
-        task = loop.run_in_executor(
-            None,
-            functools.partial(
-                copy_file_node,
-                user=user,
-                host=instance.ip_address,
-                identity_file=identity_file,
-                local_path=local_path,
-                remote_path=remote_path))
-        tasks.append(task)
+    cluster_info = ClusterInfo(
+        name=cluster_name,
+        user=user,
+        master_ip=master_instance.ip_address,
+        master_host=master_instance.public_dns_name,
+        slave_ips=[i.ip_address for i in slave_instances],
+        slave_hosts=[i.public_dns_name for i in slave_instances])
 
     try:
-        loop.run_until_complete(asyncio.gather(*tasks))
-    # TODO: Cancel cleanly from hung commands. The below doesn't work.
-    #       Probably related to: http://stackoverflow.com/q/29177490/
-    # except KeyboardInterrupt as e:
-    #     sys.exit(1)
+        copy_file_cluster(
+            master_only=master_only,
+            cluster_info=cluster_info,
+            identity_file=identity_file,
+            local_path=local_path,
+            remote_path=remote_path)
     except Exception as e:
         print("At least one node raised an error:", e, file=sys.stderr)
         sys.exit(1)
-
-    loop.close()

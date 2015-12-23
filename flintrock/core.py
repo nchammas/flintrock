@@ -1,3 +1,6 @@
+import asyncio
+import concurrent.futures
+import functools
 import json
 import os
 import posixpath
@@ -16,15 +19,41 @@ import paramiko
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
-ClusterInfo = namedtuple(
-    'ClusterInfo', [
-        'name',
-        'ssh_key_pair',
-        'user',
-        'master_host',
-        'slave_hosts',
-        'storage_dirs',
-    ])
+
+class StorageDirs:
+    def __init__(self, *, root, ephemeral, persistent):
+        self.root = root
+        self.ephemeral = ephemeral
+        self.persistent = persistent
+
+
+# TODO: Rename to Cluster
+# NOTE: We take both IP addresses and host names because we
+#       don't understand why Spark doesn't accept IP addresses
+#       in its config, yet we prefer IP addresses when
+#       connecting to hosts.
+#       See: https://github.com/nchammas/flintrock/issues/43
+#       See: http://www.dalkescientific.com/writings/diary/archive/2012/01/19/concurrent.futures.html
+class ClusterInfo:
+    def __init__(
+            self,
+            *,
+            name,
+            ssh_key_pair=None,
+            user,
+            master_ip,
+            master_host,
+            slave_ips,
+            slave_hosts,
+            storage_dirs=StorageDirs(root=None, ephemeral=None, persistent=None)):
+        self.name = name
+        self.ssh_key_pair = ssh_key_pair
+        self.user = user
+        self.master_ip = master_ip
+        self.master_host = master_host
+        self.slave_ips = slave_ips
+        self.slave_hosts = slave_hosts
+        self.storage_dirs = storage_dirs
 
 
 def format_message(*, message: str, indent: int=4, wrap: int=70):
@@ -70,13 +99,13 @@ def cluster_info_to_template_mapping(
     """
     template_mapping = {}
 
-    for k, v in cluster_info._asdict().items():
+    for k, v in vars(cluster_info).items():
         if k == 'slave_hosts':
             template_mapping.update({k: '\n'.join(v)})
         elif k == 'storage_dirs':
             template_mapping.update({
-                'root_dir': v['root'] + '/' + module,
-                'ephemeral_dirs': ','.join(path + '/' + module for path in v['ephemeral'])})
+                'root_dir': v.root + '/' + module,
+                'ephemeral_dirs': ','.join(path + '/' + module for path in v.ephemeral)})
 
             # If ephemeral storage is available, it replaces the root volume, which is
             # typically persistent. We don't want to mix persistent and ephemeral
@@ -371,6 +400,7 @@ def get_ssh_client(
         user: str,
         host: str,
         identity_file: str,
+        # TODO: Add option to not wait for SSH availability.
         print_status: bool=False) -> paramiko.client.SSHClient:
     """
     Get an SSH client for the provided host, waiting as necessary for SSH to become available.
@@ -407,6 +437,111 @@ def get_ssh_client(
             time.sleep(5)
 
     return client
+
+
+def ssh_check_output(client: paramiko.client.SSHClient, command: str):
+    """
+    Run a command via the provided SSH client and return the output captured
+    on stdout.
+
+    Raise an exception if the command returns a non-zero code.
+    """
+    stdin, stdout, stderr = client.exec_command(command, get_pty=True)
+
+    # NOTE: Paramiko doesn't clearly document this, but we must read() before
+    #       calling recv_exit_status().
+    #       See: https://github.com/paramiko/paramiko/issues/448#issuecomment-159481997
+    stdout_output = stdout.read().decode('utf8').rstrip('\n')
+    stderr_output = stderr.read().decode('utf8').rstrip('\n')
+    exit_status = stdout.channel.recv_exit_status()
+
+    if exit_status:
+        # TODO: Return a custom exception that includes the return code.
+        #       See: https://docs.python.org/3/library/subprocess.html#subprocess.check_output
+        # NOTE: We are losing the output order here since output from stdout and stderr
+        #       may be interleaved.
+        raise Exception(stdout_output + stderr_output)
+
+    return stdout_output
+
+
+def ssh(*, user: str, host: str, identity_file: str):
+    """
+    SSH into a host for interactive use.
+    """
+    ret = subprocess.call([
+        'ssh',
+        '-o', 'StrictHostKeyChecking=no',
+        '-i', identity_file,
+        '{u}@{h}'.format(u=user, h=host)])
+
+
+def provision_cluster(*, cluster_info: ClusterInfo, modules: list, identity_file: str):
+    """
+    Connect to a freshly launched cluster and install the specified modules.
+    """
+    loop = asyncio.get_event_loop()
+
+    tasks = []
+    for host in [cluster_info.master_ip] + cluster_info.slave_ips:
+        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
+        #       Until then, we leave them out to maintain compatibility across Python 3.4
+        #       and 3.5.
+        # See: http://stackoverflow.com/q/32873974/
+        task = loop.run_in_executor(
+            None,
+            functools.partial(
+                provision_node,
+                modules=modules,
+                user=cluster_info.user,
+                host=host,
+                identity_file=identity_file,
+                cluster_info=cluster_info))
+        tasks.append(task)
+    done, _ = loop.run_until_complete(asyncio.wait(tasks))
+
+    # Is this the right way to make sure no coroutine failed?
+    for future in done:
+        future.result()
+
+    loop.close()
+
+    # print("All {c} instances provisioned.".format(
+    #     c=len(cluster_instances)))
+
+    master_ssh_client = get_ssh_client(
+        user=cluster_info.user,
+        host=cluster_info.master_host,
+        identity_file=identity_file)
+
+    with master_ssh_client:
+        # TODO: This manifest may need to be more full-featured to support
+        #       adding nodes to a cluster.
+        manifest = {
+            'modules': [[type(m).__name__, m.version] for m in modules]}
+        # The manifest tells us how the cluster is configured. We'll need this
+        # when we resize the cluster or restart it.
+        ssh_check_output(
+            client=master_ssh_client,
+            command="""
+                echo {m} > /home/{u}/.flintrock-manifest.json
+            """.format(
+                m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
+                u=shlex.quote(cluster_info.user)))
+
+        for module in modules:
+            module.configure_master(
+                ssh_client=master_ssh_client,
+                cluster_info=cluster_info)
+
+    # NOTE: We sleep here so that the slave services have time to come up.
+    #       If we refactor stuff to have a start_slave() that blocks until
+    #       the slave is fully up, then we won't need this sleep anymore.
+    if modules:
+        time.sleep(30)
+
+    for module in modules:
+        module.health_check(master_host=cluster_info.master_host)
 
 
 def provision_node(
@@ -461,8 +596,8 @@ def provision_node(
             """)
         storage_dirs = json.loads(storage_dirs_raw)
 
-        cluster_info.storage_dirs['root'] = storage_dirs['root']
-        cluster_info.storage_dirs['ephemeral'] = storage_dirs['ephemeral']
+        cluster_info.storage_dirs.root = storage_dirs['root']
+        cluster_info.storage_dirs.ephemeral = storage_dirs['ephemeral']
 
         # The default CentOS AMIs on EC2 don't come with Java installed.
         java_home = ssh_check_output(
@@ -493,41 +628,94 @@ def provision_node(
                 cluster_info=cluster_info)
 
 
-def ssh_check_output(client: paramiko.client.SSHClient, command: str):
-    """
-    Run a command via the provided SSH client and return the output captured
-    on stdout.
+def start_cluster(*, cluster_info: ClusterInfo, identity_file: str):
+    master_ssh_client = get_ssh_client(
+        user=cluster_info.user,
+        host=cluster_info.master_ip,
+        identity_file=identity_file)
 
-    Raise an exception if the command returns a non-zero code.
-    """
-    stdin, stdout, stderr = client.exec_command(command, get_pty=True)
+    with master_ssh_client:
+        manifest_raw = ssh_check_output(
+            client=master_ssh_client,
+            command="""
+                cat /home/{u}/.flintrock-manifest.json
+            """.format(u=shlex.quote(cluster_info.user)))
+        # TODO: Reconsider where this belongs. In the manifest? We can implement
+        #       ephemeral storage support as a Flintrock module, and add methods to
+        #       serialize and deserialize critical module info like installed versions
+        #       or ephemeral drives to the to/from the manifest.
+        #       Another approach is to auto-detect storage inside a start_node()
+        #       method. Yet another approach is to determine storage upfront by the
+        #       instance type.
+        # NOTE: As for why we aren't using ls here, see:
+        #       http://mywiki.wooledge.org/ParsingLs
+        ephemeral_dirs_raw = ssh_check_output(
+            client=master_ssh_client,
+            command="""
+                shopt -s nullglob
+                for f in /media/ephemeral*; do
+                    echo "$f"
+                done
+            """)
 
-    # NOTE: Paramiko doesn't clearly document this, but we must read() before
-    #       calling recv_exit_status().
-    #       See: https://github.com/paramiko/paramiko/issues/448#issuecomment-159481997
-    stdout_output = stdout.read().decode('utf8').rstrip('\n')
-    stderr_output = stderr.read().decode('utf8').rstrip('\n')
-    exit_status = stdout.channel.recv_exit_status()
+    manifest = json.loads(manifest_raw)
+    storage_dirs = StorageDirs(
+        root='/media/root',
+        ephemeral=sorted(ephemeral_dirs_raw.splitlines()),
+        persistent=None)
+    # This smells. We are mutating an input to this method.
+    cluster_info.storage_dirs = storage_dirs
 
-    if exit_status:
-        # TODO: Return a custom exception that includes the return code.
-        #       See: https://docs.python.org/3/library/subprocess.html#subprocess.check_output
-        # NOTE: We are losing the output order here since output from stdout and stderr
-        #       may be interleaved.
-        raise Exception(stdout_output + stderr_output)
+    modules = []
+    for [module_name, version] in manifest['modules']:
+        module = globals()[module_name](version)
+        modules.append(module)
 
-    return stdout_output
+    loop = asyncio.get_event_loop()
 
+    tasks = []
+    for host in [cluster_info.master_ip] + cluster_info.slave_ips:
+        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
+        #       Until then, we leave them out to maintain compatibility across Python 3.4
+        #       and 3.5.
+        # See: http://stackoverflow.com/q/32873974/
+        task = loop.run_in_executor(
+            None,
+            functools.partial(
+                start_node,
+                modules=modules,
+                user=cluster_info.user,
+                host=host,
+                identity_file=identity_file,
+                cluster_info=cluster_info))
+        tasks.append(task)
+    done, _ = loop.run_until_complete(asyncio.wait(tasks))
 
-def ssh(*, user: str, host: str, identity_file: str):
-    """
-    SSH into a host for interactive use.
-    """
-    ret = subprocess.call([
-        'ssh',
-        '-o', 'StrictHostKeyChecking=no',
-        '-i', identity_file,
-        '{u}@{h}'.format(u=user, h=host)])
+    # Is this is the right way to make sure no coroutine failed?
+    for future in done:
+        future.result()
+
+    loop.close()
+
+    master_ssh_client = get_ssh_client(
+        user=cluster_info.user,
+        host=cluster_info.master_ip,
+        identity_file=identity_file)
+
+    with master_ssh_client:
+        for module in modules:
+            module.configure_master(
+                ssh_client=master_ssh_client,
+                cluster_info=cluster_info)
+
+    # NOTE: We sleep here so that the slave services have time to come up.
+    #       If we refactor stuff to have a start_slave() that blocks until
+    #       the slave is fully up, then we won't need this sleep anymore.
+    if modules:
+        time.sleep(30)
+
+    for module in modules:
+        module.health_check(master_host=cluster_info.master_ip)
 
 
 def start_node(
@@ -550,19 +738,67 @@ def start_node(
     with ssh_client:
         # TODO: Consider consolidating ephemeral storage code under a dedicated
         #       Flintrock module.
-        if cluster_info.storage_dirs['ephemeral']:
+        if cluster_info.storage_dirs.ephemeral:
             ssh_check_output(
                 client=ssh_client,
                 command="""
                     sudo chown "{u}:{u}" {d}
                 """.format(
                     u=user,
-                    d=' '.join(cluster_info.storage_dirs['ephemeral'])))
+                    d=' '.join(cluster_info.storage_dirs.ephemeral)))
 
         for module in modules:
             module.configure(
                 ssh_client=ssh_client,
                 cluster_info=cluster_info)
+
+
+def run_command_cluster(
+        *,
+        master_only: bool,
+        cluster_info: ClusterInfo,
+        identity_file: str,
+        command: tuple):
+    if master_only:
+        target_hosts = [cluster_info.master_ip]
+    else:
+        target_hosts = [cluster_info.master_ip] + cluster_info.slave_ips
+
+    print("Running command on {c} instance{s}...".format(
+        c=len(target_hosts),
+        s='' if len(target_hosts) == 1 else 's'))
+
+    loop = asyncio.get_event_loop()
+    executor = concurrent.futures.ThreadPoolExecutor(5)
+
+    tasks = []
+    for host in target_hosts:
+        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
+        #       Until then, we leave them out to maintain compatibility across Python 3.4
+        #       and 3.5.
+        # See: http://stackoverflow.com/q/32873974/
+        task = loop.run_in_executor(
+            executor,
+            functools.partial(
+                run_command_node,
+                user=cluster_info.user,
+                host=host,
+                identity_file=identity_file,
+                command=command))
+        tasks.append(task)
+
+    try:
+        loop.run_until_complete(asyncio.gather(*tasks))
+    finally:
+        # TODO: Let KeyboardInterrupt cleanly cancel hung commands.
+        #       Currently, we can't do this without dumping a large stack trace or
+        #       waiting until the executor threads yield control.
+        #       See: http://stackoverflow.com/q/29177490/
+        # We shutdown explcitly to make sure threads are cleaned up before shutting
+        # the loop down.
+        # See: http://stackoverflow.com/a/32615276/
+        executor.shutdown(wait=True)
+        loop.close()
 
 
 def run_command_node(*, user: str, host: str, identity_file: str, command: tuple):
@@ -582,6 +818,49 @@ def run_command_node(*, user: str, host: str, identity_file: str, command: tuple
             command=command_str)
 
     print("[{h}] Command complete.".format(h=host))
+
+
+def copy_file_cluster(
+        *,
+        master_only: bool,
+        cluster_info: ClusterInfo,
+        identity_file: str,
+        local_path: str,
+        remote_path: str):
+    if master_only:
+        target_hosts = [cluster_info.master_ip]
+    else:
+        target_hosts = [cluster_info.master_ip] + cluster_info.slave_ips
+
+    print("Copying file to {c} instance{s}...".format(
+        c=len(target_hosts),
+        s='' if len(target_hosts) == 1 else 's'))
+
+    loop = asyncio.get_event_loop()
+    executor = concurrent.futures.ThreadPoolExecutor(5)
+
+    tasks = []
+    for host in target_hosts:
+        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
+        #       Until then, we leave them out to maintain compatibility across Python 3.4
+        #       and 3.5.
+        # See: http://stackoverflow.com/q/32873974/
+        task = loop.run_in_executor(
+            executor,
+            functools.partial(
+                copy_file_node,
+                user=cluster_info.user,
+                host=host,
+                identity_file=identity_file,
+                local_path=local_path,
+                remote_path=remote_path))
+        tasks.append(task)
+
+    try:
+        loop.run_until_complete(asyncio.gather(*tasks))
+    finally:
+        executor.shutdown(wait=True)
+        loop.close()
 
 
 def copy_file_node(*, user: str, host: str, identity_file: str, local_path: str, remote_path: str):
