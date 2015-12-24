@@ -25,6 +25,20 @@ from .core import copy_file_cluster
 from .exceptions import ClusterNotFound
 
 
+class EC2Cluster(FlintrockCluster):
+    def __init__(
+            self,
+            region: str,
+            master_instance: boto.ec2.instance.Instance,
+            slave_instances: list,
+            *args,
+            **kwargs):
+        super().__init__(*args, **kwargs)
+        self.region = region
+        self.master_instance = master_instance
+        self.slave_instances = slave_instances
+
+
 def timeit(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -222,9 +236,7 @@ def launch_ec2(
     and installed modules.
     """
     try:
-        get_cluster_instances_ec2(
-            cluster_name=cluster_name,
-            region=region)
+        get_cluster_ec2(cluster_name=cluster_name, region=region)
     except ClusterNotFound as e:
         pass
     else:
@@ -377,15 +389,9 @@ def launch_ec2(
         sys.exit(1)
 
 
-# TODO: This function should probably return a FlintrockCluster tuple with additional,
-#       provider-specific fields. This can eventually morph into a proper class
-#       with provider specific implementations.
-def get_cluster_instances_ec2(
-        *,
-        cluster_name: str,
-        region: str) -> (boto.ec2.instance.Instance, list):
+def get_cluster_ec2(*, cluster_name: str, region: str) -> EC2Cluster:
     """
-    Get the instances for an EC2 cluster.
+    Get an existing EC2 cluster.
     """
     connection = boto.ec2.connect_to_region(region_name=region)
 
@@ -395,7 +401,9 @@ def get_cluster_instances_ec2(
         })
 
     if not cluster_instances:
-        raise ClusterNotFound("No such cluster: {c}".format(c=cluster_name))
+        raise ClusterNotFound("No cluster {c} in region {r}.".format(
+            c=cluster_name,
+            r=region))
 
     # TODO: Raise errors if a cluster has no master or no slaves.
     master_instance = list(filter(
@@ -405,17 +413,26 @@ def get_cluster_instances_ec2(
         lambda i: i.tags['flintrock-role'] != 'master',
         cluster_instances))
 
-    return master_instance, slave_instances
+    cluster = EC2Cluster(
+        name=cluster_name,
+        user=None,  # TODO: This smells.
+        master_ip=master_instance.ip_address,
+        master_host=master_instance.public_dns_name,
+        slave_ips=[i.ip_address for i in slave_instances],
+        slave_hosts=[i.public_dns_name for i in slave_instances],
+        region=region,
+        master_instance=master_instance,
+        slave_instances=slave_instances)
+
+    return cluster
 
 
 # assume_yes defaults to True here for library use (as opposed to command-line use,
 # where the default is configured via Click).
 def destroy_ec2(*, cluster_name, assume_yes=True, region):
     try:
-        master_instance, slave_instances = get_cluster_instances_ec2(
-            cluster_name=cluster_name,
-            region=region)
-        cluster_instances = [master_instance] + slave_instances
+        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
+        cluster_instances = [cluster.master_instance] + cluster.slave_instances
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
@@ -423,8 +440,8 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
     if not assume_yes:
         print_cluster_info_ec2(
             cluster_name=cluster_name,
-            master_instance=master_instance,
-            slave_instances=slave_instances)
+            master_instance=cluster.master_instance,
+            slave_instances=cluster.slave_instances)
         click.confirm(
             text="Are you sure you want to destroy this cluster?",
             abort=True)
@@ -511,26 +528,23 @@ def print_cluster_info_ec2(
 
 
 def describe_ec2(*, cluster_name, master_hostname_only=False, region):
-    # TODO: This function should construct FlintrockCluster objects and
-    #       use those to print info to screen.
     if cluster_name:
         try:
-            master_instance, slave_instances = get_cluster_instances_ec2(
-                cluster_name=cluster_name,
-                region=region)
-            cluster_instances = [master_instance] + slave_instances
+            cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
         except ClusterNotFound as e:
             print(e, file=sys.stderr)
             sys.exit(1)
 
         if master_hostname_only:
-            print(master_instance.public_dns_name)
+            print(cluster.master_host)
         else:
             print_cluster_info_ec2(
-                cluster_name=cluster_name,
-                master_instance=master_instance,
-                slave_instances=slave_instances)
+                cluster_name=cluster.name,
+                master_instance=cluster.master_instance,
+                slave_instances=cluster.slave_instances)
     else:
+        # TODO: This section should construct FlintrockCluster objects and
+        #       use them to print info to screen.
         connection = boto.ec2.connect_to_region(region_name=region)
 
         all_clusters_instances = connection.get_only_instances(
@@ -576,17 +590,14 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
 
 def login_ec2(cluster_name, region, identity_file, user):
     try:
-        master_instance, slave_instances = get_cluster_instances_ec2(
-            cluster_name=cluster_name,
-            region=region)
-        cluster_instances = [master_instance] + slave_instances
+        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
     ssh(
         user=user,
-        host=master_instance.public_dns_name,
+        host=cluster.master_ip,
         identity_file=identity_file)
 
 
@@ -596,10 +607,8 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
     Start an existing, stopped cluster on EC2.
     """
     try:
-        master_instance, slave_instances = get_cluster_instances_ec2(
-            cluster_name=cluster_name,
-            region=region)
-        cluster_instances = [master_instance] + slave_instances
+        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
+        cluster_instances = [cluster.master_instance] + cluster.slave_instances
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
@@ -618,13 +627,18 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         cluster_instances=cluster_instances,
         state='running')
 
+    # TODO: wait_for_cluster_state_ec2() should update the _ip and _host attributes
+    #       of the cluster, as opposed to us constructing a new cluster here.
+    # TODO: Either get_cluster_ec2() needs to be fixed to populate the user, or
+    #       user needs to be pulled out of the class. Perhaps the latter, as that fits
+    #       better with the identity file being outside as well.
     cluster = FlintrockCluster(
         name=cluster_name,
         user=user,
-        master_ip=master_instance.ip_address,
-        master_host=master_instance.public_dns_name,
-        slave_ips=[i.ip_address for i in slave_instances],
-        slave_hosts=[i.public_dns_name for i in slave_instances])
+        master_ip=cluster.master_instance.ip_address,
+        master_host=cluster.master_instance.public_dns_name,
+        slave_ips=[i.ip_address for i in cluster.slave_instances],
+        slave_hosts=[i.public_dns_name for i in cluster.slave_instances])
 
     start_cluster(cluster=cluster, identity_file=identity_file)
 
@@ -632,10 +646,8 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
 @timeit
 def stop_ec2(cluster_name, region, assume_yes=True):
     try:
-        master_instance, slave_instances = get_cluster_instances_ec2(
-            cluster_name=cluster_name,
-            region=region)
-        cluster_instances = [master_instance] + slave_instances
+        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
+        cluster_instances = [cluster.master_instance] + cluster.slave_instances
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
@@ -648,8 +660,8 @@ def stop_ec2(cluster_name, region, assume_yes=True):
     if not assume_yes:
         print_cluster_info_ec2(
             cluster_name=cluster_name,
-            master_instance=master_instance,
-            slave_instances=slave_instances)
+            master_instance=cluster.master_instance,
+            slave_instances=cluster.slave_instances)
         click.confirm(
             text="Are you sure you want to stop this cluster?",
             abort=True)
@@ -668,10 +680,8 @@ def stop_ec2(cluster_name, region, assume_yes=True):
 @timeit
 def run_command_ec2(cluster_name, command, master_only, region, identity_file, user):
     try:
-        master_instance, slave_instances = get_cluster_instances_ec2(
-            cluster_name=cluster_name,
-            region=region)
-        cluster_instances = [master_instance] + slave_instances
+        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
+        cluster_instances = [cluster.master_instance] + cluster.slave_instances
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
@@ -680,13 +690,8 @@ def run_command_ec2(cluster_name, command, master_only, region, identity_file, u
         print("Cluster is not in a running state.", file=sys.stderr)
         sys.exit(1)
 
-    cluster = FlintrockCluster(
-        name=cluster_name,
-        user=user,
-        master_ip=master_instance.ip_address,
-        master_host=master_instance.public_dns_name,
-        slave_ips=[i.ip_address for i in slave_instances],
-        slave_hosts=[i.public_dns_name for i in slave_instances])
+    # TODO: Fix.
+    cluster.user = user
 
     try:
         run_command_cluster(
@@ -702,10 +707,8 @@ def run_command_ec2(cluster_name, command, master_only, region, identity_file, u
 @timeit
 def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, region, identity_file, user, assume_yes=True):
     try:
-        master_instance, slave_instances = get_cluster_instances_ec2(
-            cluster_name=cluster_name,
-            region=region)
-        cluster_instances = [master_instance] + slave_instances
+        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
+        cluster_instances = [cluster.master_instance] + cluster.slave_instances
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
@@ -714,7 +717,7 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
         print("Cluster is not in a running state.", file=sys.stderr)
         sys.exit(1)
 
-    # TODO: This if block needs to be factored out because it is not provider-
+    # TODO: This `if` block needs to be factored out because it is not provider-
     #       specific. A future gce.py, for example, will need this same logic.
     if not assume_yes and not master_only:
         file_size_bytes = os.path.getsize(local_path)
@@ -743,13 +746,8 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
                 default=True,
                 abort=True)
 
-    cluster = FlintrockCluster(
-        name=cluster_name,
-        user=user,
-        master_ip=master_instance.ip_address,
-        master_host=master_instance.public_dns_name,
-        slave_ips=[i.ip_address for i in slave_instances],
-        slave_hosts=[i.public_dns_name for i in slave_instances])
+    # TODO: Fix.
+    cluster.user = user
 
     try:
         copy_file_cluster(

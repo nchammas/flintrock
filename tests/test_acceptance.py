@@ -82,7 +82,8 @@ def test_spark_on_running_cluster(running_cluster, remote_file):
 
 def test_operations_against_non_existent_cluster():
     cluster_name = 'this_cluster_doesnt_exist_yo'
-    expected_error_message = b"No such cluster: "
+    expected_error_message = (
+        b"No cluster " + cluster_name.encode('utf-8') + b" in region ")
 
     for command in ['describe', 'stop', 'start', 'login', 'destroy']:
         p = subprocess.run(
