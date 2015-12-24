@@ -30,7 +30,7 @@ class StorageDirs:
 # NOTE: We take both IP addresses and host names because we
 #       don't understand why Spark doesn't accept IP addresses
 #       in its config, yet we prefer IP addresses when
-#       connecting to hosts.
+#       connecting to hosts to avoid single-threaded DNS lookups.
 #       See: https://github.com/nchammas/flintrock/issues/43
 #       See: http://www.dalkescientific.com/writings/diary/archive/2012/01/19/concurrent.futures.html
 class FlintrockCluster:
@@ -39,7 +39,6 @@ class FlintrockCluster:
             *,
             name,
             ssh_key_pair=None,
-            user,
             master_ip,
             master_host,
             slave_ips,
@@ -47,7 +46,6 @@ class FlintrockCluster:
             storage_dirs=StorageDirs(root=None, ephemeral=None, persistent=None)):
         self.name = name
         self.ssh_key_pair = ssh_key_pair
-        self.user = user
         self.master_ip = master_ip
         self.master_host = master_host
         self.slave_ips = slave_ips
@@ -505,14 +503,19 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
         loop.close()
 
 
-def provision_cluster(*, cluster: FlintrockCluster, modules: list, identity_file: str):
+def provision_cluster(
+        *,
+        cluster: FlintrockCluster,
+        modules: list,
+        user: str,
+        identity_file: str):
     """
     Connect to a freshly launched cluster and install the specified modules.
     """
     partial_func = functools.partial(
         provision_node,
         modules=modules,
-        user=cluster.user,
+        user=user,
         identity_file=identity_file,
         cluster=cluster)
     hosts = [cluster.master_ip] + cluster.slave_ips
@@ -523,7 +526,7 @@ def provision_cluster(*, cluster: FlintrockCluster, modules: list, identity_file
     #     c=len(cluster_instances)))
 
     master_ssh_client = get_ssh_client(
-        user=cluster.user,
+        user=user,
         host=cluster.master_host,
         identity_file=identity_file)
 
@@ -540,7 +543,7 @@ def provision_cluster(*, cluster: FlintrockCluster, modules: list, identity_file
                 echo {m} > /home/{u}/.flintrock-manifest.json
             """.format(
                 m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
-                u=shlex.quote(cluster.user)))
+                u=shlex.quote(user)))
 
         for module in modules:
             module.configure_master(
@@ -641,9 +644,9 @@ def provision_node(
                 cluster=cluster)
 
 
-def start_cluster(*, cluster: FlintrockCluster, identity_file: str):
+def start_cluster(*, cluster: FlintrockCluster, user: str, identity_file: str):
     master_ssh_client = get_ssh_client(
-        user=cluster.user,
+        user=user,
         host=cluster.master_ip,
         identity_file=identity_file)
 
@@ -652,7 +655,7 @@ def start_cluster(*, cluster: FlintrockCluster, identity_file: str):
             client=master_ssh_client,
             command="""
                 cat /home/{u}/.flintrock-manifest.json
-            """.format(u=shlex.quote(cluster.user)))
+            """.format(u=shlex.quote(user)))
         # TODO: Reconsider where this belongs. In the manifest? We can implement
         #       ephemeral storage support as a Flintrock module, and add methods to
         #       serialize and deserialize critical module info like installed versions
@@ -687,7 +690,7 @@ def start_cluster(*, cluster: FlintrockCluster, identity_file: str):
     partial_func = functools.partial(
         start_node,
         modules=modules,
-        user=cluster.user,
+        user=user,
         identity_file=identity_file,
         cluster=cluster)
     hosts = [cluster.master_ip] + cluster.slave_ips
@@ -695,7 +698,7 @@ def start_cluster(*, cluster: FlintrockCluster, identity_file: str):
     _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
     master_ssh_client = get_ssh_client(
-        user=cluster.user,
+        user=user,
         host=cluster.master_ip,
         identity_file=identity_file)
 
@@ -754,6 +757,7 @@ def run_command_cluster(
         *,
         master_only: bool,
         cluster: FlintrockCluster,
+        user: str,
         identity_file: str,
         command: tuple):
     if master_only:
@@ -767,7 +771,7 @@ def run_command_cluster(
 
     partial_func = functools.partial(
         run_command_node,
-        user=cluster.user,
+        user=user,
         identity_file=identity_file,
         command=command)
     hosts = target_hosts
@@ -798,6 +802,7 @@ def copy_file_cluster(
         *,
         master_only: bool,
         cluster: FlintrockCluster,
+        user: str,
         identity_file: str,
         local_path: str,
         remote_path: str):
@@ -812,7 +817,7 @@ def copy_file_cluster(
 
     partial_func = functools.partial(
         copy_file_node,
-        user=cluster.user,
+        user=user,
         identity_file=identity_file,
         local_path=local_path,
         remote_path=remote_path)

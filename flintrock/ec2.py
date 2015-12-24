@@ -343,7 +343,6 @@ def launch_ec2(
         cluster = FlintrockCluster(
             name=cluster_name,
             ssh_key_pair=generate_ssh_key_pair(),
-            user=user,
             master_ip=master_instance.ip_address,
             master_host=master_instance.public_dns_name,
             slave_ips=[i.ip_address for i in slave_instances],
@@ -352,6 +351,7 @@ def launch_ec2(
         provision_cluster(
             cluster=cluster,
             modules=modules,
+            user=user,
             identity_file=identity_file)
 
     except (Exception, KeyboardInterrupt) as e:
@@ -415,7 +415,6 @@ def get_cluster_ec2(*, cluster_name: str, region: str) -> EC2Cluster:
 
     cluster = EC2Cluster(
         name=cluster_name,
-        user=None,  # TODO: This smells.
         master_ip=master_instance.ip_address,
         master_host=master_instance.public_dns_name,
         slave_ips=[i.ip_address for i in slave_instances],
@@ -629,18 +628,17 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
 
     # TODO: wait_for_cluster_state_ec2() should update the _ip and _host attributes
     #       of the cluster, as opposed to us constructing a new cluster here.
-    # TODO: Either get_cluster_ec2() needs to be fixed to populate the user, or
-    #       user needs to be pulled out of the class. Perhaps the latter, as that fits
-    #       better with the identity file being outside as well.
     cluster = FlintrockCluster(
         name=cluster_name,
-        user=user,
         master_ip=cluster.master_instance.ip_address,
         master_host=cluster.master_instance.public_dns_name,
         slave_ips=[i.ip_address for i in cluster.slave_instances],
         slave_hosts=[i.public_dns_name for i in cluster.slave_instances])
 
-    start_cluster(cluster=cluster, identity_file=identity_file)
+    start_cluster(
+        cluster=cluster,
+        user=user,
+        identity_file=identity_file)
 
 
 @timeit
@@ -690,13 +688,11 @@ def run_command_ec2(cluster_name, command, master_only, region, identity_file, u
         print("Cluster is not in a running state.", file=sys.stderr)
         sys.exit(1)
 
-    # TODO: Fix.
-    cluster.user = user
-
     try:
         run_command_cluster(
             master_only=master_only,
             cluster=cluster,
+            user=user,
             identity_file=identity_file,
             command=command)
     except Exception as e:
@@ -746,13 +742,11 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
                 default=True,
                 abort=True)
 
-    # TODO: Fix.
-    cluster.user = user
-
     try:
         copy_file_cluster(
             master_only=master_only,
             cluster=cluster,
+            user=user,
             identity_file=identity_file,
             local_path=local_path,
             remote_path=remote_path)
