@@ -1,9 +1,6 @@
-import asyncio
 import functools
 import itertools
-import json
 import os
-import shlex
 import string
 import sys
 import time
@@ -19,12 +16,12 @@ import click
 # Flintrock modules
 from .core import ClusterInfo
 from .core import format_message, generate_ssh_key_pair
-from .core import get_ssh_client, ssh_check_output, ssh
+from .core import ssh
 from .core import HDFS, Spark  # Used by start_ec2
-from .core import provision_cluster, provision_node
-from .core import start_cluster, start_node
-from .core import run_command_cluster, run_command_node
-from .core import copy_file_cluster, copy_file_node
+from .core import provision_cluster
+from .core import start_cluster
+from .core import run_command_cluster
+from .core import copy_file_cluster
 from .exceptions import ClusterNotFound
 
 
@@ -346,7 +343,9 @@ def launch_ec2(
             identity_file=identity_file)
 
     except (Exception, KeyboardInterrupt) as e:
+        # TODO: Cleanup cluster security group here.
         print(e, file=sys.stderr)
+        raise
 
         if spot_requests:
             # TODO: Do this only if there are pending requests.

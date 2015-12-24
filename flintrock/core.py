@@ -476,35 +476,57 @@ def ssh(*, user: str, host: str, identity_file: str):
         '{u}@{h}'.format(u=user, h=host)])
 
 
-def provision_cluster(*, cluster_info: ClusterInfo, modules: list, identity_file: str):
+def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
     """
-    Connect to a freshly launched cluster and install the specified modules.
+    Run the function asynchronously against each of provided hosts.
+
+    This function assumes that partial_func accepts a `host` keyword argument.
     """
     loop = asyncio.get_event_loop()
+    executor = concurrent.futures.ThreadPoolExecutor(len(hosts))
 
     tasks = []
-    for host in [cluster_info.master_ip] + cluster_info.slave_ips:
+    for host in hosts:
         # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
         #       Until then, we leave them out to maintain compatibility across Python 3.4
         #       and 3.5.
         # See: http://stackoverflow.com/q/32873974/
         task = loop.run_in_executor(
-            None,
-            functools.partial(
-                provision_node,
-                modules=modules,
-                user=cluster_info.user,
-                host=host,
-                identity_file=identity_file,
-                cluster_info=cluster_info))
+            executor,
+            functools.partial(partial_func, host=host))
         tasks.append(task)
-    done, _ = loop.run_until_complete(asyncio.wait(tasks))
 
-    # Is this the right way to make sure no coroutine failed?
-    for future in done:
-        future.result()
+    try:
+        loop.run_until_complete(asyncio.gather(*tasks))
+        # done, _ = loop.run_until_complete(asyncio.wait(tasks))
+        # # Is this the right way to make sure no coroutine failed?
+        # for future in done:
+        #     future.result()
+    finally:
+        # TODO: Let KeyboardInterrupt cleanly cancel hung commands.
+        #       Currently, we can't do this without dumping a large stack trace or
+        #       waiting until the executor threads yield control.
+        #       See: http://stackoverflow.com/q/29177490/
+        # We shutdown explcitly to make sure threads are cleaned up before shutting
+        # the loop down.
+        # See: http://stackoverflow.com/a/32615276/
+        executor.shutdown(wait=True)
+        loop.close()
 
-    loop.close()
+
+def provision_cluster(*, cluster_info: ClusterInfo, modules: list, identity_file: str):
+    """
+    Connect to a freshly launched cluster and install the specified modules.
+    """
+    partial_func = functools.partial(
+        provision_node,
+        modules=modules,
+        user=cluster_info.user,
+        identity_file=identity_file,
+        cluster_info=cluster_info)
+    hosts = [cluster_info.master_ip] + cluster_info.slave_ips
+
+    _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
     # print("All {c} instances provisioned.".format(
     #     c=len(cluster_instances)))
@@ -671,31 +693,15 @@ def start_cluster(*, cluster_info: ClusterInfo, identity_file: str):
         module = globals()[module_name](version)
         modules.append(module)
 
-    loop = asyncio.get_event_loop()
+    partial_func = functools.partial(
+        start_node,
+        modules=modules,
+        user=cluster_info.user,
+        identity_file=identity_file,
+        cluster_info=cluster_info)
+    hosts = [cluster_info.master_ip] + cluster_info.slave_ips
 
-    tasks = []
-    for host in [cluster_info.master_ip] + cluster_info.slave_ips:
-        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
-        #       Until then, we leave them out to maintain compatibility across Python 3.4
-        #       and 3.5.
-        # See: http://stackoverflow.com/q/32873974/
-        task = loop.run_in_executor(
-            None,
-            functools.partial(
-                start_node,
-                modules=modules,
-                user=cluster_info.user,
-                host=host,
-                identity_file=identity_file,
-                cluster_info=cluster_info))
-        tasks.append(task)
-    done, _ = loop.run_until_complete(asyncio.wait(tasks))
-
-    # Is this is the right way to make sure no coroutine failed?
-    for future in done:
-        future.result()
-
-    loop.close()
+    _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
     master_ssh_client = get_ssh_client(
         user=cluster_info.user,
@@ -768,37 +774,14 @@ def run_command_cluster(
         c=len(target_hosts),
         s='' if len(target_hosts) == 1 else 's'))
 
-    loop = asyncio.get_event_loop()
-    executor = concurrent.futures.ThreadPoolExecutor(5)
+    partial_func = functools.partial(
+        run_command_node,
+        user=cluster_info.user,
+        identity_file=identity_file,
+        command=command)
+    hosts = target_hosts
 
-    tasks = []
-    for host in target_hosts:
-        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
-        #       Until then, we leave them out to maintain compatibility across Python 3.4
-        #       and 3.5.
-        # See: http://stackoverflow.com/q/32873974/
-        task = loop.run_in_executor(
-            executor,
-            functools.partial(
-                run_command_node,
-                user=cluster_info.user,
-                host=host,
-                identity_file=identity_file,
-                command=command))
-        tasks.append(task)
-
-    try:
-        loop.run_until_complete(asyncio.gather(*tasks))
-    finally:
-        # TODO: Let KeyboardInterrupt cleanly cancel hung commands.
-        #       Currently, we can't do this without dumping a large stack trace or
-        #       waiting until the executor threads yield control.
-        #       See: http://stackoverflow.com/q/29177490/
-        # We shutdown explcitly to make sure threads are cleaned up before shutting
-        # the loop down.
-        # See: http://stackoverflow.com/a/32615276/
-        executor.shutdown(wait=True)
-        loop.close()
+    _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
 
 def run_command_node(*, user: str, host: str, identity_file: str, command: tuple):
@@ -836,31 +819,15 @@ def copy_file_cluster(
         c=len(target_hosts),
         s='' if len(target_hosts) == 1 else 's'))
 
-    loop = asyncio.get_event_loop()
-    executor = concurrent.futures.ThreadPoolExecutor(5)
+    partial_func = functools.partial(
+        copy_file_node,
+        user=cluster_info.user,
+        identity_file=identity_file,
+        local_path=local_path,
+        remote_path=remote_path)
+    hosts = target_hosts
 
-    tasks = []
-    for host in target_hosts:
-        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
-        #       Until then, we leave them out to maintain compatibility across Python 3.4
-        #       and 3.5.
-        # See: http://stackoverflow.com/q/32873974/
-        task = loop.run_in_executor(
-            executor,
-            functools.partial(
-                copy_file_node,
-                user=cluster_info.user,
-                host=host,
-                identity_file=identity_file,
-                local_path=local_path,
-                remote_path=remote_path))
-        tasks.append(task)
-
-    try:
-        loop.run_until_complete(asyncio.gather(*tasks))
-    finally:
-        executor.shutdown(wait=True)
-        loop.close()
+    _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
 
 def copy_file_node(*, user: str, host: str, identity_file: str, local_path: str, remote_path: str):
