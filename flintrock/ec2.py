@@ -14,7 +14,7 @@ import boto.ec2
 import click
 
 # Flintrock modules
-from .core import ClusterInfo
+from .core import FlintrockCluster
 from .core import format_message, generate_ssh_key_pair
 from .core import ssh
 from .core import HDFS, Spark  # Used by start_ec2
@@ -328,7 +328,7 @@ def launch_ec2(
                 'flintrock-role': 'slave',
                 'Name': '{c}-slave'.format(c=cluster_name)})
 
-        cluster_info = ClusterInfo(
+        cluster = FlintrockCluster(
             name=cluster_name,
             ssh_key_pair=generate_ssh_key_pair(),
             user=user,
@@ -338,7 +338,7 @@ def launch_ec2(
             slave_hosts=[i.public_dns_name for i in slave_instances])
 
         provision_cluster(
-            cluster_info=cluster_info,
+            cluster=cluster,
             modules=modules,
             identity_file=identity_file)
 
@@ -377,7 +377,7 @@ def launch_ec2(
         sys.exit(1)
 
 
-# TODO: This function should probably return a ClusterInfo tuple with additional,
+# TODO: This function should probably return a FlintrockCluster tuple with additional,
 #       provider-specific fields. This can eventually morph into a proper class
 #       with provider specific implementations.
 def get_cluster_instances_ec2(
@@ -511,7 +511,7 @@ def print_cluster_info_ec2(
 
 
 def describe_ec2(*, cluster_name, master_hostname_only=False, region):
-    # TODO: This function should construct ClusterInfo objects and
+    # TODO: This function should construct FlintrockCluster objects and
     #       use those to print info to screen.
     if cluster_name:
         try:
@@ -618,7 +618,7 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         cluster_instances=cluster_instances,
         state='running')
 
-    cluster_info = ClusterInfo(
+    cluster = FlintrockCluster(
         name=cluster_name,
         user=user,
         master_ip=master_instance.ip_address,
@@ -626,7 +626,7 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
         slave_ips=[i.ip_address for i in slave_instances],
         slave_hosts=[i.public_dns_name for i in slave_instances])
 
-    start_cluster(cluster_info=cluster_info, identity_file=identity_file)
+    start_cluster(cluster=cluster, identity_file=identity_file)
 
 
 @timeit
@@ -680,7 +680,7 @@ def run_command_ec2(cluster_name, command, master_only, region, identity_file, u
         print("Cluster is not in a running state.", file=sys.stderr)
         sys.exit(1)
 
-    cluster_info = ClusterInfo(
+    cluster = FlintrockCluster(
         name=cluster_name,
         user=user,
         master_ip=master_instance.ip_address,
@@ -691,7 +691,7 @@ def run_command_ec2(cluster_name, command, master_only, region, identity_file, u
     try:
         run_command_cluster(
             master_only=master_only,
-            cluster_info=cluster_info,
+            cluster=cluster,
             identity_file=identity_file,
             command=command)
     except Exception as e:
@@ -743,7 +743,7 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
                 default=True,
                 abort=True)
 
-    cluster_info = ClusterInfo(
+    cluster = FlintrockCluster(
         name=cluster_name,
         user=user,
         master_ip=master_instance.ip_address,
@@ -754,7 +754,7 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
     try:
         copy_file_cluster(
             master_only=master_only,
-            cluster_info=cluster_info,
+            cluster=cluster,
             identity_file=identity_file,
             local_path=local_path,
             remote_path=remote_path)

@@ -27,14 +27,13 @@ class StorageDirs:
         self.persistent = persistent
 
 
-# TODO: Rename to Cluster
 # NOTE: We take both IP addresses and host names because we
 #       don't understand why Spark doesn't accept IP addresses
 #       in its config, yet we prefer IP addresses when
 #       connecting to hosts.
 #       See: https://github.com/nchammas/flintrock/issues/43
 #       See: http://www.dalkescientific.com/writings/diary/archive/2012/01/19/concurrent.futures.html
-class ClusterInfo:
+class FlintrockCluster:
     def __init__(
             self,
             *,
@@ -54,6 +53,35 @@ class ClusterInfo:
         self.slave_ips = slave_ips
         self.slave_hosts = slave_hosts
         self.storage_dirs = storage_dirs
+
+    def generate_template_mapping(self, *, module: str) -> dict:
+        """
+        Convert a FlintrockCluster instance to a dictionary that we can use
+        to fill in template parameters.
+        """
+        template_mapping = {}
+
+        for k, v in vars(self).items():
+            if k == 'slave_hosts':
+                template_mapping.update({k: '\n'.join(v)})
+            elif k == 'storage_dirs':
+                template_mapping.update({
+                    'root_dir': v.root + '/' + module,
+                    'ephemeral_dirs': ','.join(path + '/' + module for path in v.ephemeral)})
+
+                # If ephemeral storage is available, it replaces the root volume, which is
+                # typically persistent. We don't want to mix persistent and ephemeral
+                # storage since that causes problems after cluster stop/start; some volumes
+                # have leftover data, whereas others start fresh.
+                root_ephemeral_dirs = template_mapping['root_dir']
+                if template_mapping['ephemeral_dirs']:
+                    root_ephemeral_dirs = template_mapping['ephemeral_dirs']
+                template_mapping.update({
+                    'root_ephemeral_dirs': root_ephemeral_dirs})
+            else:
+                template_mapping.update({k: v})
+
+        return template_mapping
 
 
 def format_message(*, message: str, indent: int=4, wrap: int=70):
@@ -89,39 +117,6 @@ def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
     return namedtuple('KeyPair', ['public', 'private'])(public_key, private_key)
 
 
-def cluster_info_to_template_mapping(
-        *,
-        cluster_info: ClusterInfo,
-        module: str) -> dict:
-    """
-    Convert a ClusterInfo tuple to a dictionary that we can use to fill in template
-    parameters.
-    """
-    template_mapping = {}
-
-    for k, v in vars(cluster_info).items():
-        if k == 'slave_hosts':
-            template_mapping.update({k: '\n'.join(v)})
-        elif k == 'storage_dirs':
-            template_mapping.update({
-                'root_dir': v.root + '/' + module,
-                'ephemeral_dirs': ','.join(path + '/' + module for path in v.ephemeral)})
-
-            # If ephemeral storage is available, it replaces the root volume, which is
-            # typically persistent. We don't want to mix persistent and ephemeral
-            # storage since that causes problems after cluster stop/start; some volumes
-            # have leftover data, whereas others start fresh.
-            root_ephemeral_dirs = template_mapping['root_dir']
-            if template_mapping['ephemeral_dirs']:
-                root_ephemeral_dirs = template_mapping['ephemeral_dirs']
-            template_mapping.update({
-                'root_ephemeral_dirs': root_ephemeral_dirs})
-        else:
-            template_mapping.update({k: v})
-
-    return template_mapping
-
-
 # TODO: Cache these files. (?) They are being read potentially tens or
 #       hundreds of times. Maybe it doesn't matter because the files
 #       are so small.
@@ -141,7 +136,7 @@ class HDFS:
     def install(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster_info: ClusterInfo):
+            cluster: FlintrockCluster):
         print("[{h}] Installing HDFS...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
@@ -167,7 +162,7 @@ class HDFS:
     def configure(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster_info: ClusterInfo):
+            cluster: FlintrockCluster):
         # TODO: os.walk() through these files.
         template_paths = [
             'hadoop/conf/masters',
@@ -185,9 +180,7 @@ class HDFS:
                     f=shlex.quote(
                         get_formatted_template(
                             path=os.path.join(THIS_DIR, "templates", template_path),
-                            mapping=cluster_info_to_template_mapping(
-                                cluster_info=cluster_info,
-                                module='hdfs'))),
+                            mapping=cluster.generate_template_mapping(module='hdfs'))),
                     p=shlex.quote(template_path)))
 
     # TODO: Convert this into start_master() and split master- or slave-specific
@@ -195,7 +188,7 @@ class HDFS:
     def configure_master(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster_info: ClusterInfo):
+            cluster: FlintrockCluster):
         host = ssh_client.get_transport().getpeername()[0]
         print("[{h}] Configuring HDFS master...".format(h=host))
 
@@ -244,7 +237,7 @@ class Spark:
     def install(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster_info: ClusterInfo):
+            cluster: FlintrockCluster):
         """
         Downloads and installs Spark on a given node.
         """
@@ -298,7 +291,7 @@ class Spark:
     def configure(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster_info: ClusterInfo):
+            cluster: FlintrockCluster):
         """
         Configures Spark after it's installed.
 
@@ -316,9 +309,7 @@ class Spark:
                     f=shlex.quote(
                         get_formatted_template(
                             path=os.path.join(THIS_DIR, "templates", template_path),
-                            mapping=cluster_info_to_template_mapping(
-                                cluster_info=cluster_info,
-                                module='spark'))),
+                            mapping=cluster.generate_template_mapping(module='spark'))),
                     p=shlex.quote(template_path)))
 
     # TODO: Convert this into start_master() and split master- or slave-specific
@@ -328,7 +319,7 @@ class Spark:
     def configure_master(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster_info: ClusterInfo):
+            cluster: FlintrockCluster):
         """
         Configures the Spark master and starts both the master and slaves.
         """
@@ -360,7 +351,7 @@ class Spark:
 
                 spark/sbin/start-slaves.sh
             """.format(
-                m=shlex.quote(cluster_info.master_host)))
+                m=shlex.quote(cluster.master_host)))
 
     def configure_slave(self):
         pass
@@ -514,17 +505,17 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
         loop.close()
 
 
-def provision_cluster(*, cluster_info: ClusterInfo, modules: list, identity_file: str):
+def provision_cluster(*, cluster: FlintrockCluster, modules: list, identity_file: str):
     """
     Connect to a freshly launched cluster and install the specified modules.
     """
     partial_func = functools.partial(
         provision_node,
         modules=modules,
-        user=cluster_info.user,
+        user=cluster.user,
         identity_file=identity_file,
-        cluster_info=cluster_info)
-    hosts = [cluster_info.master_ip] + cluster_info.slave_ips
+        cluster=cluster)
+    hosts = [cluster.master_ip] + cluster.slave_ips
 
     _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
@@ -532,8 +523,8 @@ def provision_cluster(*, cluster_info: ClusterInfo, modules: list, identity_file
     #     c=len(cluster_instances)))
 
     master_ssh_client = get_ssh_client(
-        user=cluster_info.user,
-        host=cluster_info.master_host,
+        user=cluster.user,
+        host=cluster.master_host,
         identity_file=identity_file)
 
     with master_ssh_client:
@@ -549,12 +540,12 @@ def provision_cluster(*, cluster_info: ClusterInfo, modules: list, identity_file
                 echo {m} > /home/{u}/.flintrock-manifest.json
             """.format(
                 m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
-                u=shlex.quote(cluster_info.user)))
+                u=shlex.quote(cluster.user)))
 
         for module in modules:
             module.configure_master(
                 ssh_client=master_ssh_client,
-                cluster_info=cluster_info)
+                cluster=cluster)
 
     # NOTE: We sleep here so that the slave services have time to come up.
     #       If we refactor stuff to have a start_slave() that blocks until
@@ -563,7 +554,7 @@ def provision_cluster(*, cluster_info: ClusterInfo, modules: list, identity_file
         time.sleep(30)
 
     for module in modules:
-        module.health_check(master_host=cluster_info.master_host)
+        module.health_check(master_host=cluster.master_host)
 
 
 def provision_node(
@@ -572,7 +563,7 @@ def provision_node(
         user: str,
         host: str,
         identity_file: str,
-        cluster_info: ClusterInfo):
+        cluster: FlintrockCluster):
     """
     Connect to a freshly launched node, set it up for SSH access, and
     install the specified modules.
@@ -598,8 +589,8 @@ def provision_node(
 
                 chmod 400 ~/.ssh/id_rsa
             """.format(
-                private_key=shlex.quote(cluster_info.ssh_key_pair.private),
-                public_key=shlex.quote(cluster_info.ssh_key_pair.public)))
+                private_key=shlex.quote(cluster.ssh_key_pair.private),
+                public_key=shlex.quote(cluster.ssh_key_pair.public)))
 
         with client.open_sftp() as sftp:
             sftp.put(
@@ -618,8 +609,8 @@ def provision_node(
             """)
         storage_dirs = json.loads(storage_dirs_raw)
 
-        cluster_info.storage_dirs.root = storage_dirs['root']
-        cluster_info.storage_dirs.ephemeral = storage_dirs['ephemeral']
+        cluster.storage_dirs.root = storage_dirs['root']
+        cluster.storage_dirs.ephemeral = storage_dirs['ephemeral']
 
         # The default CentOS AMIs on EC2 don't come with Java installed.
         java_home = ssh_check_output(
@@ -644,16 +635,16 @@ def provision_node(
         for module in modules:
             module.install(
                 ssh_client=client,
-                cluster_info=cluster_info)
+                cluster=cluster)
             module.configure(
                 ssh_client=client,
-                cluster_info=cluster_info)
+                cluster=cluster)
 
 
-def start_cluster(*, cluster_info: ClusterInfo, identity_file: str):
+def start_cluster(*, cluster: FlintrockCluster, identity_file: str):
     master_ssh_client = get_ssh_client(
-        user=cluster_info.user,
-        host=cluster_info.master_ip,
+        user=cluster.user,
+        host=cluster.master_ip,
         identity_file=identity_file)
 
     with master_ssh_client:
@@ -661,7 +652,7 @@ def start_cluster(*, cluster_info: ClusterInfo, identity_file: str):
             client=master_ssh_client,
             command="""
                 cat /home/{u}/.flintrock-manifest.json
-            """.format(u=shlex.quote(cluster_info.user)))
+            """.format(u=shlex.quote(cluster.user)))
         # TODO: Reconsider where this belongs. In the manifest? We can implement
         #       ephemeral storage support as a Flintrock module, and add methods to
         #       serialize and deserialize critical module info like installed versions
@@ -686,7 +677,7 @@ def start_cluster(*, cluster_info: ClusterInfo, identity_file: str):
         ephemeral=sorted(ephemeral_dirs_raw.splitlines()),
         persistent=None)
     # This smells. We are mutating an input to this method.
-    cluster_info.storage_dirs = storage_dirs
+    cluster.storage_dirs = storage_dirs
 
     modules = []
     for [module_name, version] in manifest['modules']:
@@ -696,23 +687,23 @@ def start_cluster(*, cluster_info: ClusterInfo, identity_file: str):
     partial_func = functools.partial(
         start_node,
         modules=modules,
-        user=cluster_info.user,
+        user=cluster.user,
         identity_file=identity_file,
-        cluster_info=cluster_info)
-    hosts = [cluster_info.master_ip] + cluster_info.slave_ips
+        cluster=cluster)
+    hosts = [cluster.master_ip] + cluster.slave_ips
 
     _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
     master_ssh_client = get_ssh_client(
-        user=cluster_info.user,
-        host=cluster_info.master_ip,
+        user=cluster.user,
+        host=cluster.master_ip,
         identity_file=identity_file)
 
     with master_ssh_client:
         for module in modules:
             module.configure_master(
                 ssh_client=master_ssh_client,
-                cluster_info=cluster_info)
+                cluster=cluster)
 
     # NOTE: We sleep here so that the slave services have time to come up.
     #       If we refactor stuff to have a start_slave() that blocks until
@@ -721,7 +712,7 @@ def start_cluster(*, cluster_info: ClusterInfo, identity_file: str):
         time.sleep(30)
 
     for module in modules:
-        module.health_check(master_host=cluster_info.master_ip)
+        module.health_check(master_host=cluster.master_ip)
 
 
 def start_node(
@@ -730,7 +721,7 @@ def start_node(
         user: str,
         host: str,
         identity_file: str,
-        cluster_info: ClusterInfo):
+        cluster: FlintrockCluster):
     """
     Connect to an existing node that has just been started up again and prepare it for
     work.
@@ -744,31 +735,31 @@ def start_node(
     with ssh_client:
         # TODO: Consider consolidating ephemeral storage code under a dedicated
         #       Flintrock module.
-        if cluster_info.storage_dirs.ephemeral:
+        if cluster.storage_dirs.ephemeral:
             ssh_check_output(
                 client=ssh_client,
                 command="""
                     sudo chown "{u}:{u}" {d}
                 """.format(
                     u=user,
-                    d=' '.join(cluster_info.storage_dirs.ephemeral)))
+                    d=' '.join(cluster.storage_dirs.ephemeral)))
 
         for module in modules:
             module.configure(
                 ssh_client=ssh_client,
-                cluster_info=cluster_info)
+                cluster=cluster)
 
 
 def run_command_cluster(
         *,
         master_only: bool,
-        cluster_info: ClusterInfo,
+        cluster: FlintrockCluster,
         identity_file: str,
         command: tuple):
     if master_only:
-        target_hosts = [cluster_info.master_ip]
+        target_hosts = [cluster.master_ip]
     else:
-        target_hosts = [cluster_info.master_ip] + cluster_info.slave_ips
+        target_hosts = [cluster.master_ip] + cluster.slave_ips
 
     print("Running command on {c} instance{s}...".format(
         c=len(target_hosts),
@@ -776,7 +767,7 @@ def run_command_cluster(
 
     partial_func = functools.partial(
         run_command_node,
-        user=cluster_info.user,
+        user=cluster.user,
         identity_file=identity_file,
         command=command)
     hosts = target_hosts
@@ -806,14 +797,14 @@ def run_command_node(*, user: str, host: str, identity_file: str, command: tuple
 def copy_file_cluster(
         *,
         master_only: bool,
-        cluster_info: ClusterInfo,
+        cluster: FlintrockCluster,
         identity_file: str,
         local_path: str,
         remote_path: str):
     if master_only:
-        target_hosts = [cluster_info.master_ip]
+        target_hosts = [cluster.master_ip]
     else:
-        target_hosts = [cluster_info.master_ip] + cluster_info.slave_ips
+        target_hosts = [cluster.master_ip] + cluster.slave_ips
 
     print("Copying file to {c} instance{s}...".format(
         c=len(target_hosts),
@@ -821,7 +812,7 @@ def copy_file_cluster(
 
     partial_func = functools.partial(
         copy_file_node,
-        user=cluster_info.user,
+        user=cluster.user,
         identity_file=identity_file,
         local_path=local_path,
         remote_path=remote_path)
