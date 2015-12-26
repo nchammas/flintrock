@@ -38,6 +38,37 @@ class EC2Cluster(FlintrockCluster):
         self.master_instance = master_instance
         self.slave_instances = slave_instances
 
+    @property
+    def instances(self):
+        return [self.master_instance] + self.slave_instances
+
+    @property
+    def state(self):
+        instance_states = set(
+            instance.state for instance in self.instances)
+        if len(instance_states) == 1:
+            return instance_states.pop()
+        else:
+            return 'inconsistent'
+
+    def print(self):
+        """
+        Print information about the cluster to screen in YAML.
+
+        We don't use PyYAML because we want to control the key order
+        in the output.
+        """
+        # Mark the boundaries of the YAML output.
+        # See: http://yaml.org/spec/current.html#id2525905
+        # print('---')
+        print(self.name + ':')
+        print('  state: {s}'.format(s=self.state))
+        print('  node-count: {nc}'.format(nc=len(self.instances)))
+        if self.state == 'running':
+            print('  master:', self.master_host)
+            print('\n    - '.join(['  slaves:'] + self.slave_hosts))
+        # print('...')
+
 
 def timeit(func):
     @functools.wraps(func)
@@ -479,16 +510,12 @@ def _compose_cluster(*, name: str, region: str, instances: list) -> EC2Cluster:
 def destroy_ec2(*, cluster_name, assume_yes=True, region):
     try:
         cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-        cluster_instances = [cluster.master_instance] + cluster.slave_instances
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
     if not assume_yes:
-        print_cluster_info_ec2(
-            cluster_name=cluster_name,
-            master_instance=cluster.master_instance,
-            slave_instances=cluster.slave_instances)
+        cluster.print()
         click.confirm(
             text="Are you sure you want to destroy this cluster?",
             abort=True)
@@ -501,7 +528,7 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
     # it once the instances are terminated. If we don't do this, we get dependency
     # violations for a couple of minutes before we can actually delete the group.
     # TODO: Is there a way to do this in one call? Do we need to throttle these calls?
-    for instance in cluster_instances:
+    for instance in cluster.instances:
         connection.modify_instance_attribute(
             instance_id=instance.id,
             attribute='groupSet',
@@ -510,9 +537,9 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
     # TODO: Figure out if we want to use "node" instead of "instance" when
     #       communicating with the user, even if we're talking about doing things
     #       to EC2 instances. Spark docs definitely favor "node".
-    print("Terminating {c} instances...".format(c=len(cluster_instances)))
+    print("Terminating {c} instances...".format(c=len(cluster.instances)))
     connection.terminate_instances(
-        instance_ids=[instance.id for instance in cluster_instances])
+        instance_ids=[instance.id for instance in cluster.instances])
 
     # TODO: Centralize logic to get cluster security group name from cluster name.
     connection.delete_security_group(name='flintrock-' + cluster_name)
@@ -534,49 +561,6 @@ def wait_for_cluster_state_ec2(*, cluster_instances: list, state: str):
             break
 
 
-def get_cluster_state_ec2(cluster_instances: list) -> str:
-    """
-    Get the state of an EC2 cluster.
-
-    This is distinct from the state of Spark on the cluster. At some point the two
-    concepts should be rationalized somehow.
-    """
-    instance_states = set(instance.state for instance in cluster_instances)
-
-    if len(instance_states) == 1:
-        return next(iter(instance_states))
-    else:
-        return 'inconsistent'
-
-
-def print_cluster_info_ec2(
-        *,
-        cluster_name: str,
-        master_instance: boto.ec2.instance.Instance,
-        slave_instances: list):
-    """
-    Print information about an EC2 cluster to screen in a YAML-compatible format.
-
-    This is the current solution until cluster methods are centralized under a
-    FlintrockCluster class, or something similar.
-    """
-    cluster_state = get_cluster_state_ec2(
-        cluster_instances=[master_instance] + slave_instances)
-
-    # Mark boundaries of YAML output.
-    # See: http://yaml.org/spec/current.html#id2525905
-    # print('---')
-
-    print(cluster_name + ':')
-    print('  state: {s}'.format(s=cluster_state))
-    print('  node-count: {nc}'.format(nc=1 + len(slave_instances)))
-    if cluster_state == 'running':
-        print('  master:', master_instance.public_dns_name)
-        print('\n    - '.join(['  slaves:'] + [i.public_dns_name for i in slave_instances]))
-
-    # print('...')
-
-
 def describe_ec2(*, cluster_name, master_hostname_only=False, region):
     if cluster_name:
         try:
@@ -588,10 +572,7 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
         if master_hostname_only:
             print(cluster.master_host)
         else:
-            print_cluster_info_ec2(
-                cluster_name=cluster.name,
-                master_instance=cluster.master_instance,
-                slave_instances=cluster.slave_instances)
+            cluster.print()
     else:
         clusters = get_clusters_ec2(region=region)
 
@@ -606,10 +587,7 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
             if clusters:
                 print('---')
                 for cluster in sorted(clusters, key=lambda x: x.name):
-                    print_cluster_info_ec2(
-                        cluster_name=cluster.name,
-                        master_instance=cluster.master_instance,
-                        slave_instances=cluster.slave_instances)
+                    cluster.print()
 
 
 def login_ec2(cluster_name, region, identity_file, user):
@@ -632,23 +610,24 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
     """
     try:
         cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-        cluster_instances = [cluster.master_instance] + cluster.slave_instances
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
-    cluster_state = get_cluster_state_ec2(cluster_instances)
-    if cluster_state != 'stopped':
-        print("Cannot start cluster in state:", cluster_state, file=sys.stderr)
+    if cluster.state == 'running':
+        print("Cluster is already running.")
+        sys.exit(0)
+    elif cluster.state != 'stopped':
+        print("Cannot start cluster in state:", cluster.state, file=sys.stderr)
         sys.exit(1)
 
-    print("Starting {c} instances...".format(c=len(cluster_instances)))
+    print("Starting {c} instances...".format(c=len(cluster.instances)))
     connection = boto.ec2.connect_to_region(region_name=region)
     connection.start_instances(
-        instance_ids=[instance.id for instance in cluster_instances])
+        instance_ids=[instance.id for instance in cluster.instances])
 
     wait_for_cluster_state_ec2(
-        cluster_instances=cluster_instances,
+        cluster_instances=cluster.instances,
         state='running')
 
     # TODO: wait_for_cluster_state_ec2() should update the _ip and _host attributes
@@ -670,32 +649,27 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
 def stop_ec2(cluster_name, region, assume_yes=True):
     try:
         cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-        cluster_instances = [cluster.master_instance] + cluster.slave_instances
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
-    cluster_state = get_cluster_state_ec2(cluster_instances)
-    if cluster_state == 'stopped':
+    if cluster.state == 'stopped':
         print("Cluster is already stopped.")
         sys.exit(0)
 
     if not assume_yes:
-        print_cluster_info_ec2(
-            cluster_name=cluster_name,
-            master_instance=cluster.master_instance,
-            slave_instances=cluster.slave_instances)
+        cluster.print()
         click.confirm(
             text="Are you sure you want to stop this cluster?",
             abort=True)
 
-    print("Stopping {c} instances...".format(c=len(cluster_instances)))
+    print("Stopping {c} instances...".format(c=len(cluster.instances)))
     connection = boto.ec2.connect_to_region(region_name=region)
     connection.stop_instances(
-        instance_ids=[instance.id for instance in cluster_instances])
+        instance_ids=[instance.id for instance in cluster.instances])
 
     wait_for_cluster_state_ec2(
-        cluster_instances=cluster_instances,
+        cluster_instances=cluster.instances,
         state='stopped')
     print("{c} is now stopped.".format(c=cluster_name))
 
@@ -704,13 +678,12 @@ def stop_ec2(cluster_name, region, assume_yes=True):
 def run_command_ec2(cluster_name, command, master_only, region, identity_file, user):
     try:
         cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-        cluster_instances = [cluster.master_instance] + cluster.slave_instances
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
-    if get_cluster_state_ec2(cluster_instances) != 'running':
-        print("Cluster is not in a running state.", file=sys.stderr)
+    if cluster.state != 'running':
+        print("Cannot run command against cluster in state:", cluster.state, file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -729,20 +702,19 @@ def run_command_ec2(cluster_name, command, master_only, region, identity_file, u
 def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, region, identity_file, user, assume_yes=True):
     try:
         cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-        cluster_instances = [cluster.master_instance] + cluster.slave_instances
     except ClusterNotFound as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
-    if get_cluster_state_ec2(cluster_instances) != 'running':
-        print("Cluster is not in a running state.", file=sys.stderr)
+    if cluster.state != 'running':
+        print("Cannot copy file to cluster in state:", cluster.state, file=sys.stderr)
         sys.exit(1)
 
     # TODO: This `if` block needs to be factored out because it is not provider-
     #       specific. A future gce.py, for example, will need this same logic.
     if not assume_yes and not master_only:
         file_size_bytes = os.path.getsize(local_path)
-        num_nodes = len(cluster_instances)
+        num_nodes = len(cluster.instances)
         total_size_bytes = file_size_bytes * num_nodes
 
         if total_size_bytes > 10 ** 6:

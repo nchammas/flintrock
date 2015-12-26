@@ -11,12 +11,28 @@ def test_describe_stopped_cluster(stopped_cluster):
     assert p.stdout.startswith(stopped_cluster.encode())
 
 
+def test_stop_stopped_cluster(stopped_cluster):
+    p = subprocess.run([
+        'flintrock', 'stop', stopped_cluster],
+        stdout=subprocess.PIPE)
+    assert p.returncode == 0
+    assert p.stdout == b"Cluster is already stopped.\n"
+
+
 def test_try_launching_duplicate_stopped_cluster(stopped_cluster):
     p = subprocess.run([
         'flintrock', 'launch', stopped_cluster],
         stderr=subprocess.PIPE)
     assert p.returncode == 1
     assert p.stderr.startswith(b"Cluster already exists: ")
+
+
+def test_start_running_cluster(running_cluster):
+    p = subprocess.run([
+        'flintrock', 'start', running_cluster],
+        stdout=subprocess.PIPE)
+    assert p.returncode == 0
+    assert p.stdout == b"Cluster is already running.\n"
 
 
 def test_try_launching_duplicate_cluster(running_cluster):
@@ -105,6 +121,20 @@ def test_operations_against_non_existent_cluster():
             stderr=subprocess.PIPE)
         assert p.returncode == 1
         assert p.stderr.startswith(expected_error_message)
+
+
+def test_operations_against_stopped_cluster(stopped_cluster):
+    p = subprocess.run(
+        ['flintrock', 'run-command', stopped_cluster, 'ls'],
+        stderr=subprocess.PIPE)
+    assert p.returncode == 1
+    assert p.stderr == b"Cannot run command against cluster in state: stopped\n"
+
+    p = subprocess.run(
+        ['flintrock', 'copy-file', stopped_cluster, __file__, '/remote/path'],
+        stderr=subprocess.PIPE)
+    assert p.returncode == 1
+    assert p.stderr == b"Cannot copy file to cluster in state: stopped\n"
 
 
 def test_launch_with_bad_ami():
