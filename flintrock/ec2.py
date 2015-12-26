@@ -393,28 +393,76 @@ def get_cluster_ec2(*, cluster_name: str, region: str) -> EC2Cluster:
     """
     Get an existing EC2 cluster.
     """
+    return get_clusters_ec2(
+        cluster_names=[cluster_name],
+        region=region)[0]
+
+
+def get_clusters_ec2(*, cluster_names: list=[], region: str) -> list:
+    """
+    Get all the named clusters. If no names are given, get all clusters.
+
+    We do a little extra work here so that we only make one call to AWS
+    regardless of how many clusters we have to look up. That's because querying
+    AWS -- a network operation -- is by far the slowest step.
+    """
     connection = boto.ec2.connect_to_region(region_name=region)
 
-    cluster_instances = connection.get_only_instances(
+    if cluster_names:
+        group_name_filter = ['flintrock-' + cn for cn in cluster_names]
+    else:
+        group_name_filter = 'flintrock'
+
+    all_clusters_instances = connection.get_only_instances(
         filters={
-            'instance.group-name': 'flintrock-' + cluster_name
+            'instance.group-name': group_name_filter
         })
 
-    if not cluster_instances:
-        raise ClusterNotFound("No cluster {c} in region {r}.".format(
-            c=cluster_name,
-            r=region))
+    found_cluster_names = {
+        _get_cluster_name(instance) for instance in all_clusters_instances}
 
-    # TODO: Raise errors if a cluster has no master or no slaves.
+    if cluster_names:
+        missing_cluster_names = set(cluster_names) - found_cluster_names
+        if missing_cluster_names:
+            raise ClusterNotFound("No cluster {c} in region {r}.".format(
+                c=missing_cluster_names.pop(),
+                r=region))
+
+    clusters = [
+        _compose_cluster(
+            name=cluster_name,
+            region=region,
+            instances=list(filter(
+                lambda x: _get_cluster_name(x) == cluster_name, all_clusters_instances)))
+        for cluster_name in found_cluster_names]
+
+    return clusters
+
+
+def _get_cluster_name(instance: boto.ec2.instance.Instance) -> str:
+    """
+    Given an EC2 instance, get the name of the Flintrock cluster it belongs to.
+    """
+    for group in instance.groups:
+        if group.name.startswith('flintrock-'):
+            return group.name.replace('flintrock-', '', 1)
+
+
+def _compose_cluster(*, name: str, region: str, instances: list) -> EC2Cluster:
+    """
+    Compose an EC2Cluster object from a set of raw EC2 instances.
+    """
+    # TODO: Raise errors if a cluster is malformed somehow.
+    #       e.g. No master, multiple masters, no slaves, etc.
     master_instance = list(filter(
-        lambda i: i.tags['flintrock-role'] == 'master',
-        cluster_instances))[0]
+        lambda x: x.tags['flintrock-role'] == 'master',
+        instances))[0]
     slave_instances = list(filter(
-        lambda i: i.tags['flintrock-role'] != 'master',
-        cluster_instances))
+        lambda x: x.tags['flintrock-role'] == 'slave',
+        instances))
 
     cluster = EC2Cluster(
-        name=cluster_name,
+        name=name,
         master_ip=master_instance.ip_address,
         master_host=master_instance.public_dns_name,
         slave_ips=[i.ip_address for i in slave_instances],
@@ -449,6 +497,9 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
 
     # TODO: Centralize logic to get Flintrock base security group. (?)
     flintrock_base_group = connection.get_all_security_groups(groupnames=['flintrock'])
+    # We "unassign" the cluster security group here so that we can immediately delete
+    # it once the instances are terminated. If we don't do this, we get dependency
+    # violations for a couple of minutes before we can actually delete the group.
     # TODO: Is there a way to do this in one call? Do we need to throttle these calls?
     for instance in cluster_instances:
         connection.modify_instance_attribute(
@@ -542,49 +593,23 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
                 master_instance=cluster.master_instance,
                 slave_instances=cluster.slave_instances)
     else:
-        # TODO: This section should construct FlintrockCluster objects and
-        #       use them to print info to screen.
-        connection = boto.ec2.connect_to_region(region_name=region)
-
-        all_clusters_instances = connection.get_only_instances(
-            filters={
-                'instance.group-name': 'flintrock-' + cluster_name if cluster_name else 'flintrock'
-            })
-        security_groups = itertools.chain.from_iterable(
-            [i.groups for i in all_clusters_instances])
-        security_group_names = {g.name for g in security_groups if g.name.startswith('flintrock-')}
-        cluster_names = [n.replace('flintrock-', '', 1) for n in security_group_names]
-
-        clusters = {}
-        for cluster_name in cluster_names:
-            master_instance = None
-            slave_instances = []
-
-            for instance in all_clusters_instances:
-                if ('flintrock-' + cluster_name) in {g.name for g in instance.groups}:
-                    if instance.tags['flintrock-role'] == 'master':
-                        master_instance = instance
-                    elif instance.tags['flintrock-role'] != 'master':
-                        slave_instances.append(instance)
-
-            clusters[cluster_name] = {
-                'master_instance': master_instance,
-                'slave_instances': slave_instances}
+        clusters = get_clusters_ec2(region=region)
 
         if master_hostname_only:
-            for cluster_name in sorted(cluster_names):
-                print(cluster_name + ':', clusters[cluster_name]['master_instance'].public_dns_name)
+            for cluster in sorted(clusters, key=lambda x: x.name):
+                print(cluster.name + ':', cluster.master_host)
         else:
-            print("{n} cluster{s} found.".format(
-                n=len(cluster_names),
-                s='' if len(cluster_names) == 1 else 's'))
-            if cluster_names:
+            print("{n} cluster{s} found in region {r}.".format(
+                n=len(clusters),
+                s='' if len(clusters) == 1 else 's',
+                r=region))
+            if clusters:
                 print('---')
-                for cluster_name in sorted(cluster_names):
+                for cluster in sorted(clusters, key=lambda x: x.name):
                     print_cluster_info_ec2(
-                        cluster_name=cluster_name,
-                        master_instance=clusters[cluster_name]['master_instance'],
-                        slave_instances=clusters[cluster_name]['slave_instances'])
+                        cluster_name=cluster.name,
+                        master_instance=cluster.master_instance,
+                        slave_instances=cluster.slave_instances)
 
 
 def login_ec2(cluster_name, region, identity_file, user):
