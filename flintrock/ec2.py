@@ -38,6 +38,9 @@ class EC2Cluster(FlintrockCluster):
         self.master_instance = master_instance
         self.slave_instances = slave_instances
 
+    # TODO: Should master/slave _ip/_hostname be dynamically derived
+    #       from the instances?
+
     @property
     def instances(self):
         return [self.master_instance] + self.slave_instances
@@ -50,6 +53,29 @@ class EC2Cluster(FlintrockCluster):
             return instance_states.pop()
         else:
             return 'inconsistent'
+
+    def wait_for_state(self, state: str):
+        """
+        Wait for the cluster's instances to a reach a specific state.
+        The state of any modules installed on the cluster is a
+        separate matter.
+
+        This method updates the cluster's instance metadata and
+        master and slave IP addresses and hostnames.
+        """
+        connection = boto.ec2.connect_to_region(region_name=self.region)
+        while any([i.state != state for i in self.instances]):
+            # Update metadata for all instances in one shot. We don't want
+            # to make a call to AWS for each of potentially hundreds of
+            # instances.
+            instances = connection.get_only_instances(
+                instance_ids=[i.id for i in self.instances])
+            (self.master_instance, self.slave_instances) = _get_cluster_master_slaves(instances)
+            self.master_ip = self.master_instance.ip_address
+            self.master_host = self.master_instance.public_dns_name
+            self.slave_ips = [i.ip_address for i in self.slave_instances]
+            self.slave_hosts = [i.public_dns_name for i in self.slave_instances]
+            time.sleep(3)
 
     def print(self):
         """
@@ -353,10 +379,6 @@ def launch_ec2(
 
             time.sleep(10)  # AWS metadata eventual consistency tax.
 
-        wait_for_cluster_state_ec2(
-            cluster_instances=cluster_instances,
-            state='running')
-
         master_instance = cluster_instances[0]
         slave_instances = cluster_instances[1:]
 
@@ -371,13 +393,18 @@ def launch_ec2(
                 'flintrock-role': 'slave',
                 'Name': '{c}-slave'.format(c=cluster_name)})
 
-        cluster = FlintrockCluster(
+        cluster = EC2Cluster(
             name=cluster_name,
+            region=region,
             ssh_key_pair=generate_ssh_key_pair(),
-            master_ip=master_instance.ip_address,
-            master_host=master_instance.public_dns_name,
-            slave_ips=[i.ip_address for i in slave_instances],
-            slave_hosts=[i.public_dns_name for i in slave_instances])
+            master_ip=None,
+            master_host=None,
+            master_instance=master_instance,
+            slave_ips=None,
+            slave_hosts=None,
+            slave_instances=slave_instances)
+
+        cluster.wait_for_state('running')
 
         provision_cluster(
             cluster=cluster,
@@ -479,11 +506,12 @@ def _get_cluster_name(instance: boto.ec2.instance.Instance) -> str:
             return group.name.replace('flintrock-', '', 1)
 
 
-def _compose_cluster(*, name: str, region: str, instances: list) -> EC2Cluster:
+def _get_cluster_master_slaves(instances: list) -> (boto.ec2.instance.Instance, list):
     """
-    Compose an EC2Cluster object from a set of raw EC2 instances.
+    Get the master and slave instances from a set of raw EC2 instances representing
+    a Flintrock cluster.
     """
-    # TODO: Raise errors if a cluster is malformed somehow.
+    # TODO: Raise clean errors if a cluster is malformed somehow.
     #       e.g. No master, multiple masters, no slaves, etc.
     master_instance = list(filter(
         lambda x: x.tags['flintrock-role'] == 'master',
@@ -491,6 +519,15 @@ def _compose_cluster(*, name: str, region: str, instances: list) -> EC2Cluster:
     slave_instances = list(filter(
         lambda x: x.tags['flintrock-role'] == 'slave',
         instances))
+    return (master_instance, slave_instances)
+
+
+def _compose_cluster(*, name: str, region: str, instances: list) -> EC2Cluster:
+    """
+    Compose an EC2Cluster object from a set of raw EC2 instances representing
+    a Flintrock cluster.
+    """
+    (master_instance, slave_instances) = _get_cluster_master_slaves(instances)
 
     cluster = EC2Cluster(
         name=name,
@@ -543,22 +580,6 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
 
     # TODO: Centralize logic to get cluster security group name from cluster name.
     connection.delete_security_group(name='flintrock-' + cluster_name)
-
-
-def wait_for_cluster_state_ec2(*, cluster_instances: list, state: str):
-    """
-    Wait for all the instances in a cluster to reach a specific state.
-    """
-    while True:
-        for instance in cluster_instances:
-            if instance.state == state:
-                continue
-            else:
-                time.sleep(3)
-                instance.update()
-                break
-        else:
-            break
 
 
 def describe_ec2(*, cluster_name, master_hostname_only=False, region):
@@ -626,18 +647,7 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
     connection.start_instances(
         instance_ids=[instance.id for instance in cluster.instances])
 
-    wait_for_cluster_state_ec2(
-        cluster_instances=cluster.instances,
-        state='running')
-
-    # TODO: wait_for_cluster_state_ec2() should update the _ip and _host attributes
-    #       of the cluster, as opposed to us constructing a new cluster here.
-    cluster = FlintrockCluster(
-        name=cluster_name,
-        master_ip=cluster.master_instance.ip_address,
-        master_host=cluster.master_instance.public_dns_name,
-        slave_ips=[i.ip_address for i in cluster.slave_instances],
-        slave_hosts=[i.public_dns_name for i in cluster.slave_instances])
+    cluster.wait_for_state('running')
 
     start_cluster(
         cluster=cluster,
@@ -668,9 +678,7 @@ def stop_ec2(cluster_name, region, assume_yes=True):
     connection.stop_instances(
         instance_ids=[instance.id for instance in cluster.instances])
 
-    wait_for_cluster_state_ec2(
-        cluster_instances=cluster.instances,
-        state='stopped')
+    cluster.wait_for_state('stopped')
     print("{c} is now stopped.".format(c=cluster_name))
 
 
