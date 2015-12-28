@@ -7,11 +7,9 @@ import posixpath
 import shlex
 import socket
 import subprocess
-import sys
 import tempfile
 import textwrap
 import time
-import urllib.request
 from collections import namedtuple
 
 # External modules
@@ -52,7 +50,7 @@ class FlintrockCluster:
         self.slave_hosts = slave_hosts
         self.storage_dirs = storage_dirs
 
-    def generate_template_mapping(self, *, module: str) -> dict:
+    def generate_template_mapping(self, *, service: str) -> dict:
         """
         Convert a FlintrockCluster instance to a dictionary that we can use
         to fill in template parameters.
@@ -64,8 +62,8 @@ class FlintrockCluster:
                 template_mapping.update({k: '\n'.join(v)})
             elif k == 'storage_dirs':
                 template_mapping.update({
-                    'root_dir': v.root + '/' + module,
-                    'ephemeral_dirs': ','.join(path + '/' + module for path in v.ephemeral)})
+                    'root_dir': v.root + '/' + service,
+                    'ephemeral_dirs': ','.join(path + '/' + service for path in v.ephemeral)})
 
                 # If ephemeral storage is available, it replaces the root volume, which is
                 # typically persistent. We don't want to mix persistent and ephemeral
@@ -115,275 +113,6 @@ def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
     return namedtuple('KeyPair', ['public', 'private'])(public_key, private_key)
 
 
-# TODO: Cache these files. (?) They are being read potentially tens or
-#       hundreds of times. Maybe it doesn't matter because the files
-#       are so small.
-# NOTE: functools.lru_cache() doesn't work here because the mapping is
-#       not hashable.
-def get_formatted_template(path: str, mapping: dict) -> str:
-    with open(path) as f:
-        formatted = f.read().format(**mapping)
-
-    return formatted
-
-
-class HDFS:
-    def __init__(self, version):
-        self.version = version
-
-    def install(
-            self,
-            ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster):
-        print("[{h}] Installing HDFS...".format(
-            h=ssh_client.get_transport().getpeername()[0]))
-
-        with ssh_client.open_sftp() as sftp:
-            sftp.put(
-                localpath=os.path.join(THIS_DIR, 'download-hadoop.py'),
-                remotepath='/tmp/download-hadoop.py')
-
-        ssh_check_output(
-            client=ssh_client,
-            command="""
-                set -e
-
-                python /tmp/download-hadoop.py "{version}"
-
-                mkdir "hadoop"
-                mkdir "hadoop/conf"
-
-                tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
-                rm "hadoop-{version}.tar.gz"
-            """.format(version=self.version))
-
-    def configure(
-            self,
-            ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster):
-        # TODO: os.walk() through these files.
-        template_paths = [
-            'hadoop/conf/masters',
-            'hadoop/conf/slaves',
-            'hadoop/conf/hadoop-env.sh',
-            'hadoop/conf/core-site.xml',
-            'hadoop/conf/hdfs-site.xml']
-
-        for template_path in template_paths:
-            ssh_check_output(
-                client=ssh_client,
-                command="""
-                    echo {f} > {p}
-                """.format(
-                    f=shlex.quote(
-                        get_formatted_template(
-                            path=os.path.join(THIS_DIR, "templates", template_path),
-                            mapping=cluster.generate_template_mapping(module='hdfs'))),
-                    p=shlex.quote(template_path)))
-
-    # TODO: Convert this into start_master() and split master- or slave-specific
-    #       stuff out of configure() into configure_master() and configure_slave().
-    def configure_master(
-            self,
-            ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster):
-        host = ssh_client.get_transport().getpeername()[0]
-        print("[{h}] Configuring HDFS master...".format(h=host))
-
-        ssh_check_output(
-            client=ssh_client,
-            command="""
-                ./hadoop/bin/hdfs namenode -format -nonInteractive
-                ./hadoop/sbin/start-dfs.sh
-            """)
-
-    def configure_slave(self):
-        pass
-
-    def health_check(self, master_host: str):
-        """
-        Check that HDFS is functioning.
-        """
-        # This info is not helpful as a detailed health check, but it gives us
-        # an up / not up signal.
-        hdfs_master_ui = 'http://{m}:50070/webhdfs/v1/?op=GETCONTENTSUMMARY'.format(m=master_host)
-
-        try:
-            hdfs_ui_info = json.loads(
-                urllib.request.urlopen(hdfs_master_ui).read().decode('utf-8'))
-        except Exception as e:
-            # TODO: Catch a more specific problem.
-            print("HDFS health check failed.", file=sys.stderr)
-            raise
-
-        print("HDFS online.")
-
-
-# TODO: Turn this into an implementation of an abstract FlintrockModule class. (?)
-class Spark:
-    def __init__(self, version: str=None, git_commit: str=None, git_repository: str=None):
-        # TODO: Convert these checks into something that throws a proper exception.
-        #       Perhaps reuse logic from CLI.
-        assert bool(version) ^ bool(git_commit)
-        if git_commit:
-            assert git_repository
-
-        self.version = version
-        self.git_commit = git_commit
-        self.git_repository = git_repository
-
-    def install(
-            self,
-            ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster):
-        """
-        Downloads and installs Spark on a given node.
-        """
-        # TODO: Allow users to specify the Spark "distribution". (?)
-        distribution = 'hadoop2.6'
-
-        print("[{h}] Installing Spark...".format(
-            h=ssh_client.get_transport().getpeername()[0]))
-
-        try:
-            if self.version:
-                with ssh_client.open_sftp() as sftp:
-                    sftp.put(
-                        localpath=os.path.join(THIS_DIR, 'install-spark.sh'),
-                        remotepath='/tmp/install-spark.sh')
-                    sftp.chmod(path='/tmp/install-spark.sh', mode=0o755)
-                ssh_check_output(
-                    client=ssh_client,
-                    command="""
-                        set -e
-                        /tmp/install-spark.sh {spark_version} {distribution}
-                        rm -f /tmp/install-spark.sh
-                    """.format(
-                            spark_version=shlex.quote(self.version),
-                            distribution=shlex.quote(distribution)))
-            else:
-                ssh_check_output(
-                    client=ssh_client,
-                    command="""
-                        set -e
-                        sudo yum install -y git
-                        sudo yum install -y java-devel
-                        """)
-                ssh_check_output(
-                    client=ssh_client,
-                    command="""
-                        set -e
-                        git clone {repo} spark
-                        cd spark
-                        git reset --hard {commit}
-                        ./make-distribution.sh -T 1C -Phadoop-2.6
-                    """.format(
-                        repo=shlex.quote(self.git_repository),
-                        commit=shlex.quote(self.git_commit)))
-        except Exception as e:
-            # TODO: This should be a more specific exception.
-            print("Error: Failed to install Spark.", file=sys.stderr)
-            print(e, file=sys.stderr)
-            raise
-
-    def configure(
-            self,
-            ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster):
-        """
-        Configures Spark after it's installed.
-
-        This method is master/slave-agnostic.
-        """
-        template_paths = [
-            'spark/conf/spark-env.sh',
-            'spark/conf/slaves']
-        for template_path in template_paths:
-            ssh_check_output(
-                client=ssh_client,
-                command="""
-                    echo {f} > {p}
-                """.format(
-                    f=shlex.quote(
-                        get_formatted_template(
-                            path=os.path.join(THIS_DIR, "templates", template_path),
-                            mapping=cluster.generate_template_mapping(module='spark'))),
-                    p=shlex.quote(template_path)))
-
-    # TODO: Convert this into start_master() and split master- or slave-specific
-    #       stuff out of configure() into configure_master() and configure_slave().
-    #       start_slave() can block until slave is fully up; that way we don't need
-    #       a sleep() before starting the master.
-    def configure_master(
-            self,
-            ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster):
-        """
-        Configures the Spark master and starts both the master and slaves.
-        """
-        host = ssh_client.get_transport().getpeername()[0]
-        print("[{h}] Configuring Spark master...".format(h=host))
-
-        # TODO: Maybe move this shell script out to some separate file/folder
-        #       for the Spark module.
-        # TODO: Add some timeout for waiting on master UI to come up.
-        ssh_check_output(
-            client=ssh_client,
-            command="""
-                set -e
-
-                spark/sbin/start-master.sh
-
-                set +e
-
-                master_ui_response_code=0
-                while [ "$master_ui_response_code" -ne 200 ]; do
-                    sleep 1
-                    master_ui_response_code="$(
-                        curl --head --silent --output /dev/null \
-                             --write-out "%{{http_code}}" {m}:8080
-                    )"
-                done
-
-                set -e
-
-                spark/sbin/start-slaves.sh
-            """.format(
-                m=shlex.quote(cluster.master_host)))
-
-    def configure_slave(self):
-        pass
-
-    def health_check(self, master_host: str):
-        """
-        Check that Spark is functioning.
-        """
-        spark_master_ui = 'http://{m}:8080/json/'.format(m=master_host)
-
-        try:
-            spark_ui_info = json.loads(
-                urllib.request.urlopen(spark_master_ui).read().decode('utf-8'))
-        except Exception as e:
-            # TODO: Catch a more specific problem known to be related to Spark not
-            #       being up; provide a slightly better error message, and don't
-            #       dump a large stack trace on the user.
-            print("Spark health check failed.", file=sys.stderr)
-            raise
-
-        print(textwrap.dedent(
-            """\
-            Spark Health Report:
-              * Master: {status}
-              * Workers: {workers}
-              * Cores: {cores}
-              * Memory: {memory:.1f} GB\
-            """.format(
-                status=spark_ui_info['status'],
-                workers=len(spark_ui_info['workers']),
-                cores=spark_ui_info['cores'],
-                memory=spark_ui_info['memory'] / 1024)))
-
-
 def get_ssh_client(
         *,
         user: str,
@@ -392,7 +121,8 @@ def get_ssh_client(
         # TODO: Add option to not wait for SSH availability.
         print_status: bool=False) -> paramiko.client.SSHClient:
     """
-    Get an SSH client for the provided host, waiting as necessary for SSH to become available.
+    Get an SSH client for the provided host, waiting as necessary for SSH to become
+    available.
     """
     # paramiko.common.logging.basicConfig(level=paramiko.common.DEBUG)
 
@@ -467,9 +197,9 @@ def ssh(*, user: str, host: str, identity_file: str):
 
 def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
     """
-    Run the function asynchronously against each of provided hosts.
+    Run a function asynchronously against each of the provided hosts.
 
-    This function assumes that partial_func accepts a `host` keyword argument.
+    This function assumes that partial_func accepts `host` as a keyword argument.
     """
     loop = asyncio.get_event_loop()
     executor = concurrent.futures.ThreadPoolExecutor(len(hosts))
@@ -568,12 +298,11 @@ def provision_node(
         identity_file: str,
         cluster: FlintrockCluster):
     """
-    Connect to a freshly launched node, set it up for SSH access, and
-    install the specified modules.
+    Connect to a freshly launched node, set it up for SSH access, configure ephemeral
+    storage, and install the specified modules.
 
-    This function is intended to be called on all cluster nodes in parallel.
-
-    No master- or slave-specific logic should be in this method.
+    This method is role-agnostic; it runs on both the cluster master and slaves.
+    This method is meant to be called asynchronously.
     """
     client = get_ssh_client(
         user=user,
@@ -645,6 +374,10 @@ def provision_node(
 
 
 def start_cluster(*, cluster: FlintrockCluster, user: str, identity_file: str):
+    """
+    Connect to an existing cluster that has just been started up again and prepare it
+    for work.
+    """
     master_ssh_client = get_ssh_client(
         user=user,
         host=cluster.master_ip,
@@ -679,11 +412,13 @@ def start_cluster(*, cluster: FlintrockCluster, user: str, identity_file: str):
         root='/media/root',
         ephemeral=sorted(ephemeral_dirs_raw.splitlines()),
         persistent=None)
-    # This smells. We are mutating an input to this method.
+    # TODO: This smells. We are mutating an input to this method.
     cluster.storage_dirs = storage_dirs
 
     modules = []
     for [module_name, version] in manifest['modules']:
+        # TODO: Expose the classes being used here.
+        # TODO: Fix restarted cluster with Spark built from git version
         module = globals()[module_name](version)
         modules.append(module)
 
@@ -728,6 +463,9 @@ def start_node(
     """
     Connect to an existing node that has just been started up again and prepare it for
     work.
+
+    This method is role-agnostic; it runs on both the cluster master and slaves.
+    This method is meant to be called asynchronously.
     """
     ssh_client = get_ssh_client(
         user=user,
@@ -760,6 +498,11 @@ def run_command_cluster(
         user: str,
         identity_file: str,
         command: tuple):
+    """
+    Run a shell command on each node of an existing cluster.
+
+    If master_only is True, then run the comand on the master only.
+    """
     if master_only:
         target_hosts = [cluster.master_ip]
     else:
@@ -780,6 +523,12 @@ def run_command_cluster(
 
 
 def run_command_node(*, user: str, host: str, identity_file: str, command: tuple):
+    """
+    Run a shell command on a node.
+
+    This method is role-agnostic; it runs on both the cluster master and slaves.
+    This method is meant to be called asynchronously.
+    """
     # TODO: Timeout quickly if SSH is not available.
     ssh_client = get_ssh_client(
         user=user,
@@ -806,6 +555,11 @@ def copy_file_cluster(
         identity_file: str,
         local_path: str,
         remote_path: str):
+    """
+    Copy a file to each node of an existing cluster.
+
+    If master_only is True, then copy the file to the master only.
+    """
     if master_only:
         target_hosts = [cluster.master_ip]
     else:
@@ -826,7 +580,19 @@ def copy_file_cluster(
     _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
 
-def copy_file_node(*, user: str, host: str, identity_file: str, local_path: str, remote_path: str):
+def copy_file_node(
+        *,
+        user: str,
+        host: str,
+        identity_file: str,
+        local_path: str,
+        remote_path: str):
+    """
+    Copy a file to the specified remote path on a node.
+
+    This method is role-agnostic; it runs on both the cluster master and slaves.
+    This method is meant to be called asynchronously.
+    """
     # TODO: Timeout quickly if SSH is not available.
     ssh_client = get_ssh_client(
         user=user,
@@ -843,6 +609,7 @@ def copy_file_node(*, user: str, host: str, identity_file: str, local_path: str,
                     test -d {path}
                 """.format(path=shlex.quote(remote_dir)))
         except Exception as e:
+            # TODO: Catch more specific exception.
             raise Exception("Remote directory does not exist: {d}".format(d=remote_dir))
 
         with ssh_client.open_sftp() as sftp:
@@ -851,3 +618,10 @@ def copy_file_node(*, user: str, host: str, identity_file: str, local_path: str,
             sftp.put(localpath=local_path, remotepath=remote_path)
 
             print("[{h}] Copy complete.".format(h=host))
+
+
+# This is necessary down here since we have a circular import dependency between
+# core.py and services.py. I've thought about how to remove this circular dependency,
+# but for now this seems like what we need to go with.
+# Flintrock modules
+from .services import HDFS, Spark  # Used by start_cluster()

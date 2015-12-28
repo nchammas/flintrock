@@ -11,8 +11,8 @@ import yaml
 
 # Flintrock modules
 from . import ec2
-from .core import HDFS, Spark
 from flintrock import __version__
+from .services import HDFS, Spark  # TODO: Remove this dependency.
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 

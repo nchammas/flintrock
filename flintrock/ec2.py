@@ -1,5 +1,4 @@
 import functools
-import itertools
 import os
 import string
 import sys
@@ -17,7 +16,6 @@ import click
 from .core import FlintrockCluster
 from .core import format_message, generate_ssh_key_pair
 from .core import ssh
-from .core import HDFS, Spark  # Used by start_ec2
 from .core import provision_cluster
 from .core import start_cluster
 from .core import run_command_cluster
