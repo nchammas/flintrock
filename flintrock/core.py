@@ -236,15 +236,15 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
 def provision_cluster(
         *,
         cluster: FlintrockCluster,
-        modules: list,
+        services: list,
         user: str,
         identity_file: str):
     """
-    Connect to a freshly launched cluster and install the specified modules.
+    Connect to a freshly launched cluster and install the specified services.
     """
     partial_func = functools.partial(
         provision_node,
-        modules=modules,
+        services=services,
         user=user,
         identity_file=identity_file,
         cluster=cluster)
@@ -264,7 +264,7 @@ def provision_cluster(
         # TODO: This manifest may need to be more full-featured to support
         #       adding nodes to a cluster.
         manifest = {
-            'modules': [[type(m).__name__, m.version] for m in modules]}
+            'services': [[type(m).__name__, m.version] for m in services]}
         # The manifest tells us how the cluster is configured. We'll need this
         # when we resize the cluster or restart it.
         ssh_check_output(
@@ -275,31 +275,31 @@ def provision_cluster(
                 m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
                 u=shlex.quote(user)))
 
-        for module in modules:
-            module.configure_master(
+        for service in services:
+            service.configure_master(
                 ssh_client=master_ssh_client,
                 cluster=cluster)
 
     # NOTE: We sleep here so that the slave services have time to come up.
     #       If we refactor stuff to have a start_slave() that blocks until
     #       the slave is fully up, then we won't need this sleep anymore.
-    if modules:
+    if services:
         time.sleep(30)
 
-    for module in modules:
-        module.health_check(master_host=cluster.master_host)
+    for service in services:
+        service.health_check(master_host=cluster.master_host)
 
 
 def provision_node(
         *,
-        modules: list,
+        services: list,
         user: str,
         host: str,
         identity_file: str,
         cluster: FlintrockCluster):
     """
     Connect to a freshly launched node, set it up for SSH access, configure ephemeral
-    storage, and install the specified modules.
+    storage, and install the specified services.
 
     This method is role-agnostic; it runs on both the cluster master and slaves.
     This method is meant to be called asynchronously.
@@ -364,11 +364,11 @@ def provision_node(
                     source /etc/environment
                 """)
 
-        for module in modules:
-            module.install(
+        for service in services:
+            service.install(
                 ssh_client=client,
                 cluster=cluster)
-            module.configure(
+            service.configure(
                 ssh_client=client,
                 cluster=cluster)
 
@@ -390,8 +390,8 @@ def start_cluster(*, cluster: FlintrockCluster, user: str, identity_file: str):
                 cat /home/{u}/.flintrock-manifest.json
             """.format(u=shlex.quote(user)))
         # TODO: Reconsider where this belongs. In the manifest? We can implement
-        #       ephemeral storage support as a Flintrock module, and add methods to
-        #       serialize and deserialize critical module info like installed versions
+        #       ephemeral storage support as a Flintrock service, and add methods to
+        #       serialize and deserialize critical service info like installed versions
         #       or ephemeral drives to the to/from the manifest.
         #       Another approach is to auto-detect storage inside a start_node()
         #       method. Yet another approach is to determine storage upfront by the
@@ -415,16 +415,16 @@ def start_cluster(*, cluster: FlintrockCluster, user: str, identity_file: str):
     # TODO: This smells. We are mutating an input to this method.
     cluster.storage_dirs = storage_dirs
 
-    modules = []
-    for [module_name, version] in manifest['modules']:
+    services = []
+    for [service_name, version] in manifest['services']:
         # TODO: Expose the classes being used here.
         # TODO: Fix restarted cluster with Spark built from git version
-        module = globals()[module_name](version)
-        modules.append(module)
+        service = globals()[service_name](version)
+        services.append(service)
 
     partial_func = functools.partial(
         start_node,
-        modules=modules,
+        services=services,
         user=user,
         identity_file=identity_file,
         cluster=cluster)
@@ -438,24 +438,24 @@ def start_cluster(*, cluster: FlintrockCluster, user: str, identity_file: str):
         identity_file=identity_file)
 
     with master_ssh_client:
-        for module in modules:
-            module.configure_master(
+        for service in services:
+            service.configure_master(
                 ssh_client=master_ssh_client,
                 cluster=cluster)
 
     # NOTE: We sleep here so that the slave services have time to come up.
     #       If we refactor stuff to have a start_slave() that blocks until
     #       the slave is fully up, then we won't need this sleep anymore.
-    if modules:
+    if services:
         time.sleep(30)
 
-    for module in modules:
-        module.health_check(master_host=cluster.master_ip)
+    for service in services:
+        service.health_check(master_host=cluster.master_ip)
 
 
 def start_node(
         *,
-        modules: list,
+        services: list,
         user: str,
         host: str,
         identity_file: str,
@@ -475,7 +475,7 @@ def start_node(
 
     with ssh_client:
         # TODO: Consider consolidating ephemeral storage code under a dedicated
-        #       Flintrock module.
+        #       Flintrock service.
         if cluster.storage_dirs.ephemeral:
             ssh_check_output(
                 client=ssh_client,
@@ -485,8 +485,8 @@ def start_node(
                     u=user,
                     d=' '.join(cluster.storage_dirs.ephemeral)))
 
-        for module in modules:
-            module.configure(
+        for service in services:
+            service.configure(
                 ssh_client=ssh_client,
                 cluster=cluster)
 

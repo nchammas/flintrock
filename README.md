@@ -166,7 +166,7 @@ To setup and edit the default config file, call `flintrock configure`. You can a
 ```yaml
 provider: ec2
 
-modules:
+services:
   spark:
     version: 1.5.1
 
@@ -222,7 +222,7 @@ The spark-ec2 launch times are sourced from [SPARK-5189](https://issues.apache.o
 
 ### Advanced Storage Setup
 
-Flintrock automatically configures any available [ephemeral storage](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html) on the cluster and makes it available to installed modules like HDFS and Spark. This storage is fast and is perfect for use as a temporary store by those services.
+Flintrock automatically configures any available [ephemeral storage](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html) on the cluster and makes it available to installed services like HDFS and Spark. This storage is fast and is perfect for use as a temporary store by those services.
 
 ### Tests
 

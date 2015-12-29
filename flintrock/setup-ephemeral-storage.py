@@ -142,7 +142,7 @@ def mount_devices(devices):
 
 def create_root_dir():
     """
-    Create a folder that modules like HDFS and Spark can refer to to access
+    Create a folder that services like HDFS and Spark can refer to to access
     local storage on the root volume.
     """
     path = '/media/root'

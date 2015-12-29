@@ -55,7 +55,7 @@ class EC2Cluster(FlintrockCluster):
     def wait_for_state(self, state: str):
         """
         Wait for the cluster's instances to a reach a specific state.
-        The state of any modules installed on the cluster is a
+        The state of any services installed on the cluster is a
         separate matter.
 
         This method updates the cluster's instance metadata and
@@ -154,7 +154,7 @@ def get_or_create_ec2_security_groups(
         .read().decode('utf-8').strip())
     flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
 
-    # Modules should be responsible for registering what ports they want exposed.
+    # TODO: Services should be responsible for registering what ports they want exposed.
     client_rules = [
         # SSH
         SecurityGroupRule(
@@ -272,7 +272,7 @@ def launch_ec2(
         *,
         cluster_name,
         num_slaves,
-        modules,
+        services,
         assume_yes,
         key_name, identity_file,
         instance_type,
@@ -288,7 +288,7 @@ def launch_ec2(
         instance_initiated_shutdown_behavior="stop"):
     """
     Launch a fully functional cluster on EC2 with the specified configuration
-    and installed modules.
+    and installed services.
     """
     try:
         get_cluster_ec2(cluster_name=cluster_name, region=region)
@@ -406,7 +406,7 @@ def launch_ec2(
 
         provision_cluster(
             cluster=cluster,
-            modules=modules,
+            services=services,
             user=user,
             identity_file=identity_file)
 

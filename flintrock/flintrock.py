@@ -114,7 +114,7 @@ def launch(
     """
     Launch a new cluster.
     """
-    modules = []
+    services = []
 
     if install_hdfs:
         if not hdfs_version:
@@ -124,7 +124,7 @@ def launch(
                 file=sys.stderr)
             sys.exit(2)
         hdfs = HDFS(version=hdfs_version)
-        modules += [hdfs]
+        services += [hdfs]
     if install_spark:
         if ((not spark_version and not spark_git_commit) or
                 (spark_version and spark_git_commit)):
@@ -144,13 +144,13 @@ def launch(
                       "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
                 spark = Spark(git_commit=spark_git_commit,
                               git_repository=spark_git_repository)
-            modules += [spark]
+            services += [spark]
 
     if cli_context.obj['provider'] == 'ec2':
         return ec2.launch_ec2(
             cluster_name=cluster_name,
             num_slaves=num_slaves,
-            modules=modules,
+            services=services,
             assume_yes=assume_yes,
             key_name=ec2_key_name,
             identity_file=ec2_identity_file,
@@ -395,22 +395,30 @@ def config_to_click(config: dict) -> dict:
     Convert a dictionary of configurations loaded from a Flintrock config file
     to a dictionary that Click can use to set default options.
     """
-    module_configs = {}
+    service_configs = {}
 
     if 'modules' in config:
-        for module in config['modules']:
-            if config['modules'][module]:
-                module_configs.update(
-                    {module + '_' + k: v for (k, v) in config['modules'][module].items()})
+        print(
+            "WARNING: The name `modules` is deprecated and will be removed "
+            "in the next version of Flintrock.\n"
+            "Please update your config file to use `services` instead of `modules`.\n"
+            "You can do this by calling `flintrock configure`.")
+        config['services'] = config['modules']
+
+    if 'services' in config:
+        for service in config['services']:
+            if config['services'][service]:
+                service_configs.update(
+                    {service + '_' + k: v for (k, v) in config['services'][service].items()})
 
     ec2_configs = {
         'ec2_' + k: v for (k, v) in config['providers']['ec2'].items()}
 
-    click = {
+    click_map = {
         'launch': dict(
             list(config['launch'].items()) +
             list(ec2_configs.items()) +
-            list(module_configs.items())),
+            list(service_configs.items())),
         'describe': ec2_configs,
         'destroy': ec2_configs,
         'login': ec2_configs,
@@ -420,8 +428,7 @@ def config_to_click(config: dict) -> dict:
         'copy-file': ec2_configs,
     }
 
-    # TODO: Use a different name. click is a module.
-    return click
+    return click_map
 
 
 @cli.command()
