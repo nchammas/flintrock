@@ -12,10 +12,11 @@ import yaml
 # Flintrock modules
 from . import ec2
 from .exceptions import (
-    ClusterAlreadyExists,
-    ClusterInvalidState,
     UsageError,
-    NothingToDo)
+    UnsupportedProviderError,
+    NothingToDo,
+    ClusterAlreadyExists,
+    ClusterInvalidState)
 from flintrock import __version__
 from .services import HDFS, Spark  # TODO: Remove this dependency.
 
@@ -168,7 +169,7 @@ def launch(
             ebs_optimized=ec2_ebs_optimized,
             instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior)
     else:
-        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+        raise UnsupportedProviderError(cli_context.obj['provider'])
 
 
 @cli.command()
@@ -186,8 +187,7 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region):
             assume_yes=assume_yes,
             region=ec2_region)
     else:
-        # TODO: Create UnsupportedProviderException. (?)
-        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+        raise UnsupportedProviderError(cli_context.obj['provider'])
 
 
 @cli.command()
@@ -211,8 +211,7 @@ def describe(
             master_hostname_only=master_hostname_only,
             region=ec2_region)
     else:
-        # TODO: Create UnsupportedProviderException. (?)
-        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+        raise UnsupportedProviderError(cli_context.obj['provider'])
 
 
 # TODO: Provide different command or option for going straight to Spark Shell.
@@ -236,8 +235,7 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
             identity_file=ec2_identity_file,
             user=ec2_user)
     else:
-        # TODO: Create UnsupportedProviderException. (?)
-        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+        raise UnsupportedProviderError(cli_context.obj['provider'])
 
 
 @cli.command()
@@ -260,8 +258,7 @@ def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
             identity_file=ec2_identity_file,
             user=ec2_user)
     else:
-        # TODO: Create UnsupportedProviderException. (?)
-        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+        raise UnsupportedProviderError(cli_context.obj['provider'])
 
 
 @cli.command()
@@ -279,8 +276,7 @@ def stop(cli_context, cluster_name, ec2_region, assume_yes):
             region=ec2_region,
             assume_yes=assume_yes)
     else:
-        # TODO: Create UnsupportedProviderException. (?)
-        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+        raise UnsupportedProviderError(cli_context.obj['provider'])
 
 
 @cli.command(name='run-command')
@@ -321,8 +317,7 @@ def run_command(
             identity_file=ec2_identity_file,
             user=ec2_user)
     else:
-        # TODO: Create UnsupportedProviderException. (?)
-        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+        raise UnsupportedProviderError(cli_context.obj['provider'])
 
 
 @cli.command(name='copy-file')
@@ -375,8 +370,7 @@ def copy_file(
             user=ec2_user,
             assume_yes=assume_yes)
     else:
-        # TODO: Create UnsupportedProviderException. (?)
-        raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
+        raise UnsupportedProviderError(cli_context.obj['provider'])
 
 
 def normalize_keys(obj):
