@@ -1,7 +1,7 @@
 import compileall
 import os
 
-# External modules.
+# External modules
 import pep8
 import yaml
 

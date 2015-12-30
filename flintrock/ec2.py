@@ -20,7 +20,11 @@ from .core import provision_cluster
 from .core import start_cluster
 from .core import run_command_cluster
 from .core import copy_file_cluster
-from .exceptions import ClusterNotFound
+from .exceptions import (
+    ClusterNotFound,
+    ClusterAlreadyExists,
+    ClusterInvalidState,
+    NothingToDo)
 
 
 class EC2Cluster(FlintrockCluster):
@@ -192,7 +196,7 @@ def get_or_create_ec2_security_groups(
             flintrock_group.authorize(**rule._asdict())
         except boto.exception.EC2ResponseError as e:
             if e.error_code != 'InvalidPermission.Duplicate':
-                print("Error adding rule: {r}".format(r=rule))
+                print("Error adding rule: {r}".format(r=rule), file=sys.stderr)
                 raise
 
     # Rules for internal cluster communication.
@@ -230,7 +234,7 @@ def get_or_create_ec2_security_groups(
             cluster_group.authorize(**rule._asdict())
         except boto.exception.EC2ResponseError as e:
             if e.error_code != 'InvalidPermission.Duplicate':
-                print("Error adding rule: {r}".format(r=rule))
+                print("Error adding rule: {r}".format(r=rule), file=sys.stderr)
                 raise
 
     return [flintrock_group, cluster_group]
@@ -268,7 +272,7 @@ def get_ec2_block_device_map(
 
 
 @timeit
-def launch_ec2(
+def launch(
         *,
         cluster_name,
         num_slaves,
@@ -284,19 +288,18 @@ def launch_ec2(
         vpc_id, subnet_id,
         instance_profile_name,
         placement_group,
-        tenancy="default", ebs_optimized=False,
-        instance_initiated_shutdown_behavior="stop"):
-    """
-    Launch a fully functional cluster on EC2 with the specified configuration
-    and installed services.
-    """
+        tenancy='default',
+        ebs_optimized=False,
+        instance_initiated_shutdown_behavior='stop'):
     try:
-        get_cluster_ec2(cluster_name=cluster_name, region=region)
+        get_cluster(cluster_name=cluster_name, region=region)
     except ClusterNotFound as e:
         pass
     else:
-        print("Cluster already exists: {c}".format(c=cluster_name), file=sys.stderr)
-        sys.exit(1)
+        raise ClusterAlreadyExists(
+            "Cluster {c} already exists in region {r}.".format(
+                c=cluster_name,
+                r=region))
 
     try:
         security_groups = get_or_create_ec2_security_groups(
@@ -308,9 +311,10 @@ def launch_ec2(
             region=region)
     except boto.exception.EC2ResponseError as e:
         if e.error_code == 'InvalidAMIID.NotFound':
-            print("Error: Could not find {ami} in region {region}."
-                  .format(ami=ami, region=region), file=sys.stderr)
-            sys.exit(1)
+            raise Exception(
+                "Error: Could not find {ami} in region {region}.".format(
+                    ami=ami,
+                    region=region))
         else:
             raise
 
@@ -413,7 +417,6 @@ def launch_ec2(
     except (Exception, KeyboardInterrupt) as e:
         # TODO: Cleanup cluster security group here.
         print(e, file=sys.stderr)
-        raise
 
         if spot_requests:
             # TODO: Do this only if there are pending requests.
@@ -442,19 +445,19 @@ def launch_ec2(
                 connection.terminate_instances(
                     instance_ids=[instance.id for instance in cluster_instances])
 
-        sys.exit(1)
+        raise
 
 
-def get_cluster_ec2(*, cluster_name: str, region: str) -> EC2Cluster:
+def get_cluster(*, cluster_name: str, region: str) -> EC2Cluster:
     """
     Get an existing EC2 cluster.
     """
-    return get_clusters_ec2(
+    return get_clusters(
         cluster_names=[cluster_name],
         region=region)[0]
 
 
-def get_clusters_ec2(*, cluster_names: list=[], region: str) -> list:
+def get_clusters(*, cluster_names: list=[], region: str) -> list:
     """
     Get all the named clusters. If no names are given, get all clusters.
 
@@ -542,12 +545,8 @@ def _compose_cluster(*, name: str, region: str, instances: list) -> EC2Cluster:
 
 # assume_yes defaults to True here for library use (as opposed to command-line use,
 # where the default is configured via Click).
-def destroy_ec2(*, cluster_name, assume_yes=True, region):
-    try:
-        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-    except ClusterNotFound as e:
-        print(e, file=sys.stderr)
-        sys.exit(1)
+def destroy(*, cluster_name, assume_yes=True, region):
+    cluster = get_cluster(cluster_name=cluster_name, region=region)
 
     if not assume_yes:
         cluster.print()
@@ -580,20 +579,16 @@ def destroy_ec2(*, cluster_name, assume_yes=True, region):
     connection.delete_security_group(name='flintrock-' + cluster_name)
 
 
-def describe_ec2(*, cluster_name, master_hostname_only=False, region):
+def describe(*, cluster_name, master_hostname_only=False, region):
     if cluster_name:
-        try:
-            cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-        except ClusterNotFound as e:
-            print(e, file=sys.stderr)
-            sys.exit(1)
+        cluster = get_cluster(cluster_name=cluster_name, region=region)
 
         if master_hostname_only:
             print(cluster.master_host)
         else:
             cluster.print()
     else:
-        clusters = get_clusters_ec2(region=region)
+        clusters = get_clusters(region=region)
 
         if master_hostname_only:
             for cluster in sorted(clusters, key=lambda x: x.name):
@@ -609,13 +604,8 @@ def describe_ec2(*, cluster_name, master_hostname_only=False, region):
                     cluster.print()
 
 
-def login_ec2(cluster_name, region, identity_file, user):
-    try:
-        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-    except ClusterNotFound as e:
-        print(e, file=sys.stderr)
-        sys.exit(1)
-
+def login(cluster_name, region, identity_file, user):
+    cluster = get_cluster(cluster_name=cluster_name, region=region)
     ssh(
         user=user,
         host=cluster.master_ip,
@@ -623,22 +613,15 @@ def login_ec2(cluster_name, region, identity_file, user):
 
 
 @timeit
-def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
-    """
-    Start an existing, stopped cluster on EC2.
-    """
-    try:
-        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-    except ClusterNotFound as e:
-        print(e, file=sys.stderr)
-        sys.exit(1)
+def start(*, cluster_name: str, region: str, identity_file: str, user: str):
+    cluster = get_cluster(cluster_name=cluster_name, region=region)
 
     if cluster.state == 'running':
-        print("Cluster is already running.")
-        sys.exit(0)
+        raise NothingToDo("Cluster is already running.")
     elif cluster.state != 'stopped':
-        print("Cannot start cluster in state:", cluster.state, file=sys.stderr)
-        sys.exit(1)
+        raise ClusterInvalidState(
+            attempted_command='start',
+            state=cluster.state)
 
     print("Starting {c} instances...".format(c=len(cluster.instances)))
     connection = boto.ec2.connect_to_region(region_name=region)
@@ -654,16 +637,15 @@ def start_ec2(*, cluster_name: str, region: str, identity_file: str, user: str):
 
 
 @timeit
-def stop_ec2(cluster_name, region, assume_yes=True):
-    try:
-        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-    except ClusterNotFound as e:
-        print(e, file=sys.stderr)
-        sys.exit(1)
+def stop(cluster_name, region, assume_yes=True):
+    cluster = get_cluster(cluster_name=cluster_name, region=region)
 
     if cluster.state == 'stopped':
-        print("Cluster is already stopped.")
-        sys.exit(0)
+        raise NothingToDo("Cluster is already stopped.")
+    elif cluster.state != 'running':
+        raise ClusterInvalidState(
+            attempted_command='stop',
+            state=cluster.state)
 
     if not assume_yes:
         cluster.print()
@@ -681,16 +663,13 @@ def stop_ec2(cluster_name, region, assume_yes=True):
 
 
 @timeit
-def run_command_ec2(cluster_name, command, master_only, region, identity_file, user):
-    try:
-        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-    except ClusterNotFound as e:
-        print(e, file=sys.stderr)
-        sys.exit(1)
+def run_command(cluster_name, command, master_only, region, identity_file, user):
+    cluster = get_cluster(cluster_name=cluster_name, region=region)
 
     if cluster.state != 'running':
-        print("Cannot run command against cluster in state:", cluster.state, file=sys.stderr)
-        sys.exit(1)
+        raise ClusterInvalidState(
+            attempted_command='run-command',
+            state=cluster.state)
 
     try:
         run_command_cluster(
@@ -700,21 +679,18 @@ def run_command_ec2(cluster_name, command, master_only, region, identity_file, u
             identity_file=identity_file,
             command=command)
     except Exception as e:
-        print("At least one node raised an error:", e, file=sys.stderr)
-        sys.exit(1)
+        # TODO: This needs to be moved inside run_command_cluster().
+        raise Exception("At least one node raised an error: " + str(e))
 
 
 @timeit
-def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, region, identity_file, user, assume_yes=True):
-    try:
-        cluster = get_cluster_ec2(cluster_name=cluster_name, region=region)
-    except ClusterNotFound as e:
-        print(e, file=sys.stderr)
-        sys.exit(1)
+def copy_file(*, cluster_name, local_path, remote_path, master_only=False, region, identity_file, user, assume_yes=True):
+    cluster = get_cluster(cluster_name=cluster_name, region=region)
 
     if cluster.state != 'running':
-        print("Cannot copy file to cluster in state:", cluster.state, file=sys.stderr)
-        sys.exit(1)
+        raise ClusterInvalidState(
+            attempted_command='copy-file',
+            state=cluster.state)
 
     # TODO: This `if` block needs to be factored out because it is not provider-
     #       specific. A future gce.py, for example, will need this same logic.
@@ -754,5 +730,5 @@ def copy_file_ec2(*, cluster_name, local_path, remote_path, master_only=False, r
             local_path=local_path,
             remote_path=remote_path)
     except Exception as e:
-        print("At least one node raised an error:", e, file=sys.stderr)
-        sys.exit(1)
+        # TODO: This needs to be moved inside copy_file_cluster().
+        raise Exception("At least one node raised an error: " + str(e))

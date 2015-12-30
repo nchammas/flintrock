@@ -11,6 +11,11 @@ import yaml
 
 # Flintrock modules
 from . import ec2
+from .exceptions import (
+    ClusterAlreadyExists,
+    ClusterInvalidState,
+    UsageError,
+    NothingToDo)
 from flintrock import __version__
 from .services import HDFS, Spark  # TODO: Remove this dependency.
 
@@ -118,24 +123,19 @@ def launch(
 
     if install_hdfs:
         if not hdfs_version:
-            # TODO: Custom exception for option dependencies.
-            print(
-                "Error: Cannot install HDFS. Missing option \"--hdfs-version\".",
-                file=sys.stderr)
-            sys.exit(2)
+            raise UsageError(
+                "Error: Cannot install HDFS. Missing option \"--hdfs-version\".")
         hdfs = HDFS(version=hdfs_version)
         services += [hdfs]
     if install_spark:
         if ((not spark_version and not spark_git_commit) or
                 (spark_version and spark_git_commit)):
             # TODO: API for capturing option dependencies like this.
-            print(
-                'Error: Cannot install Spark. Exactly one of "--spark-version" or '
-                '"--spark-git-commit" must be specified.',
-                file=sys.stderr)
-            print("--spark-version:", spark_version, file=sys.stderr)
-            print("--spark-git-commit:", spark_git_commit, file=sys.stderr)
-            sys.exit(2)
+            raise UsageError(
+                "Error: Cannot install Spark. Exactly one of \"--spark-version\" or "
+                "\"--spark-git-commit\" must be specified.\n"
+                "--spark-version: " + spark_version + "\n"
+                "--spark-git-commit: " + spark_git_commit)
         else:
             if spark_version:
                 spark = Spark(version=spark_version)
@@ -147,7 +147,7 @@ def launch(
             services += [spark]
 
     if cli_context.obj['provider'] == 'ec2':
-        return ec2.launch_ec2(
+        return ec2.launch(
             cluster_name=cluster_name,
             num_slaves=num_slaves,
             services=services,
@@ -173,19 +173,15 @@ def launch(
 
 @cli.command()
 @click.argument('cluster-name')
-# @click.confirmation_option(help="Are you sure you want to destroy this cluster?")
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
-# TODO: Always delete cluster security group. People shouldn't be adding stuff to it.
-#       Instead, provide option for cluster to be assigned to additional, pre-existing
-#       security groups.
 @click.pass_context
 def destroy(cli_context, cluster_name, assume_yes, ec2_region):
     """
     Destroy a cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.destroy_ec2(
+        ec2.destroy(
             cluster_name=cluster_name,
             assume_yes=assume_yes,
             region=ec2_region)
@@ -210,7 +206,7 @@ def describe(
     Leave out the cluster name to find all Flintrock-managed clusters.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.describe_ec2(
+        ec2.describe(
             cluster_name=cluster_name,
             master_hostname_only=master_hostname_only,
             region=ec2_region)
@@ -234,7 +230,7 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
     Login to the master of an existing cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.login_ec2(
+        ec2.login(
             cluster_name=cluster_name,
             region=ec2_region,
             identity_file=ec2_identity_file,
@@ -258,7 +254,7 @@ def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
     Start an existing, stopped cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.start_ec2(
+        ec2.start(
             cluster_name=cluster_name,
             region=ec2_region,
             identity_file=ec2_identity_file,
@@ -278,7 +274,10 @@ def stop(cli_context, cluster_name, ec2_region, assume_yes):
     Stop an existing, running cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.stop_ec2(cluster_name=cluster_name, region=ec2_region, assume_yes=assume_yes)
+        ec2.stop(
+            cluster_name=cluster_name,
+            region=ec2_region,
+            assume_yes=assume_yes)
     else:
         # TODO: Create UnsupportedProviderException. (?)
         raise Exception("This provider is not supported: {p}".format(p=cli_context.obj['provider']))
@@ -314,7 +313,7 @@ def run_command(
     while running the command.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.run_command_ec2(
+        ec2.run_command(
             cluster_name=cluster_name,
             command=command,
             master_only=master_only,
@@ -366,7 +365,7 @@ def copy_file(
         remote_path = posixpath.join(remote_path, os.path.basename(local_path))
 
     if cli_context.obj['provider'] == 'ec2':
-        ec2.copy_file_ec2(
+        ec2.copy_file(
             cluster_name=cluster_name,
             local_path=local_path,
             remote_path=remote_path,
@@ -473,11 +472,21 @@ def flintrock_is_in_development_mode() -> bool:
         return False
 
 
-def main():
+def main() -> int:
     if flintrock_is_in_development_mode():
         warnings.simplefilter(action='error', category=DeprecationWarning)
 
-    # We pass in obj so we can add attributes to it, like provider, which
-    # get shared by all commands.
-    # See: http://click.pocoo.org/6/api/#click.Context
-    cli(obj={})
+    try:
+        # We pass in obj so we can add attributes to it, like provider, which
+        # get shared by all commands.
+        # See: http://click.pocoo.org/6/api/#click.Context
+        cli(obj={})
+    except NothingToDo as e:
+        print(e)
+        return 0
+    except UsageError as e:
+        print(e, file=sys.stderr)
+        return 2
+    except Exception as e:
+        print(e, file=sys.stderr)
+        return 1
