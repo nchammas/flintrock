@@ -1,4 +1,4 @@
-import shlex
+import os
 import socket
 import subprocess
 import tempfile
@@ -15,17 +15,18 @@ def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
     communication.
     """
     with tempfile.TemporaryDirectory() as tempdir:
-        subprocess.check_call(
-            """
-            ssh-keygen -q -t rsa -N '' -f {key_file} -C flintrock
-            """.format(
-                key_file=shlex.quote(tempdir + "/flintrock_rsa")),
-            shell=True)
+        subprocess.check_call([
+            'ssh-keygen',
+            '-q',
+            '-t', 'rsa',
+            '-N', '',
+            '-f', os.path.join(tempdir, 'flintrock_rsa'),
+            '-C', 'flintrock'])
 
-        with open(file=tempdir + "/flintrock_rsa") as private_key_file:
+        with open(file=os.path.join(tempdir, 'flintrock_rsa')) as private_key_file:
             private_key = private_key_file.read()
 
-        with open(file=tempdir + "/flintrock_rsa.pub") as public_key_file:
+        with open(file=os.path.join(tempdir, 'flintrock_rsa.pub')) as public_key_file:
             public_key = public_key_file.read()
 
     return namedtuple('KeyPair', ['public', 'private'])(public_key, private_key)
