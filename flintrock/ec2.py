@@ -13,13 +13,13 @@ import click
 
 # Flintrock modules
 from .core import FlintrockCluster
-from .core import generate_ssh_key_pair
 from .core import provision_cluster
 from .exceptions import (
     ClusterNotFound,
     ClusterAlreadyExists,
     ClusterInvalidState,
     NothingToDo)
+from .ssh import generate_ssh_key_pair
 
 
 def timeit(func):

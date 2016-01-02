@@ -10,7 +10,7 @@ import paramiko
 
 # Flintrock modules
 from .core import FlintrockCluster
-from .core import ssh_check_output
+from .ssh import ssh_check_output
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
