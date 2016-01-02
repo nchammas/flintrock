@@ -8,12 +8,14 @@ import shlex
 import socket
 import subprocess
 import tempfile
-import textwrap
 import time
 from collections import namedtuple
 
 # External modules
 import paramiko
+
+# Flintrock modules
+from .exceptions import NodeError
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -50,6 +52,208 @@ class FlintrockCluster:
         self.slave_hosts = slave_hosts
         self.storage_dirs = storage_dirs
 
+    def destroy_check(self):
+        """
+        Check that the cluster is in a state in which it can be destroyed.
+
+        Providers should override this method since we have no way to perform
+        this check in a provider-agnostic way.
+        """
+        pass
+
+    def destroy(self):
+        """
+        Destroy the cluster and any resources created specifically to support
+        it.
+
+        Providers should override this method since we have no way to destroy a
+        cluster in a provider-agnostic way.
+
+        Nonetheless, this method should be called before the underlying provider
+        destroys the nodes. That way, if we ever add cleanup logic here to destroy
+        resources external to the cluster it will get executed correctly.
+        """
+        pass
+
+    def start_check(self):
+        """
+        Check that the cluster is in a state in which it can be started.
+
+        The interface can use this method to decide whether it needs to prompt
+        the user for confirmation. If the cluster cannot be started (e.g.
+        because it's already running) then we don't want to show a prompt.
+
+        Providers should override this method since we have no way to perform
+        this check in a provider-agnostic way.
+        """
+        pass
+
+    def start(self, *, user: str, identity_file: str):
+        """
+        Start up all the services installed on the cluster.
+
+        This method assumes that the nodes constituting cluster were just
+        started up by the provider (e.g. EC2, GCE, etc.) they're hosted on
+        and are running.
+        """
+        master_ssh_client = get_ssh_client(
+            user=user,
+            host=self.master_ip,
+            identity_file=identity_file)
+
+        with master_ssh_client:
+            manifest_raw = ssh_check_output(
+                client=master_ssh_client,
+                command="""
+                    cat /home/{u}/.flintrock-manifest.json
+                """.format(u=shlex.quote(user)))
+            # TODO: Reconsider where this belongs. In the manifest? We can implement
+            #       ephemeral storage support as a Flintrock service, and add methods to
+            #       serialize and deserialize critical service info like installed versions
+            #       or ephemeral drives to the to/from the manifest.
+            #       Another approach is to auto-detect storage inside a start_node()
+            #       method. Yet another approach is to determine storage upfront by the
+            #       instance type.
+            # NOTE: As for why we aren't using ls here, see:
+            #       http://mywiki.wooledge.org/ParsingLs
+            ephemeral_dirs_raw = ssh_check_output(
+                client=master_ssh_client,
+                command="""
+                    shopt -s nullglob
+                    for f in /media/ephemeral*; do
+                        echo "$f"
+                    done
+                """)
+
+        manifest = json.loads(manifest_raw)
+        storage_dirs = StorageDirs(
+            root='/media/root',
+            ephemeral=sorted(ephemeral_dirs_raw.splitlines()),
+            persistent=None)
+        self.storage_dirs = storage_dirs
+
+        services = []
+        for [service_name, version] in manifest['services']:
+            # TODO: Expose the classes being used here.
+            # TODO: Fix restarted cluster with Spark built from git version
+            service = globals()[service_name](version)
+            services.append(service)
+
+        partial_func = functools.partial(
+            start_node,
+            services=services,
+            user=user,
+            identity_file=identity_file,
+            cluster=self)
+        hosts = [self.master_ip] + self.slave_ips
+
+        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+
+        master_ssh_client = get_ssh_client(
+            user=user,
+            host=self.master_ip,
+            identity_file=identity_file)
+
+        with master_ssh_client:
+            for service in services:
+                service.configure_master(
+                    ssh_client=master_ssh_client,
+                    cluster=self)
+
+        # NOTE: We sleep here so that the slave services have time to come up.
+        #       If we refactor stuff to have a start_slave() that blocks until
+        #       the slave is fully up, then we won't need this sleep anymore.
+        if services:
+            time.sleep(30)
+
+        for service in services:
+            service.health_check(master_host=self.master_ip)
+
+    def stop_check(self):
+        """
+        Check that the cluster is in a state in which it can be stopped.
+
+        Providers should override this method since we have no way to perform
+        this check in a provider-agnostic way.
+        """
+        pass
+
+    def stop(self):
+        """
+        Prepare the cluster to be stopped by the underlying provider.
+
+        There's currently nothing to do here, but this method should be called
+        before the underlying provider stops the nodes.
+        """
+        pass
+
+    def run_command(
+            self,
+            *,
+            master_only: bool,
+            user: str,
+            identity_file: str,
+            command: tuple):
+        """
+        Run a shell command on each node of an existing cluster.
+
+        If master_only is True, then run the comand on the master only.
+        """
+        if master_only:
+            target_hosts = [self.master_ip]
+        else:
+            target_hosts = [self.master_ip] + self.slave_ips
+
+        partial_func = functools.partial(
+            run_command_node,
+            user=user,
+            identity_file=identity_file,
+            command=command)
+        hosts = target_hosts
+
+        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+
+    def copy_file(
+            self,
+            *,
+            master_only: bool,
+            user: str,
+            identity_file: str,
+            local_path: str,
+            remote_path: str):
+        """
+        Copy a file to each node of an existing cluster.
+
+        If master_only is True, then copy the file to the master only.
+        """
+        if master_only:
+            target_hosts = [self.master_ip]
+        else:
+            target_hosts = [self.master_ip] + self.slave_ips
+
+        partial_func = functools.partial(
+            copy_file_node,
+            user=user,
+            identity_file=identity_file,
+            local_path=local_path,
+            remote_path=remote_path)
+        hosts = target_hosts
+
+        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+
+    def login(
+            self,
+            *,
+            user: str,
+            identity_file: str):
+        """
+        Interactively SSH into the cluster master.
+        """
+        ssh(
+            host=self.master_ip,
+            user=user,
+            identity_file=identity_file)
+
     def generate_template_mapping(self, *, service: str) -> dict:
         """
         Convert a FlintrockCluster instance to a dictionary that we can use
@@ -78,17 +282,6 @@ class FlintrockCluster:
                 template_mapping.update({k: v})
 
         return template_mapping
-
-
-def format_message(*, message: str, indent: int=4, wrap: int=70):
-    """
-    Format a lengthy message for printing to screen.
-    """
-    return textwrap.indent(
-        textwrap.fill(
-            textwrap.dedent(text=message),
-            width=wrap),
-        prefix=' ' * indent)
 
 
 def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
@@ -221,6 +414,8 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
         # # Is this the right way to make sure no coroutine failed?
         # for future in done:
         #     future.result()
+    except Exception as e:
+        raise NodeError(str(e))
     finally:
         # TODO: Let KeyboardInterrupt cleanly cancel hung commands.
         #       Currently, we can't do this without dumping a large stack trace or
@@ -251,9 +446,6 @@ def provision_cluster(
     hosts = [cluster.master_ip] + cluster.slave_ips
 
     _run_asynchronously(partial_func=partial_func, hosts=hosts)
-
-    # print("All {c} instances provisioned.".format(
-    #     c=len(cluster_instances)))
 
     master_ssh_client = get_ssh_client(
         user=user,
@@ -373,86 +565,6 @@ def provision_node(
                 cluster=cluster)
 
 
-def start_cluster(*, cluster: FlintrockCluster, user: str, identity_file: str):
-    """
-    Connect to an existing cluster that has just been started up again and prepare it
-    for work.
-    """
-    master_ssh_client = get_ssh_client(
-        user=user,
-        host=cluster.master_ip,
-        identity_file=identity_file)
-
-    with master_ssh_client:
-        manifest_raw = ssh_check_output(
-            client=master_ssh_client,
-            command="""
-                cat /home/{u}/.flintrock-manifest.json
-            """.format(u=shlex.quote(user)))
-        # TODO: Reconsider where this belongs. In the manifest? We can implement
-        #       ephemeral storage support as a Flintrock service, and add methods to
-        #       serialize and deserialize critical service info like installed versions
-        #       or ephemeral drives to the to/from the manifest.
-        #       Another approach is to auto-detect storage inside a start_node()
-        #       method. Yet another approach is to determine storage upfront by the
-        #       instance type.
-        # NOTE: As for why we aren't using ls here, see:
-        #       http://mywiki.wooledge.org/ParsingLs
-        ephemeral_dirs_raw = ssh_check_output(
-            client=master_ssh_client,
-            command="""
-                shopt -s nullglob
-                for f in /media/ephemeral*; do
-                    echo "$f"
-                done
-            """)
-
-    manifest = json.loads(manifest_raw)
-    storage_dirs = StorageDirs(
-        root='/media/root',
-        ephemeral=sorted(ephemeral_dirs_raw.splitlines()),
-        persistent=None)
-    # TODO: This smells. We are mutating an input to this method.
-    cluster.storage_dirs = storage_dirs
-
-    services = []
-    for [service_name, version] in manifest['services']:
-        # TODO: Expose the classes being used here.
-        # TODO: Fix restarted cluster with Spark built from git version
-        service = globals()[service_name](version)
-        services.append(service)
-
-    partial_func = functools.partial(
-        start_node,
-        services=services,
-        user=user,
-        identity_file=identity_file,
-        cluster=cluster)
-    hosts = [cluster.master_ip] + cluster.slave_ips
-
-    _run_asynchronously(partial_func=partial_func, hosts=hosts)
-
-    master_ssh_client = get_ssh_client(
-        user=user,
-        host=cluster.master_ip,
-        identity_file=identity_file)
-
-    with master_ssh_client:
-        for service in services:
-            service.configure_master(
-                ssh_client=master_ssh_client,
-                cluster=cluster)
-
-    # NOTE: We sleep here so that the slave services have time to come up.
-    #       If we refactor stuff to have a start_slave() that blocks until
-    #       the slave is fully up, then we won't need this sleep anymore.
-    if services:
-        time.sleep(30)
-
-    for service in services:
-        service.health_check(master_host=cluster.master_ip)
-
-
 def start_node(
         *,
         services: list,
@@ -491,37 +603,6 @@ def start_node(
                 cluster=cluster)
 
 
-def run_command_cluster(
-        *,
-        master_only: bool,
-        cluster: FlintrockCluster,
-        user: str,
-        identity_file: str,
-        command: tuple):
-    """
-    Run a shell command on each node of an existing cluster.
-
-    If master_only is True, then run the comand on the master only.
-    """
-    if master_only:
-        target_hosts = [cluster.master_ip]
-    else:
-        target_hosts = [cluster.master_ip] + cluster.slave_ips
-
-    print("Running command on {c} instance{s}...".format(
-        c=len(target_hosts),
-        s='' if len(target_hosts) == 1 else 's'))
-
-    partial_func = functools.partial(
-        run_command_node,
-        user=user,
-        identity_file=identity_file,
-        command=command)
-    hosts = target_hosts
-
-    _run_asynchronously(partial_func=partial_func, hosts=hosts)
-
-
 def run_command_node(*, user: str, host: str, identity_file: str, command: tuple):
     """
     Run a shell command on a node.
@@ -545,39 +626,6 @@ def run_command_node(*, user: str, host: str, identity_file: str, command: tuple
             command=command_str)
 
     print("[{h}] Command complete.".format(h=host))
-
-
-def copy_file_cluster(
-        *,
-        master_only: bool,
-        cluster: FlintrockCluster,
-        user: str,
-        identity_file: str,
-        local_path: str,
-        remote_path: str):
-    """
-    Copy a file to each node of an existing cluster.
-
-    If master_only is True, then copy the file to the master only.
-    """
-    if master_only:
-        target_hosts = [cluster.master_ip]
-    else:
-        target_hosts = [cluster.master_ip] + cluster.slave_ips
-
-    print("Copying file to {c} instance{s}...".format(
-        c=len(target_hosts),
-        s='' if len(target_hosts) == 1 else 's'))
-
-    partial_func = functools.partial(
-        copy_file_node,
-        user=user,
-        identity_file=identity_file,
-        local_path=local_path,
-        remote_path=remote_path)
-    hosts = target_hosts
-
-    _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
 
 def copy_file_node(

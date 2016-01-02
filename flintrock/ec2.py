@@ -1,5 +1,4 @@
 import functools
-import os
 import string
 import sys
 import time
@@ -14,17 +13,24 @@ import click
 
 # Flintrock modules
 from .core import FlintrockCluster
-from .core import format_message, generate_ssh_key_pair
-from .core import ssh
+from .core import generate_ssh_key_pair
 from .core import provision_cluster
-from .core import start_cluster
-from .core import run_command_cluster
-from .core import copy_file_cluster
 from .exceptions import (
     ClusterNotFound,
     ClusterAlreadyExists,
     ClusterInvalidState,
     NothingToDo)
+
+
+def timeit(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = datetime.now().replace(microsecond=0)
+        res = func(*args, **kwargs)
+        end = datetime.now().replace(microsecond=0)
+        print("{f} finished in {t}.".format(f=func.__name__, t=(end - start)))
+        return res
+    return wrapper
 
 
 class EC2Cluster(FlintrockCluster):
@@ -79,6 +85,102 @@ class EC2Cluster(FlintrockCluster):
             self.slave_hosts = [i.public_dns_name for i in self.slave_instances]
             time.sleep(3)
 
+    def destroy(self):
+        self.destroy_check()
+        super().destroy()
+        connection = boto.ec2.connect_to_region(region_name=self.region)
+
+        # TODO: Centralize logic to get Flintrock base security group. (?)
+        flintrock_base_group = connection.get_all_security_groups(
+            groupnames=['flintrock'])
+
+        # We "unassign" the cluster security group here (i.e. the
+        # 'flintrock-clustername' group) so that we can immediately delete it once
+        # the instances are terminated. If we don't do this, we get dependency
+        # violations for a couple of minutes before we can actually delete the group.
+        # TODO: Is there a way to do this in one call for all instances?
+        #       Do we need to throttle these calls?
+        for instance in self.instances:
+            connection.modify_instance_attribute(
+                instance_id=instance.id,
+                attribute='groupSet',
+                value=flintrock_base_group)
+        # TODO: Centralize logic to get cluster security group name from cluster name.
+        connection.delete_security_group(name='flintrock-' + self.name)
+
+        connection.terminate_instances(
+            instance_ids=[instance.id for instance in self.instances])
+
+    def start_check(self):
+        if self.state == 'running':
+            raise NothingToDo("Cluster is already running.")
+        elif self.state != 'stopped':
+            raise ClusterInvalidState(
+                attempted_command='start',
+                state=self.state)
+
+    @timeit
+    def start(self, *, user: str, identity_file: str):
+        # TODO: Do these _check() methods make sense here?
+        self.start_check()
+        connection = boto.ec2.connect_to_region(region_name=self.region)
+        connection.start_instances(
+            instance_ids=[instance.id for instance in self.instances])
+        self.wait_for_state('running')
+
+        super().start(
+            user=user,
+            identity_file=identity_file)
+
+    def stop_check(self):
+        if self.state == 'stopped':
+            raise NothingToDo("Cluster is already stopped.")
+        elif self.state != 'running':
+            raise ClusterInvalidState(
+                attempted_command='stop',
+                state=self.state)
+
+    @timeit
+    def stop(self):
+        self.stop_check()
+        super().stop()
+
+        connection = boto.ec2.connect_to_region(region_name=self.region)
+        connection.stop_instances(
+            instance_ids=[instance.id for instance in self.instances])
+        self.wait_for_state('stopped')
+
+    def run_command_check(self):
+        if self.state != 'running':
+            raise ClusterInvalidState(
+                attempted_command='run-command',
+                state=self.state)
+
+    @timeit
+    def run_command(self, *, master_only, command, user, identity_file):
+        self.run_command_check()
+        super().run_command(
+            master_only=master_only,
+            user=user,
+            identity_file=identity_file,
+            command=command)
+
+    def copy_file_check(self):
+        if self.state != 'running':
+            raise ClusterInvalidState(
+                attempted_command='copy-file',
+                state=self.state)
+
+    @timeit
+    def copy_file(self, *, local_path, remote_path, master_only=False, user, identity_file):
+        self.copy_file_check()
+        super().copy_file(
+            master_only=master_only,
+            user=user,
+            identity_file=identity_file,
+            local_path=local_path,
+            remote_path=remote_path)
+
     def print(self):
         """
         Print information about the cluster to screen in YAML.
@@ -96,17 +198,6 @@ class EC2Cluster(FlintrockCluster):
             print('  master:', self.master_host)
             print('\n    - '.join(['  slaves:'] + self.slave_hosts))
         # print('...')
-
-
-def timeit(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        start = datetime.now().replace(microsecond=0)
-        res = func(*args, **kwargs)
-        end = datetime.now().replace(microsecond=0)
-        print("{f} finished in {t}.".format(f=func.__name__, t=(end - start)))
-        return res
-    return wrapper
 
 
 def get_or_create_ec2_security_groups(
@@ -541,194 +632,3 @@ def _compose_cluster(*, name: str, region: str, instances: list) -> EC2Cluster:
         slave_instances=slave_instances)
 
     return cluster
-
-
-# assume_yes defaults to True here for library use (as opposed to command-line use,
-# where the default is configured via Click).
-def destroy(*, cluster_name, assume_yes=True, region):
-    cluster = get_cluster(cluster_name=cluster_name, region=region)
-
-    if not assume_yes:
-        cluster.print()
-        click.confirm(
-            text="Are you sure you want to destroy this cluster?",
-            abort=True)
-
-    connection = boto.ec2.connect_to_region(region_name=region)
-
-    # TODO: Centralize logic to get Flintrock base security group. (?)
-    flintrock_base_group = connection.get_all_security_groups(groupnames=['flintrock'])
-    # We "unassign" the cluster security group here so that we can immediately delete
-    # it once the instances are terminated. If we don't do this, we get dependency
-    # violations for a couple of minutes before we can actually delete the group.
-    # TODO: Is there a way to do this in one call? Do we need to throttle these calls?
-    for instance in cluster.instances:
-        connection.modify_instance_attribute(
-            instance_id=instance.id,
-            attribute='groupSet',
-            value=flintrock_base_group)
-
-    # TODO: Figure out if we want to use "node" instead of "instance" when
-    #       communicating with the user, even if we're talking about doing things
-    #       to EC2 instances. Spark docs definitely favor "node".
-    print("Terminating {c} instances...".format(c=len(cluster.instances)))
-    connection.terminate_instances(
-        instance_ids=[instance.id for instance in cluster.instances])
-
-    # TODO: Centralize logic to get cluster security group name from cluster name.
-    connection.delete_security_group(name='flintrock-' + cluster_name)
-
-
-def describe(*, cluster_name, master_hostname_only=False, region):
-    if cluster_name:
-        cluster = get_cluster(cluster_name=cluster_name, region=region)
-
-        if master_hostname_only:
-            print(cluster.master_host)
-        else:
-            cluster.print()
-    else:
-        clusters = get_clusters(region=region)
-
-        if master_hostname_only:
-            for cluster in sorted(clusters, key=lambda x: x.name):
-                print(cluster.name + ':', cluster.master_host)
-        else:
-            print("{n} cluster{s} found in region {r}.".format(
-                n=len(clusters),
-                s='' if len(clusters) == 1 else 's',
-                r=region))
-            if clusters:
-                print('---')
-                for cluster in sorted(clusters, key=lambda x: x.name):
-                    cluster.print()
-
-
-def login(cluster_name, region, identity_file, user):
-    cluster = get_cluster(cluster_name=cluster_name, region=region)
-    ssh(
-        user=user,
-        host=cluster.master_ip,
-        identity_file=identity_file)
-
-
-@timeit
-def start(*, cluster_name: str, region: str, identity_file: str, user: str):
-    cluster = get_cluster(cluster_name=cluster_name, region=region)
-
-    if cluster.state == 'running':
-        raise NothingToDo("Cluster is already running.")
-    elif cluster.state != 'stopped':
-        raise ClusterInvalidState(
-            attempted_command='start',
-            state=cluster.state)
-
-    print("Starting {c} instances...".format(c=len(cluster.instances)))
-    connection = boto.ec2.connect_to_region(region_name=region)
-    connection.start_instances(
-        instance_ids=[instance.id for instance in cluster.instances])
-
-    cluster.wait_for_state('running')
-
-    start_cluster(
-        cluster=cluster,
-        user=user,
-        identity_file=identity_file)
-
-
-@timeit
-def stop(cluster_name, region, assume_yes=True):
-    cluster = get_cluster(cluster_name=cluster_name, region=region)
-
-    if cluster.state == 'stopped':
-        raise NothingToDo("Cluster is already stopped.")
-    elif cluster.state != 'running':
-        raise ClusterInvalidState(
-            attempted_command='stop',
-            state=cluster.state)
-
-    if not assume_yes:
-        cluster.print()
-        click.confirm(
-            text="Are you sure you want to stop this cluster?",
-            abort=True)
-
-    print("Stopping {c} instances...".format(c=len(cluster.instances)))
-    connection = boto.ec2.connect_to_region(region_name=region)
-    connection.stop_instances(
-        instance_ids=[instance.id for instance in cluster.instances])
-
-    cluster.wait_for_state('stopped')
-    print("{c} is now stopped.".format(c=cluster_name))
-
-
-@timeit
-def run_command(cluster_name, command, master_only, region, identity_file, user):
-    cluster = get_cluster(cluster_name=cluster_name, region=region)
-
-    if cluster.state != 'running':
-        raise ClusterInvalidState(
-            attempted_command='run-command',
-            state=cluster.state)
-
-    try:
-        run_command_cluster(
-            master_only=master_only,
-            cluster=cluster,
-            user=user,
-            identity_file=identity_file,
-            command=command)
-    except Exception as e:
-        # TODO: This needs to be moved inside run_command_cluster().
-        raise Exception("At least one node raised an error: " + str(e))
-
-
-@timeit
-def copy_file(*, cluster_name, local_path, remote_path, master_only=False, region, identity_file, user, assume_yes=True):
-    cluster = get_cluster(cluster_name=cluster_name, region=region)
-
-    if cluster.state != 'running':
-        raise ClusterInvalidState(
-            attempted_command='copy-file',
-            state=cluster.state)
-
-    # TODO: This `if` block needs to be factored out because it is not provider-
-    #       specific. A future gce.py, for example, will need this same logic.
-    if not assume_yes and not master_only:
-        file_size_bytes = os.path.getsize(local_path)
-        num_nodes = len(cluster.instances)
-        total_size_bytes = file_size_bytes * num_nodes
-
-        if total_size_bytes > 10 ** 6:
-            print("WARNING:")
-            print(
-                format_message(
-                    message="""\
-                        You are trying to upload {total_size} bytes ({size} bytes x {count}
-                        nodes in {cluster}). Depending on your upload bandwidth, this may take
-                        a long time.
-                        You may be better off uploading this file to a storage service like
-                        Amazon S3 and downloading it from there to the cluster using
-                        `flintrock run-command ...`.
-                        """.format(
-                            size=file_size_bytes,
-                            count=num_nodes,
-                            cluster=cluster_name,
-                            total_size=total_size_bytes),
-                    wrap=60))
-            click.confirm(
-                text="Are you sure you want to continue?",
-                default=True,
-                abort=True)
-
-    try:
-        copy_file_cluster(
-            master_only=master_only,
-            cluster=cluster,
-            user=user,
-            identity_file=identity_file,
-            local_path=local_path,
-            remote_path=remote_path)
-    except Exception as e:
-        # TODO: This needs to be moved inside copy_file_cluster().
-        raise Exception("At least one node raised an error: " + str(e))

@@ -3,6 +3,7 @@ import posixpath
 import errno
 import sys
 import shutil
+import textwrap
 import warnings
 
 # External modules
@@ -14,13 +15,22 @@ from . import ec2
 from .exceptions import (
     UsageError,
     UnsupportedProviderError,
-    NothingToDo,
-    ClusterAlreadyExists,
-    ClusterInvalidState)
+    NothingToDo)
 from flintrock import __version__
 from .services import HDFS, Spark  # TODO: Remove this dependency.
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+
+
+def format_message(*, message: str, indent: int=4, wrap: int=70):
+    """
+    Format a lengthy message for printing to screen.
+    """
+    return textwrap.indent(
+        textwrap.fill(
+            textwrap.dedent(text=message),
+            width=wrap),
+        prefix=' ' * indent)
 
 
 def get_config_file() -> str:
@@ -182,12 +192,20 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region):
     Destroy a cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.destroy(
+        cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            assume_yes=assume_yes,
             region=ec2_region)
     else:
         raise UnsupportedProviderError(cli_context.obj['provider'])
+
+    if not assume_yes:
+        cluster.print()
+        click.confirm(
+            text="Are you sure you want to destroy this cluster?",
+            abort=True)
+
+    print("Destroying {c}...".format(c=cluster.name))
+    cluster.destroy()
 
 
 @cli.command()
@@ -204,17 +222,48 @@ def describe(
     Describe an existing cluster.
 
     Leave out the cluster name to find all Flintrock-managed clusters.
+
+    The output of this command is both human- and machine-friendly. Full cluster
+    descriptions are output in YAML.
     """
+    search_area = ""
+
+    if cluster_name:
+        cluster_names = [cluster_name]
+    else:
+        cluster_names = []
+
     if cli_context.obj['provider'] == 'ec2':
-        ec2.describe(
-            cluster_name=cluster_name,
-            master_hostname_only=master_hostname_only,
+        search_area = "in region {r}".format(r=ec2_region)
+        clusters = ec2.get_clusters(
+            cluster_names=cluster_names,
             region=ec2_region)
     else:
         raise UnsupportedProviderError(cli_context.obj['provider'])
 
+    if cluster_name:
+        cluster = clusters[0]
+        if master_hostname_only:
+            print(cluster.master_host)
+        else:
+            cluster.print()
+    else:
+        if master_hostname_only:
+            for cluster in sorted(clusters, key=lambda x: x.name):
+                print(cluster.name + ':', cluster.master_host)
+        else:
+            print("Found {n} cluster{s}{space}{search_area}.".format(
+                n=len(clusters),
+                s='' if len(clusters) == 1 else 's',
+                space=' ' if search_area else '',
+                search_area=search_area))
+            if clusters:
+                print('---')
+                for cluster in sorted(clusters, key=lambda x: x.name):
+                    cluster.print()
 
-# TODO: Provide different command or option for going straight to Spark Shell.
+
+# TODO: Provide different command or option for going straight to Spark Shell. (?)
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--ec2-region', default='us-east-1', show_default=True)
@@ -229,13 +278,17 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
     Login to the master of an existing cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.login(
+        cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            region=ec2_region,
-            identity_file=ec2_identity_file,
-            user=ec2_user)
+            region=ec2_region)
+        user = ec2_user
+        identity_file = ec2_identity_file
     else:
         raise UnsupportedProviderError(cli_context.obj['provider'])
+
+    # TODO: Check that master up first and error out cleanly if not
+    #       via ClusterInvalidState.
+    cluster.login(user=user, identity_file=identity_file)
 
 
 @cli.command()
@@ -252,13 +305,17 @@ def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
     Start an existing, stopped cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.start(
+        cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            region=ec2_region,
-            identity_file=ec2_identity_file,
-            user=ec2_user)
+            region=ec2_region)
+        user = ec2_user
+        identity_file = ec2_identity_file
     else:
         raise UnsupportedProviderError(cli_context.obj['provider'])
+
+    cluster.start_check()
+    print("Starting {c}...".format(c=cluster_name))
+    cluster.start(user=user, identity_file=identity_file)
 
 
 @cli.command()
@@ -271,12 +328,23 @@ def stop(cli_context, cluster_name, ec2_region, assume_yes):
     Stop an existing, running cluster.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.stop(
+        cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            region=ec2_region,
-            assume_yes=assume_yes)
+            region=ec2_region)
     else:
         raise UnsupportedProviderError(cli_context.obj['provider'])
+
+    cluster.stop_check()
+
+    if not assume_yes:
+        cluster.print()
+        click.confirm(
+            text="Are you sure you want to stop this cluster?",
+            abort=True)
+
+    print("Stopping {c}...".format(c=cluster_name))
+    cluster.stop()
+    print("{c} is now stopped.".format(c=cluster_name))
 
 
 @cli.command(name='run-command')
@@ -309,15 +377,24 @@ def run_command(
     while running the command.
     """
     if cli_context.obj['provider'] == 'ec2':
-        ec2.run_command(
+        cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            command=command,
-            master_only=master_only,
-            region=ec2_region,
-            identity_file=ec2_identity_file,
-            user=ec2_user)
+            region=ec2_region)
+        user = ec2_user
+        identity_file = ec2_identity_file
     else:
         raise UnsupportedProviderError(cli_context.obj['provider'])
+
+    cluster.run_command_check()
+
+    print("Running command on {target}...".format(
+        target="master only" if master_only else "cluster"))
+
+    cluster.run_command(
+        command=command,
+        master_only=master_only,
+        user=user,
+        identity_file=identity_file)
 
 
 @cli.command(name='copy-file')
@@ -360,17 +437,52 @@ def copy_file(
         remote_path = posixpath.join(remote_path, os.path.basename(local_path))
 
     if cli_context.obj['provider'] == 'ec2':
-        ec2.copy_file(
+        cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            local_path=local_path,
-            remote_path=remote_path,
-            master_only=master_only,
-            region=ec2_region,
-            identity_file=ec2_identity_file,
-            user=ec2_user,
-            assume_yes=assume_yes)
+            region=ec2_region)
+        user = ec2_user
+        identity_file = ec2_identity_file
     else:
         raise UnsupportedProviderError(cli_context.obj['provider'])
+
+    cluster.copy_file_check()
+
+    if not assume_yes and not master_only:
+        file_size_bytes = os.path.getsize(local_path)
+        num_nodes = len(cluster.slave_ips) + 1  # TODO: cluster.num_nodes
+        total_size_bytes = file_size_bytes * num_nodes
+
+        if total_size_bytes > 10 ** 6:
+            print("WARNING:")
+            print(
+                format_message(
+                    message="""\
+                        You are trying to upload {total_size} bytes ({size} bytes x {count}
+                        nodes in {cluster}). Depending on your upload bandwidth, this may take
+                        a long time.
+                        You may be better off uploading this file to a storage service like
+                        Amazon S3 and downloading it from there to the cluster using
+                        `flintrock run-command ...`.
+                        """.format(
+                            size=file_size_bytes,
+                            count=num_nodes,
+                            cluster=cluster_name,
+                            total_size=total_size_bytes),
+                    wrap=60))
+            click.confirm(
+                text="Are you sure you want to continue?",
+                default=True,
+                abort=True)
+
+    print("Copying file to {target}...".format(
+        target="master only" if master_only else "cluster"))
+
+    cluster.copy_file(
+        local_path=local_path,
+        remote_path=remote_path,
+        master_only=master_only,
+        user=user,
+        identity_file=identity_file)
 
 
 def normalize_keys(obj):
