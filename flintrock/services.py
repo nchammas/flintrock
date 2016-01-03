@@ -13,6 +13,7 @@ from .core import FlintrockCluster
 from .ssh import ssh_check_output
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
 
 
 # TODO: Cache these files. (?) They are being read potentially tens or
@@ -113,7 +114,7 @@ class HDFS(FlintrockService):
 
         with ssh_client.open_sftp() as sftp:
             sftp.put(
-                localpath=os.path.join(THIS_DIR, 'download-hadoop.py'),
+                localpath=os.path.join(SCRIPTS_DIR, 'download-hadoop.py'),
                 remotepath='/tmp/download-hadoop.py')
 
         ssh_check_output(
@@ -214,7 +215,7 @@ class Spark(FlintrockService):
             if self.version:
                 with ssh_client.open_sftp() as sftp:
                     sftp.put(
-                        localpath=os.path.join(THIS_DIR, 'install-spark.sh'),
+                        localpath=os.path.join(SCRIPTS_DIR, 'install-spark.sh'),
                         remotepath='/tmp/install-spark.sh')
                     sftp.chmod(path='/tmp/install-spark.sh', mode=0o755)
                 ssh_check_output(

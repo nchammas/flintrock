@@ -12,6 +12,7 @@ from .exceptions import NodeError
 from .ssh import get_ssh_client, ssh_check_output, ssh
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
 
 
 class StorageDirs:
@@ -427,7 +428,7 @@ def provision_node(
 
         with client.open_sftp() as sftp:
             sftp.put(
-                localpath=os.path.join(THIS_DIR, 'setup-ephemeral-storage.py'),
+                localpath=os.path.join(SCRIPTS_DIR, 'setup-ephemeral-storage.py'),
                 remotepath='/tmp/setup-ephemeral-storage.py')
 
         print("[{h}] Configuring ephemeral storage...".format(h=host))
