@@ -45,7 +45,7 @@ py.test tests/test_static.py
 
 ## Acceptance Tests
 
-These tests launch and manipulate real clusters to test Flintrock's various commands and make sure installed modules like Spark are working correctly.
+These tests launch and manipulate real clusters to test Flintrock's various commands and make sure installed services like Spark are working correctly.
 
 ```sh
 py.test tests/test_acceptance.py

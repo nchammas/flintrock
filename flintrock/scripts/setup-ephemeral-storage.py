@@ -23,7 +23,6 @@ from __future__ import print_function
 
 import json
 import subprocess
-import sys
 from collections import namedtuple
 
 # Taken from: http://man7.org/linux/man-pages/man5/fstab.5.html
@@ -143,7 +142,7 @@ def mount_devices(devices):
 
 def create_root_dir():
     """
-    Create a folder that modules like HDFS and Spark can refer to to access
+    Create a folder that services like HDFS and Spark can refer to to access
     local storage on the root volume.
     """
     path = '/media/root'

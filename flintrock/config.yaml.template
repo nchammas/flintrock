@@ -1,4 +1,4 @@
-modules:
+services:
   spark:
     version: 1.5.2
     # git-commit:  # mutually exclusive with version

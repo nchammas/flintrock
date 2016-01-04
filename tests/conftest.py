@@ -5,7 +5,7 @@ import uuid
 
 from collections import namedtuple
 
-# External modules.
+# External modules
 import pytest
 
 HADOOP_VERSION = '2.7.1'

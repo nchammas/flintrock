@@ -16,7 +16,6 @@ Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
-    --no-install-hdfs \
     --spark-version 1.5.2 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
@@ -166,13 +165,12 @@ To setup and edit the default config file, call `flintrock configure`. You can a
 ```yaml
 provider: ec2
 
-modules:
+services:
   spark:
-    version: 1.5.1
+    version: 1.5.2
 
 launch:
   num-slaves: 1
-  install-hdfs: False
 
 ec2:
   key-name: key_name
@@ -222,7 +220,7 @@ The spark-ec2 launch times are sourced from [SPARK-5189](https://issues.apache.o
 
 ### Advanced Storage Setup
 
-Flintrock automatically configures any available [ephemeral storage](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html) on the cluster and makes it available to installed modules like HDFS and Spark. This storage is fast and is perfect for use as a temporary store by those services.
+Flintrock automatically configures any available [ephemeral storage](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html) on the cluster and makes it available to installed services like HDFS and Spark. This storage is fast and is perfect for use as a temporary store by those services.
 
 ### Tests
 
