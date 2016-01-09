@@ -4,6 +4,7 @@ import errno
 import sys
 import shutil
 import textwrap
+import traceback
 import warnings
 
 # External modules
@@ -15,7 +16,8 @@ from . import ec2
 from .exceptions import (
     UsageError,
     UnsupportedProviderError,
-    NothingToDo)
+    NothingToDo,
+    Error)
 from flintrock import __version__
 from .services import HDFS, Spark  # TODO: Remove this dependency.
 
@@ -31,6 +33,96 @@ def format_message(*, message: str, indent: int=4, wrap: int=70):
             textwrap.dedent(text=message),
             width=wrap),
         prefix=' ' * indent)
+
+
+def option_name_to_variable_name(option: str):
+    """
+    Convert an option name like `--ec2-user` to the Python name it gets mapped to,
+    like `ec2_user`.
+    """
+    return option.replace('--', '', 1).replace('-', '_')
+
+
+def variable_name_to_option_name(variable: str):
+    """
+    Convert a variable name like `ec2_user` to the Click option name it gets mapped to,
+    like `--ec2-user`.
+    """
+    return '--' + variable.replace('_', '-')
+
+
+def option_requires(
+        *,
+        option: str,
+        conditional_value=None,
+        requires_all: list=[],
+        requires_any: list=[],
+        scope: dict):
+    """
+    Raise an exception if an option's requirements are not met. If conditional_value
+    is not None, then only check the requirements if option is set to that value.
+
+    requires_all: Every option in this list must be defined.
+    requires_any: At least one option in this list must be defined.
+
+    This function looks for values by converting the option names to their
+    corresponding variable names (e.g. --option-a becomes option_a) and looking them
+    up in the provided scope.
+    """
+    if (conditional_value is None or
+            scope[option_name_to_variable_name(option)] == conditional_value):
+        if requires_all:
+            for required_option in requires_all:
+                required_name = option_name_to_variable_name(required_option)
+                if required_name not in scope or scope[required_name] is None:
+                    raise UsageError(
+                        'Error: Missing option "{missing_option}" is required by '
+                        '"{option}{space}{conditional_value}".'.format(
+                            missing_option=required_option,
+                            option=option,
+                            space=' ' if conditional_value is not None else '',
+                            conditional_value=conditional_value if conditional_value is not None else ''))
+        if requires_any:
+            for required_option in requires_any:
+                required_name = option_name_to_variable_name(required_option)
+                if required_name in scope and scope[required_name] is not None:
+                    break
+            else:
+                raise UsageError(
+                    'Error: "{option}{space}{conditional_value}" requires at least '
+                    'one of the following options to be set: {at_least}'.format(
+                        option=option,
+                        space=' ' if conditional_value is not None else '',
+                        conditional_value=conditional_value if conditional_value is not None else '',
+                        at_least=', '.join(['"' + ra + '"' for ra in requires_any])))
+
+
+def mutually_exclusive(*, options: list, scope: dict):
+    """
+    Raise an exception if more than one of the provided options is specified.
+
+    This function looks for values by converting the option names to their
+    corresponding variable names (e.g. --option-a becomes option_a) and looking them
+    up in the provided scope.
+    """
+    mutually_exclusive_names = [option_name_to_variable_name(o) for o in options]
+
+    used_options = set()
+    for name, value in scope.items():
+        if name in mutually_exclusive_names and scope[name]:  # is not None:
+            used_options.add(name)
+
+    if len(used_options) > 1:
+        bad_option1 = used_options.pop()
+        bad_option2 = used_options.pop()
+        raise UsageError(
+            'Error: "{option1}" and "{option2}" are mutually exclusive.\n'
+            '  {option1}: {value1}\n'
+            '  {option2}: {value2}'.format(
+                option1=variable_name_to_option_name(bad_option1),
+                value1=scope[bad_option1],
+                option2=variable_name_to_option_name(bad_option2),
+                value2=scope[bad_option2]))
 
 
 def get_config_file() -> str:
@@ -130,34 +222,50 @@ def launch(
     """
     Launch a new cluster.
     """
+    provider = cli_context.obj['provider']
     services = []
 
+    option_requires(
+        option='--install-hdfs',
+        requires_all=['--hdfs-version'],
+        scope=locals())
+    option_requires(
+        option='--install-spark',
+        requires_any=[
+            '--spark-version',
+            '--spark-git-commit'],
+        scope=locals())
+    mutually_exclusive(
+        options=[
+            '--spark-version',
+            '--spark-git-commit'],
+        scope=locals())
+    option_requires(
+        option='--provider',
+        conditional_value='ec2',
+        requires_all=[
+            '--ec2-key-name',
+            '--ec2-identity-file',
+            '--ec2-instance-type',
+            '--ec2-region',
+            '--ec2-ami',
+            '--ec2-user'],
+        scope=locals())
+
     if install_hdfs:
-        if not hdfs_version:
-            raise UsageError(
-                "Error: Cannot install HDFS. Missing option \"--hdfs-version\".")
         hdfs = HDFS(version=hdfs_version)
         services += [hdfs]
     if install_spark:
-        if ((not spark_version and not spark_git_commit) or
-                (spark_version and spark_git_commit)):
-            # TODO: API for capturing option dependencies like this.
-            raise UsageError(
-                "Error: Cannot install Spark. Exactly one of \"--spark-version\" or "
-                "\"--spark-git-commit\" must be specified.\n"
-                "--spark-version: " + spark_version + "\n"
-                "--spark-git-commit: " + spark_git_commit)
-        else:
-            if spark_version:
-                spark = Spark(version=spark_version)
-            elif spark_git_commit:
-                print("Warning: Building Spark takes a long time. "
-                      "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
-                spark = Spark(git_commit=spark_git_commit,
-                              git_repository=spark_git_repository)
-            services += [spark]
+        if spark_version:
+            spark = Spark(version=spark_version)
+        elif spark_git_commit:
+            print("Warning: Building Spark takes a long time. "
+                  "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
+            spark = Spark(git_commit=spark_git_commit,
+                          git_repository=spark_git_repository)
+        services += [spark]
 
-    if cli_context.obj['provider'] == 'ec2':
+    if provider == 'ec2':
         return ec2.launch(
             cluster_name=cluster_name,
             num_slaves=num_slaves,
@@ -179,7 +287,7 @@ def launch(
             ebs_optimized=ec2_ebs_optimized,
             instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior)
     else:
-        raise UnsupportedProviderError(cli_context.obj['provider'])
+        raise UnsupportedProviderError(provider)
 
 
 @cli.command()
@@ -191,12 +299,20 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region):
     """
     Destroy a cluster.
     """
-    if cli_context.obj['provider'] == 'ec2':
+    provider = cli_context.obj['provider']
+
+    option_requires(
+        option='--provider',
+        conditional_value='ec2',
+        requires_all=['--ec2-region'],
+        scope=locals())
+
+    if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
             region=ec2_region)
     else:
-        raise UnsupportedProviderError(cli_context.obj['provider'])
+        raise UnsupportedProviderError(provider)
 
     if not assume_yes:
         cluster.print()
@@ -226,20 +342,27 @@ def describe(
     The output of this command is both human- and machine-friendly. Full cluster
     descriptions are output in YAML.
     """
+    provider = cli_context.obj['provider']
     search_area = ""
+
+    option_requires(
+        option='--provider',
+        conditional_value='ec2',
+        requires_all=['--ec2-region'],
+        scope=locals())
 
     if cluster_name:
         cluster_names = [cluster_name]
     else:
         cluster_names = []
 
-    if cli_context.obj['provider'] == 'ec2':
+    if provider == 'ec2':
         search_area = "in region {r}".format(r=ec2_region)
         clusters = ec2.get_clusters(
             cluster_names=cluster_names,
             region=ec2_region)
     else:
-        raise UnsupportedProviderError(cli_context.obj['provider'])
+        raise UnsupportedProviderError(provider)
 
     if cluster_name:
         cluster = clusters[0]
@@ -277,14 +400,25 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
     """
     Login to the master of an existing cluster.
     """
-    if cli_context.obj['provider'] == 'ec2':
+    provider = cli_context.obj['provider']
+
+    option_requires(
+        option='--provider',
+        conditional_value='ec2',
+        requires_all=[
+            '--ec2-region',
+            '--ec2-identity-file',
+            '--ec2-user'],
+        scope=locals())
+
+    if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
             region=ec2_region)
         user = ec2_user
         identity_file = ec2_identity_file
     else:
-        raise UnsupportedProviderError(cli_context.obj['provider'])
+        raise UnsupportedProviderError(provider)
 
     # TODO: Check that master up first and error out cleanly if not
     #       via ClusterInvalidState.
@@ -304,14 +438,25 @@ def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
     """
     Start an existing, stopped cluster.
     """
-    if cli_context.obj['provider'] == 'ec2':
+    provider = cli_context.obj['provider']
+
+    option_requires(
+        option='--provider',
+        conditional_value='ec2',
+        requires_all=[
+            '--ec2-region',
+            '--ec2-identity-file',
+            '--ec2-user'],
+        scope=locals())
+
+    if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
             region=ec2_region)
         user = ec2_user
         identity_file = ec2_identity_file
     else:
-        raise UnsupportedProviderError(cli_context.obj['provider'])
+        raise UnsupportedProviderError(provider)
 
     cluster.start_check()
     print("Starting {c}...".format(c=cluster_name))
@@ -327,12 +472,20 @@ def stop(cli_context, cluster_name, ec2_region, assume_yes):
     """
     Stop an existing, running cluster.
     """
-    if cli_context.obj['provider'] == 'ec2':
+    provider = cli_context.obj['provider']
+
+    option_requires(
+        option='--provider',
+        conditional_value='ec2',
+        requires_all=['--ec2-region'],
+        scope=locals())
+
+    if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
             region=ec2_region)
     else:
-        raise UnsupportedProviderError(cli_context.obj['provider'])
+        raise UnsupportedProviderError(provider)
 
     cluster.stop_check()
 
@@ -376,14 +529,25 @@ def run_command(
     Flintrock will return a non-zero code if any of the cluster nodes raises an error
     while running the command.
     """
-    if cli_context.obj['provider'] == 'ec2':
+    provider = cli_context.obj['provider']
+
+    option_requires(
+        option='--provider',
+        conditional_value='ec2',
+        requires_all=[
+            '--ec2-region',
+            '--ec2-identity-file',
+            '--ec2-user'],
+        scope=locals())
+
+    if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
             region=ec2_region)
         user = ec2_user
         identity_file = ec2_identity_file
     else:
-        raise UnsupportedProviderError(cli_context.obj['provider'])
+        raise UnsupportedProviderError(provider)
 
     cluster.run_command_check()
 
@@ -431,19 +595,30 @@ def copy_file(
 
     Flintrock will return a non-zero code if any of the cluster nodes raises an error.
     """
+    provider = cli_context.obj['provider']
+
+    option_requires(
+        option='--provider',
+        conditional_value='ec2',
+        requires_all=[
+            '--ec2-region',
+            '--ec2-identity-file',
+            '--ec2-user'],
+        scope=locals())
+
     # We assume POSIX for the remote path since Flintrock
     # only supports clusters running CentOS / Amazon Linux.
     if not posixpath.basename(remote_path):
         remote_path = posixpath.join(remote_path, os.path.basename(local_path))
 
-    if cli_context.obj['provider'] == 'ec2':
+    if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
             region=ec2_region)
         user = ec2_user
         identity_file = ec2_identity_file
     else:
-        raise UnsupportedProviderError(cli_context.obj['provider'])
+        raise UnsupportedProviderError(provider)
 
     cluster.copy_file_check()
 
@@ -594,5 +769,9 @@ def main() -> int:
         print(e, file=sys.stderr)
         return 2
     except Exception as e:
+        if not isinstance(e, Error):
+            # This not one of our custom exceptions, so print
+            # a traceback to help the user debug.
+            traceback.print_tb(e.__traceback__, file=sys.stderr)
         print(e, file=sys.stderr)
         return 1
