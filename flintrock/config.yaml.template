@@ -1,6 +1,6 @@
 services:
   spark:
-    version: 1.5.2
+    version: 1.6.0
     # git-commit:  # mutually exclusive with version
     # git-repository:  # optional; defaults to https://github.com/apache/spark.git
   hdfs:
