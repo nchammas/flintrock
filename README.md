@@ -60,7 +60,7 @@ Before using Flintrock, take a quick look at the [copyright](https://github.com/
 
 Flintrock requires Python 3.4 or newer. It's currently been tested only on OS X, but it should run on all POSIX systems. We have plans to [add Windows support](https://github.com/nchammas/flintrock/issues/46) in the future, too.
 
-Eventually, we also plan to release stand-alone executables so that you can install Flintrock without having to worry about having Python installed.
+Eventually, we also plan to [release stand-alone executables](https://github.com/nchammas/flintrock/issues/75) so that you can install Flintrock without having to worry about having Python installed.
 
 ### Release version
 
