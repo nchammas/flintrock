@@ -1,4 +1,5 @@
 -r user.pip
 pep8 >= 1.6.2
 pytest >= 2.8.5
+pytest-cov >= 2.2.0
 # PyYAML  # requirement already covered by setup.py
