@@ -2,29 +2,34 @@ import os
 import subprocess
 import tempfile
 import uuid
-
-from collections import namedtuple
+from collections import OrderedDict
 
 # External modules
 import pytest
 
 HADOOP_VERSION = '2.7.1'
-SPARK_VERSION = '1.5.2'
+SPARK_VERSION = '1.6.0'
+SPARK_GIT_COMMIT = '4062cda3087ae42c6c3cb24508fc1d3a931accdf'  # 1.6.0
 
 
 def random_string():
     return str(uuid.uuid4())[:8]
 
 
-def launch_cluster(cluster_name, instance_type):
+def launch_cluster(
+        *,
+        cluster_name,
+        instance_type,
+        spark_version,
+        spark_git_commit):
     p = subprocess.run([
         'flintrock', 'launch', cluster_name,
         '--num-slaves', '1',
         '--install-hdfs',
         '--hdfs-version', HADOOP_VERSION,
         '--install-spark',
-        '--spark-version', SPARK_VERSION,
-        '--spark-git-commit', '',
+        '--spark-version', spark_version,
+        '--spark-git-commit', spark_git_commit,
         '--assume-yes',
         '--ec2-instance-type', instance_type])
     assert p.returncode == 0
@@ -42,13 +47,36 @@ def start_cluster(cluster_name):
     assert p.returncode == 0
 
 
-ClusterConfig = namedtuple('ClusterConfig', ['restarted', 'instance_type'])
+# TODO: This should reuse FlintrockCluster.
+class ClusterConfig:
+    def __init__(
+            self,
+            *,
+            restarted,
+            instance_type,
+            spark_version=SPARK_VERSION,
+            spark_git_commit=''):
+        self.restarted = restarted
+        self.instance_type = instance_type
+        self.spark_version = spark_version
+        self.spark_git_commit = spark_git_commit
+
+    def __str__(self):
+        return str(OrderedDict(sorted(vars(self).items())))
+
 
 cluster_configs = [
     ClusterConfig(restarted=False, instance_type='t2.small'),
     ClusterConfig(restarted=True, instance_type='t2.small'),
     ClusterConfig(restarted=False, instance_type='m3.medium'),
-    ClusterConfig(restarted=True, instance_type='m3.medium')]
+    ClusterConfig(restarted=True, instance_type='m3.medium'),
+    # We don't test all cluster states when building Spark because
+    # it takes a very long time.
+    ClusterConfig(
+        restarted=True,
+        instance_type='m3.xlarge',
+        spark_version='',
+        spark_git_commit=SPARK_GIT_COMMIT)]
 
 
 @pytest.fixture(
@@ -60,7 +88,11 @@ def running_cluster(request):
     Return the name of a running Flintrock cluster.
     """
     cluster_name = 'running-cluster-' + random_string()
-    launch_cluster(cluster_name, request.param.instance_type)
+    launch_cluster(
+        cluster_name=cluster_name,
+        instance_type=request.param.instance_type,
+        spark_version=request.param.spark_version,
+        spark_git_commit=request.param.spark_git_commit)
 
     if request.param.restarted:
         stop_cluster(cluster_name)

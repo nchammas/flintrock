@@ -597,6 +597,9 @@ def _get_cluster_name(instance: boto.ec2.instance.Instance) -> str:
     for group in instance.groups:
         if group.name.startswith('flintrock-'):
             return group.name.replace('flintrock-', '', 1)
+    else:
+        raise Exception("Could not extract cluster name from instance: {i}".format(
+            i=instance.id))
 
 
 def _get_cluster_master_slaves(instances: list) -> (boto.ec2.instance.Instance, list):

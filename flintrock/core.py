@@ -128,10 +128,9 @@ class FlintrockCluster:
         self.storage_dirs = storage_dirs
 
         services = []
-        for [service_name, version] in manifest['services']:
+        for [service_name, manifest] in manifest['services']:
             # TODO: Expose the classes being used here.
-            # TODO: Fix restarted cluster with Spark built from git version
-            service = globals()[service_name](version)
+            service = globals()[service_name](**manifest)
             services.append(service)
 
         partial_func = functools.partial(
@@ -363,10 +362,8 @@ def provision_cluster(
         identity_file=identity_file)
 
     with master_ssh_client:
-        # TODO: This manifest may need to be more full-featured to support
-        #       adding nodes to a cluster.
         manifest = {
-            'services': [[type(m).__name__, m.version] for m in services]}
+            'services': [[type(m).__name__, m.manifest] for m in services]}
         # The manifest tells us how the cluster is configured. We'll need this
         # when we resize the cluster or restart it.
         ssh_check_output(

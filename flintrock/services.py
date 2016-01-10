@@ -104,6 +104,7 @@ class FlintrockService:
 class HDFS(FlintrockService):
     def __init__(self, version):
         self.version = version
+        self.manifest = {'version': version}
 
     def install(
             self,
@@ -200,6 +201,11 @@ class Spark(FlintrockService):
         self.version = version
         self.git_commit = git_commit
         self.git_repository = git_repository
+
+        self.manifest = {
+            'version': version,
+            'git_commit': git_commit,
+            'git_repository': git_repository}
 
     def install(
             self,
