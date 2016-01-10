@@ -6,3 +6,4 @@ install:
   - "pip install -r requirements/developer.pip"
 script:
   - "py.test ./tests/test_static.py"
+  - "py.test ./tests/test_flintrock.py"

@@ -15,6 +15,7 @@ import click
 from .core import FlintrockCluster
 from .core import provision_cluster
 from .exceptions import (
+    Error,
     ClusterNotFound,
     ClusterAlreadyExists,
     ClusterInvalidState,
@@ -402,7 +403,7 @@ def launch(
             region=region)
     except boto.exception.EC2ResponseError as e:
         if e.error_code == 'InvalidAMIID.NotFound':
-            raise Exception(
+            raise Error(
                 "Error: Could not find {ami} in region {region}.".format(
                     ami=ami,
                     region=region))

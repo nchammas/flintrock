@@ -1,3 +1,7 @@
+class NothingToDo(Exception):
+    pass
+
+
 class UsageError(Exception):
     pass
 
@@ -9,19 +13,19 @@ class UnsupportedProviderError(UsageError):
         self.provider = provider
 
 
-class NothingToDo(Exception):
+class Error(Exception):
     pass
 
 
-class ClusterNotFound(Exception):
+class ClusterNotFound(Error):
     pass
 
 
-class ClusterAlreadyExists(Exception):
+class ClusterAlreadyExists(Error):
     pass
 
 
-class ClusterInvalidState(Exception):
+class ClusterInvalidState(Error):
     def __init__(self, *, attempted_command: str, state: str):
         super().__init__(
             "Cluster is in state '{s}'. Cannot execute {c}.".format(
@@ -31,7 +35,7 @@ class ClusterInvalidState(Exception):
         self.state = state
 
 
-class NodeError(Exception):
+class NodeError(Error):
     def __init__(self, error: str):
         super().__init__(
             "At least one node raised an error: " + error)
