@@ -35,6 +35,10 @@ class ClusterInvalidState(Error):
         self.state = state
 
 
+class SSHError(Error):
+    pass
+
+
 class NodeError(Error):
     def __init__(self, error: str):
         super().__init__(
