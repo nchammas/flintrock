@@ -8,7 +8,7 @@ import shlex
 import time
 
 # Flintrock modules
-from .exceptions import NodeError
+from .exceptions import SSHError, NodeError
 from .ssh import get_ssh_client, ssh_check_output, ssh
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -34,18 +34,58 @@ class FlintrockCluster:
             *,
             name,
             ssh_key_pair=None,
-            master_ip,
-            master_host,
-            slave_ips,
-            slave_hosts,
+            # master_ip,
+            # master_host,
+            # slave_ips,
+            # slave_hosts,
             storage_dirs=StorageDirs(root=None, ephemeral=None, persistent=None)):
         self.name = name
         self.ssh_key_pair = ssh_key_pair
-        self.master_ip = master_ip
-        self.master_host = master_host
-        self.slave_ips = slave_ips
-        self.slave_hosts = slave_hosts
+        # self.master_ip = None
+        # self.master_host = None
+        # self.slave_ips = []
+        # self.slave_hosts = []
         self.storage_dirs = storage_dirs
+
+    @property
+    def master_ip(self) -> str:
+        """
+        The IP address of the master.
+
+        Providers must override this property since it is typically derived from
+        an underlying object, like an EC2 instance.
+        """
+        raise NotImplementedError
+
+    @property
+    def master_host(self) -> str:
+        """
+        The hostname of the master.
+
+        Providers must override this property since it is typically derived from
+        an underlying object, like an EC2 instance.
+        """
+        raise NotImplementedError
+
+    @property
+    def slave_ips(self) -> 'List[str]':
+        """
+        A list of the IP addresses of the slaves.
+
+        Providers must override this property since it is typically derived from
+        an underlying object, like an EC2 instance.
+        """
+        raise NotImplementedError
+
+    @property
+    def slave_hosts(self) -> 'List[str]':
+        """
+        A list of the hostnames of the slaves.
+
+        Providers must override this property since it is typically derived from
+        an underlying object, like an EC2 instance.
+        """
+        raise NotImplementedError
 
     def destroy_check(self):
         """
@@ -269,30 +309,26 @@ class FlintrockCluster:
 
     def generate_template_mapping(self, *, service: str) -> dict:
         """
-        Convert a FlintrockCluster instance to a dictionary that we can use
+        Generate a template mapping from a FlintrockCluster instance that we can use
         to fill in template parameters.
         """
-        template_mapping = {}
+        root_dir = posixpath.join(self.storage_dirs.root, service)
+        ephemeral_dirs = ','.join(posixpath.join(path, service) for path in self.storage_dirs.ephemeral)
 
-        for k, v in vars(self).items():
-            if k == 'slave_hosts':
-                template_mapping.update({k: '\n'.join(v)})
-            elif k == 'storage_dirs':
-                template_mapping.update({
-                    'root_dir': v.root + '/' + service,
-                    'ephemeral_dirs': ','.join(path + '/' + service for path in v.ephemeral)})
+        template_mapping = {
+            'master_ip': self.master_ip,
+            'master_host': self.master_host,
+            'slave_ips': '\n'.join(self.slave_ips),
+            'slave_hosts': '\n'.join(self.slave_hosts),
+            'root_dir': root_dir,
+            'ephemeral_dirs': ephemeral_dirs,
 
-                # If ephemeral storage is available, it replaces the root volume, which is
-                # typically persistent. We don't want to mix persistent and ephemeral
-                # storage since that causes problems after cluster stop/start; some volumes
-                # have leftover data, whereas others start fresh.
-                root_ephemeral_dirs = template_mapping['root_dir']
-                if template_mapping['ephemeral_dirs']:
-                    root_ephemeral_dirs = template_mapping['ephemeral_dirs']
-                template_mapping.update({
-                    'root_ephemeral_dirs': root_ephemeral_dirs})
-            else:
-                template_mapping.update({k: v})
+            # If ephemeral storage is available, it replaces the root volume, which is
+            # typically persistent. We don't want to mix persistent and ephemeral
+            # storage since that causes problems after cluster stop/start; some volumes
+            # have leftover data, whereas others start fresh.
+            'root_ephemeral_dirs': ephemeral_dirs if ephemeral_dirs else root_dir,
+        }
 
         return template_mapping
 
@@ -323,7 +359,7 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
         # # Is this the right way to make sure no coroutine failed?
         # for future in done:
         #     future.result()
-    except Exception as e:
+    except SSHError as e:
         raise NodeError(str(e))
     finally:
         # TODO: Let KeyboardInterrupt cleanly cancel hung commands.

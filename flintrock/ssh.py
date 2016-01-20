@@ -8,6 +8,9 @@ from collections import namedtuple
 # External modules
 import paramiko
 
+# Flintrock modules
+from .exceptions import SSHError
+
 
 def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
     """
@@ -98,7 +101,7 @@ def ssh_check_output(client: paramiko.client.SSHClient, command: str):
         #       See: https://docs.python.org/3/library/subprocess.html#subprocess.check_output
         # NOTE: We are losing the output order here since output from stdout and stderr
         #       may be interleaved.
-        raise Exception(stdout_output + stderr_output)
+        raise SSHError(stdout_output + stderr_output)
 
     return stdout_output
 

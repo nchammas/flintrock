@@ -7,8 +7,8 @@ from collections import namedtuple
 from datetime import datetime
 
 # External modules
-import boto
-import boto.ec2
+import boto3
+import botocore
 import click
 
 # Flintrock modules
@@ -38,8 +38,8 @@ class EC2Cluster(FlintrockCluster):
     def __init__(
             self,
             region: str,
-            master_instance: boto.ec2.instance.Instance,
-            slave_instances: list,
+            master_instance: 'boto3.resources.factory.ec2.Instance',
+            slave_instances: "List[boto3.resources.factory.ec2.Instance]",
             *args,
             **kwargs):
         super().__init__(*args, **kwargs)
@@ -47,17 +47,30 @@ class EC2Cluster(FlintrockCluster):
         self.master_instance = master_instance
         self.slave_instances = slave_instances
 
-    # TODO: Should master/slave _ip/_hostname be dynamically derived
-    #       from the instances?
-
     @property
     def instances(self):
         return [self.master_instance] + self.slave_instances
 
     @property
+    def master_ip(self):
+        return self.master_instance.public_ip_address
+
+    @property
+    def master_host(self):
+        return self.master_instance.public_dns_name
+
+    @property
+    def slave_ips(self):
+        return [i.public_ip_address for i in self.slave_instances]
+
+    @property
+    def slave_hosts(self):
+        return [i.public_dns_name for i in self.slave_instances]
+
+    @property
     def state(self):
         instance_states = set(
-            instance.state for instance in self.instances)
+            instance.state['Name'] for instance in self.instances)
         if len(instance_states) == 1:
             return instance_states.pop()
         else:
@@ -72,28 +85,27 @@ class EC2Cluster(FlintrockCluster):
         This method updates the cluster's instance metadata and
         master and slave IP addresses and hostnames.
         """
-        connection = boto.ec2.connect_to_region(region_name=self.region)
-        while any([i.state != state for i in self.instances]):
+        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
+
+        while any([i.state['Name'] != state for i in self.instances]):
             # Update metadata for all instances in one shot. We don't want
             # to make a call to AWS for each of potentially hundreds of
             # instances.
-            instances = connection.get_only_instances(
-                instance_ids=[i.id for i in self.instances])
+            instances = list(
+                ec2.instances.filter(
+                    InstanceIds=[i.id for i in self.instances]))
             (self.master_instance, self.slave_instances) = _get_cluster_master_slaves(instances)
-            self.master_ip = self.master_instance.ip_address
-            self.master_host = self.master_instance.public_dns_name
-            self.slave_ips = [i.ip_address for i in self.slave_instances]
-            self.slave_hosts = [i.public_dns_name for i in self.slave_instances]
             time.sleep(3)
 
     def destroy(self):
         self.destroy_check()
         super().destroy()
-        connection = boto.ec2.connect_to_region(region_name=self.region)
+        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
 
         # TODO: Centralize logic to get Flintrock base security group. (?)
-        flintrock_base_group = connection.get_all_security_groups(
-            groupnames=['flintrock'])
+        flintrock_base_group = list(
+            ec2.security_groups.filter(
+                GroupNames=['flintrock']))[0]
 
         # We "unassign" the cluster security group here (i.e. the
         # 'flintrock-clustername' group) so that we can immediately delete it once
@@ -102,15 +114,15 @@ class EC2Cluster(FlintrockCluster):
         # TODO: Is there a way to do this in one call for all instances?
         #       Do we need to throttle these calls?
         for instance in self.instances:
-            connection.modify_instance_attribute(
-                instance_id=instance.id,
-                attribute='groupSet',
-                value=flintrock_base_group)
+            instance.modify_attribute(
+                Groups=[flintrock_base_group.id])
         # TODO: Centralize logic to get cluster security group name from cluster name.
-        connection.delete_security_group(name='flintrock-' + self.name)
+        for sg in ec2.security_groups.filter(GroupNames=['flintrock-' + self.name]):
+            sg.delete()
 
-        connection.terminate_instances(
-            instance_ids=[instance.id for instance in self.instances])
+        (ec2.instances
+            .filter(InstanceIds=[instance.id for instance in self.instances])
+            .terminate())
 
     def start_check(self):
         if self.state == 'running':
@@ -124,9 +136,10 @@ class EC2Cluster(FlintrockCluster):
     def start(self, *, user: str, identity_file: str):
         # TODO: Do these _check() methods make sense here?
         self.start_check()
-        connection = boto.ec2.connect_to_region(region_name=self.region)
-        connection.start_instances(
-            instance_ids=[instance.id for instance in self.instances])
+        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
+        (ec2.instances
+            .filter(InstanceIds=[instance.id for instance in self.instances])
+            .start())
         self.wait_for_state('running')
 
         super().start(
@@ -146,9 +159,10 @@ class EC2Cluster(FlintrockCluster):
         self.stop_check()
         super().stop()
 
-        connection = boto.ec2.connect_to_region(region_name=self.region)
-        connection.stop_instances(
-            instance_ids=[instance.id for instance in self.instances])
+        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
+        (ec2.instances
+            .filter(InstanceIds=[instance.id for instance in self.instances])
+            .stop())
         self.wait_for_state('stopped')
 
     def run_command_check(self):
@@ -205,12 +219,12 @@ def get_or_create_ec2_security_groups(
         *,
         cluster_name,
         vpc_id,
-        region) -> 'List[boto.ec2.securitygroup.SecurityGroup]':
+        region) -> "List[boto3.resource('ec2').SecurityGroup]":
     """
     If they do not already exist, create all the security groups needed for a
     Flintrock cluster.
     """
-    connection = boto.ec2.connect_to_region(region_name=region)
+    ec2 = boto3.resource(service_name='ec2', region_name=region)
 
     SecurityGroupRule = namedtuple(
         'SecurityGroupRule', [
@@ -225,24 +239,27 @@ def get_or_create_ec2_security_groups(
     flintrock_group_name = 'flintrock'
     cluster_group_name = 'flintrock-' + cluster_name
 
-    search_results = connection.get_all_security_groups(
-        filters={
-            'group-name': [flintrock_group_name, cluster_group_name]
-        })
-
     # The Flintrock group is common to all Flintrock clusters and authorizes client traffic
     # to them.
-    flintrock_group = next((sg for sg in search_results if sg.name == flintrock_group_name), None)
+    flintrock_group = list(
+        ec2.security_groups.filter(
+            Filters=[
+                {'Name': 'group-name', 'Values': [flintrock_group_name]}]))
+    flintrock_group = flintrock_group[0] if flintrock_group else None
 
     # The cluster group is specific to one Flintrock cluster and authorizes intra-cluster
     # communication.
-    cluster_group = next((sg for sg in search_results if sg.name == cluster_group_name), None)
+    cluster_group = list(
+        ec2.security_groups.filter(
+            Filters=[
+                {'Name': 'group-name', 'Values': [cluster_group_name]}]))
+    cluster_group = cluster_group[0] if cluster_group else None
 
     if not flintrock_group:
-        flintrock_group = connection.create_security_group(
-            name=flintrock_group_name,
-            description="Flintrock base group",
-            vpc_id=vpc_id)
+        flintrock_group = ec2.create_security_group(
+            GroupName=flintrock_group_name,
+            Description="Flintrock base group",
+            VpcId=vpc_id)
 
     # Rules for the client interacting with the cluster.
     flintrock_client_ip = (
@@ -285,82 +302,70 @@ def get_or_create_ec2_security_groups(
     # TODO: Add rules in one shot.
     for rule in client_rules:
         try:
-            flintrock_group.authorize(**rule._asdict())
-        except boto.exception.EC2ResponseError as e:
-            if e.error_code != 'InvalidPermission.Duplicate':
-                print("Error adding rule: {r}".format(r=rule), file=sys.stderr)
-                raise
+            flintrock_group.authorize_ingress(
+                IpProtocol=rule.ip_protocol,
+                FromPort=rule.from_port,
+                ToPort=rule.to_port,
+                CidrIp=rule.cidr_ip)
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] != 'InvalidPermission.Duplicate':
+                raise Exception("Error adding rule: {r}".format(r=rule))
 
     # Rules for internal cluster communication.
     if not cluster_group:
-        cluster_group = connection.create_security_group(
-            name=cluster_group_name,
-            description="Flintrock cluster group",
-            vpc_id=vpc_id)
+        cluster_group = ec2.create_security_group(
+            GroupName=cluster_group_name,
+            Description="Flintrock cluster group",
+            VpcId=vpc_id)
 
-    cluster_rules = [
-        SecurityGroupRule(
-            ip_protocol='icmp',
-            from_port=-1,
-            to_port=-1,
-            src_group=cluster_group,
-            cidr_ip=None),
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=0,
-            to_port=65535,
-            src_group=cluster_group,
-            cidr_ip=None),
-        SecurityGroupRule(
-            ip_protocol='udp',
-            from_port=0,
-            to_port=65535,
-            src_group=cluster_group,
-            cidr_ip=None)
-    ]
-
-    # TODO: Don't try adding rules that already exist.
-    # TODO: Add rules in one shot.
-    for rule in cluster_rules:
-        try:
-            cluster_group.authorize(**rule._asdict())
-        except boto.exception.EC2ResponseError as e:
-            if e.error_code != 'InvalidPermission.Duplicate':
-                print("Error adding rule: {r}".format(r=rule), file=sys.stderr)
-                raise
+    try:
+        cluster_group.authorize_ingress(
+            SourceSecurityGroupName=cluster_group.group_name)
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] != 'InvalidPermission.Duplicate':
+            raise Exception("Error authorizing cluster ingress to self.")
 
     return [flintrock_group, cluster_group]
 
 
-def get_ec2_block_device_map(
+def get_ec2_block_device_mappings(
         *,
         ami: str,
-        region: str) -> boto.ec2.blockdevicemapping.BlockDeviceMapping:
+        region: str) -> 'List[dict]':
     """
     Get the block device map we should assign to instances launched from a given AMI.
 
     This is how we configure storage on the instance.
     """
-    connection = boto.ec2.connect_to_region(region_name=region)
+    ec2 = boto3.resource(service_name='ec2', region_name=region)
+    block_device_mappings = []
 
-    image = connection.get_image(ami)
-    root_device = boto.ec2.blockdevicemapping.BlockDeviceType(
-        # Max root volume size for instance store-backed AMIs is 10 GiB.
-        # See: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/add-instance-store-volumes.html
-        size=30 if image.root_device_type == 'ebs' else 10,  # GiB
-        volume_type='gp2',  # general-purpose SSD
-        delete_on_termination=True)
+    image = list(
+        ec2.images.filter(ImageIds=[ami]))[0]
 
-    block_device_map = boto.ec2.blockdevicemapping.BlockDeviceMapping()
-    block_device_map[image.root_device_name] = root_device
+    if image.root_device_type == 'ebs':
+        root_device = [
+            device for device in image.block_device_mappings
+            if device['DeviceName'] == image.root_device_name][0]
+        root_device['Ebs'].update({
+            # Max root volume size for instance store-backed AMIs is 10 GiB.
+            # See: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/add-instance-store-volumes.html
+            # Though, this code is probably incorrect for instance store-backed
+            # instances anyway, since boto3 doesn't seem to let you set the size
+            # of a root instance store volume.
+            'VolumeSize': 30,
+            # gp2 is general-purpose SSD
+            'VolumeType': 'gp2'})
+        del root_device['Ebs']['Encrypted']
+        block_device_mappings.append(root_device)
 
     for i in range(12):
-        ephemeral_device = boto.ec2.blockdevicemapping.BlockDeviceType(
-            ephemeral_name='ephemeral' + str(i))
-        ephemeral_device_name = '/dev/sd' + string.ascii_lowercase[i + 1]
-        block_device_map[ephemeral_device_name] = ephemeral_device
+        ephemeral_device = {
+            'VirtualName': 'ephemeral' + str(i),
+            'DeviceName': '/dev/sd' + string.ascii_lowercase[i + 1]}
+        block_device_mappings.append(ephemeral_device)
 
-    return block_device_map
+    return block_device_mappings
 
 
 @timeit
@@ -398,11 +403,11 @@ def launch(
             cluster_name=cluster_name,
             vpc_id=vpc_id,
             region=region)
-        block_device_map = get_ec2_block_device_map(
+        block_device_mappings = get_ec2_block_device_mappings(
             ami=ami,
             region=region)
-    except boto.exception.EC2ResponseError as e:
-        if e.error_code == 'InvalidAMIID.NotFound':
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'InvalidAMIID.NotFound':
             raise Error(
                 "Error: Could not find {ami} in region {region}.".format(
                     ami=ami,
@@ -410,7 +415,7 @@ def launch(
         else:
             raise
 
-    connection = boto.ec2.connect_to_region(region_name=region)
+    ec2 = boto3.resource(service_name='ec2', region_name=region)
 
     num_instances = num_slaves + 1
     spot_requests = []
@@ -420,22 +425,25 @@ def launch(
         if spot_price:
             print("Requesting {c} spot instances at a max price of ${p}...".format(
                 c=num_instances, p=spot_price))
+            client = ec2.meta.client
+            spot_requests = client.request_spot_instances(
+                SpotPrice=str(spot_price),
+                InstanceCount=num_instances,
+                LaunchSpecification={
+                    'ImageId': ami,
+                    'KeyName': key_name,
+                    'InstanceType': instance_type,
+                    'BlockDeviceMappings': block_device_mappings,
+                    'Placement': {
+                        'AvailabilityZone': availability_zone,
+                        'GroupName': placement_group},
+                    'SecurityGroupIds': [sg.id for sg in security_groups],
+                    'SubnetId': subnet_id,
+                    'IamInstanceProfile': {
+                        'Name': instance_profile_name},
+                    'EbsOptimized': ebs_optimized})['SpotInstanceRequests']
 
-            spot_requests = connection.request_spot_instances(
-                price=spot_price,
-                image_id=ami,
-                count=num_instances,
-                key_name=key_name,
-                instance_type=instance_type,
-                block_device_map=block_device_map,
-                instance_profile_name=instance_profile_name,
-                placement=availability_zone,
-                security_group_ids=[sg.id for sg in security_groups],
-                subnet_id=subnet_id,
-                placement_group=placement_group,
-                ebs_optimized=ebs_optimized)
-
-            request_ids = [r.id for r in spot_requests]
+            request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
             pending_request_ids = request_ids
 
             while pending_request_ids:
@@ -443,59 +451,61 @@ def launch(
                     grant=num_instances - len(pending_request_ids),
                     req=num_instances))
                 time.sleep(30)
-                spot_requests = connection.get_all_spot_instance_requests(request_ids=request_ids)
-                pending_request_ids = [r.id for r in spot_requests if r.state != 'active']
+                spot_requests = client.describe_spot_instance_requests(
+                    SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
+                pending_request_ids = [
+                    r['SpotInstanceRequestId'] for r in spot_requests
+                    if r['State'] != 'active']
 
             print("All {c} instances granted.".format(c=num_instances))
 
-            cluster_instances = connection.get_only_instances(
-                instance_ids=[r.instance_id for r in spot_requests])
+            cluster_instances = list(
+                ec2.instances.filter(
+                    InstanceIds=[r['InstanceId'] for r in spot_requests]))
         else:
             print("Launching {c} instances...".format(c=num_instances))
 
-            reservation = connection.run_instances(
-                image_id=ami,
-                min_count=num_instances,
-                max_count=num_instances,
-                key_name=key_name,
-                instance_type=instance_type,
-                block_device_map=block_device_map,
-                placement=availability_zone,
-                security_group_ids=[sg.id for sg in security_groups],
-                subnet_id=subnet_id,
-                instance_profile_name=instance_profile_name,
-                placement_group=placement_group,
-                tenancy=tenancy,
-                ebs_optimized=ebs_optimized,
-                instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
+            cluster_instances = ec2.create_instances(
+                MinCount=num_instances,
+                MaxCount=num_instances,
+                ImageId=ami,
+                KeyName=key_name,
+                InstanceType=instance_type,
+                BlockDeviceMappings=block_device_mappings,
+                Placement={
+                    'AvailabilityZone': availability_zone,
+                    'Tenancy': tenancy,
+                    'GroupName': placement_group},
+                SecurityGroupIds=[sg.id for sg in security_groups],
+                SubnetId=subnet_id,
+                IamInstanceProfile={
+                    'Name': instance_profile_name},
+                EbsOptimized=ebs_optimized,
+                InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior)
 
-            cluster_instances = reservation.instances
-
-            time.sleep(10)  # AWS metadata eventual consistency tax.
+        time.sleep(10)  # AWS metadata eventual consistency tax.
 
         master_instance = cluster_instances[0]
         slave_instances = cluster_instances[1:]
 
-        connection.create_tags(
-            resource_ids=[master_instance.id],
-            tags={
-                'flintrock-role': 'master',
-                'Name': '{c}-master'.format(c=cluster_name)})
-        connection.create_tags(
-            resource_ids=[i.id for i in slave_instances],
-            tags={
-                'flintrock-role': 'slave',
-                'Name': '{c}-slave'.format(c=cluster_name)})
+        (ec2.instances
+            .filter(InstanceIds=[master_instance.id])
+            .create_tags(
+                Tags=[
+                    {'Key': 'flintrock-role', 'Value': 'master'},
+                    {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]))
+        (ec2.instances
+            .filter(InstanceIds=[i.id for i in slave_instances])
+            .create_tags(
+                Tags=[
+                    {'Key': 'flintrock-role', 'Value': 'slave'},
+                    {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]))
 
         cluster = EC2Cluster(
             name=cluster_name,
             region=region,
             ssh_key_pair=generate_ssh_key_pair(),
-            master_ip=None,
-            master_host=None,
             master_instance=master_instance,
-            slave_ips=None,
-            slave_hosts=None,
             slave_instances=slave_instances)
 
         cluster.wait_for_state('running')
@@ -511,18 +521,20 @@ def launch(
         print(e, file=sys.stderr)
 
         if spot_requests:
-            # TODO: Do this only if there are pending requests.
-            print("Canceling spot instance requests...", file=sys.stderr)
-            request_ids = [r.id for r in spot_requests]
-            connection.cancel_spot_instance_requests(
-                request_ids=request_ids)
+            request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
+            if any([r['State'] != 'active' for r in spot_requests]):
+                print("Canceling spot instance requests...", file=sys.stderr)
+                client.cancel_spot_instance_requests(
+                    SpotInstanceRequestIds=request_ids)
             # Make sure we have the latest information on any launched spot instances.
-            spot_requests = connection.get_all_spot_instance_requests(
-                request_ids=request_ids)
-            instance_ids = [r.instance_id for r in spot_requests if r.instance_id]
+            spot_requests = client.describe_spot_instance_requests(
+                SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
+            instance_ids = [
+                r['InstanceId'] for r in spot_requests
+                if 'InstanceId' in r]
             if instance_ids:
-                cluster_instances = connection.get_only_instances(
-                    instance_ids=instance_ids)
+                cluster_instances = list(
+                    ec2.instances.filter(InstanceIds=instance_ids))
 
         if cluster_instances:
             if not assume_yes:
@@ -534,8 +546,9 @@ def launch(
 
             if assume_yes or yes:
                 print("Terminating instances...", file=sys.stderr)
-                connection.terminate_instances(
-                    instance_ids=[instance.id for instance in cluster_instances])
+                (ec2.instances
+                    .filter(InstanceIds=[instance.id for instance in cluster_instances])
+                    .terminate())
 
         raise
 
@@ -557,17 +570,17 @@ def get_clusters(*, cluster_names: list=[], region: str) -> list:
     regardless of how many clusters we have to look up. That's because querying
     AWS -- a network operation -- is by far the slowest step.
     """
-    connection = boto.ec2.connect_to_region(region_name=region)
+    ec2 = boto3.resource(service_name='ec2', region_name=region)
 
     if cluster_names:
         group_name_filter = ['flintrock-' + cn for cn in cluster_names]
     else:
-        group_name_filter = 'flintrock'
+        group_name_filter = ['flintrock']
 
-    all_clusters_instances = connection.get_only_instances(
-        filters={
-            'instance.group-name': group_name_filter
-        })
+    all_clusters_instances = list(
+        ec2.instances.filter(
+            Filters=[
+                {'Name': 'instance.group-name', 'Values': group_name_filter}]))
 
     found_cluster_names = {
         _get_cluster_name(instance) for instance in all_clusters_instances}
@@ -590,31 +603,44 @@ def get_clusters(*, cluster_names: list=[], region: str) -> list:
     return clusters
 
 
-def _get_cluster_name(instance: boto.ec2.instance.Instance) -> str:
+def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:
     """
     Given an EC2 instance, get the name of the Flintrock cluster it belongs to.
     """
-    for group in instance.groups:
-        if group.name.startswith('flintrock-'):
-            return group.name.replace('flintrock-', '', 1)
+    for group in instance.security_groups:
+        if group['GroupName'].startswith('flintrock-'):
+            return group['GroupName'].replace('flintrock-', '', 1)
     else:
         raise Exception("Could not extract cluster name from instance: {i}".format(
             i=instance.id))
 
 
-def _get_cluster_master_slaves(instances: list) -> (boto.ec2.instance.Instance, list):
+def _get_cluster_master_slaves(
+        instances: list) -> ('boto3.resources.factory.ec2.Instance', list):
     """
     Get the master and slave instances from a set of raw EC2 instances representing
     a Flintrock cluster.
     """
-    # TODO: Raise clean errors if a cluster is malformed somehow.
-    #       e.g. No master, multiple masters, no slaves, etc.
-    master_instance = list(filter(
-        lambda x: x.tags['flintrock-role'] == 'master',
-        instances))[0]
-    slave_instances = list(filter(
-        lambda x: x.tags['flintrock-role'] == 'slave',
-        instances))
+    master_instance = None
+    slave_instances = []
+
+    for instance in instances:
+        for tag in instance.tags:
+            if tag['Key'] == 'flintrock-role':
+                if tag['Value'] == 'master':
+                    if master_instance is not None:
+                        raise Exception("More than one master found.")
+                    else:
+                        master_instance = instance
+                        break
+                elif tag['Value'] == 'slave':
+                    slave_instances.append(instance)
+
+    if not master_instance:
+        raise Exception("No master found.")
+    elif not slave_instances:
+        raise Exception("No slaves found.")
+
     return (master_instance, slave_instances)
 
 
@@ -627,10 +653,6 @@ def _compose_cluster(*, name: str, region: str, instances: list) -> EC2Cluster:
 
     cluster = EC2Cluster(
         name=name,
-        master_ip=master_instance.ip_address,
-        master_host=master_instance.public_dns_name,
-        slave_ips=[i.ip_address for i in slave_instances],
-        slave_hosts=[i.public_dns_name for i in slave_instances],
         region=region,
         master_instance=master_instance,
         slave_instances=slave_instances)

@@ -180,14 +180,16 @@ def cli(cli_context, config, provider):
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-instance-type', default='m3.medium', show_default=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
-@click.option('--ec2-availability-zone')
+# We set some of these defaults to empty strings because of boto3's parameter validation.
+# See: https://github.com/boto/boto3/issues/400
+@click.option('--ec2-availability-zone', default='')
 @click.option('--ec2-ami')
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
-@click.option('--ec2-vpc-id')
-@click.option('--ec2-subnet-id')
-@click.option('--ec2-instance-profile-name')
-@click.option('--ec2-placement-group')
+@click.option('--ec2-vpc-id', default='')
+@click.option('--ec2-subnet-id', default='')
+@click.option('--ec2-instance-profile-name', default='')
+@click.option('--ec2-placement-group', default='')
 @click.option('--ec2-tenancy', default='default')
 @click.option('--ec2-ebs-optimized/--no-ec2-ebs-optimized', default=False)
 @click.option('--ec2-instance-initiated-shutdown-behavior', default='stop',
