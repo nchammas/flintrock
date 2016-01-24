@@ -20,6 +20,7 @@ from .exceptions import (
     Error)
 from flintrock import __version__
 from .services import HDFS, Spark  # TODO: Remove this dependency.
+from .util import flintrock_is_in_development_mode
 
 FROZEN = getattr(sys, 'frozen', False)
 
@@ -741,23 +742,6 @@ def configure(cli_context, locate):
         os.chmod(config_file, mode=0o644)
 
     click.launch(config_file, locate=locate)
-
-
-def flintrock_is_in_development_mode() -> bool:
-    """
-    Check if Flintrock was installed in development mode.
-
-    Use this function to toggle behavior that only Flintrock developers should
-    see.
-    """
-    # This esoteric technique was pulled from pip.
-    # See: https://github.com/pypa/pip/pull/3258/files#diff-ab583908279e865537dec218246edcfcR310
-    for path_item in sys.path:
-        egg_link = os.path.join(path_item, 'Flintrock.egg-link')
-        if os.path.isfile(egg_link):
-            return True
-    else:
-        return False
 
 
 def set_open_files_limit(desired_limit):

@@ -23,6 +23,10 @@ if __name__ == '__main__':
             # We won't need this when this issue is resolved:
             # https://github.com/pyinstaller/pyinstaller/issues/1844
             '--hidden-import', 'html.parser',
+            # This hidden import is for AsyncSSH / Cryptography.
+            # It will become unnecessary with resolution of this issue:
+            # https://github.com/pyinstaller/pyinstaller/issues/1425
+            '--hidden-import', '_cffi_backend',
             'standalone.py'],
         check=True)
 

@@ -34,7 +34,6 @@ setuptools.setup(
 
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
     ],
     keywords=['Apache Spark'],
@@ -49,15 +48,11 @@ setuptools.setup(
     # totally break Flintrock.
     # For example: https://github.com/paramiko/paramiko/issues/615
     install_requires=[
+        'asyncssh == 1.5.2',
         'boto3 == 1.2.6',
         'botocore == 1.4.1',
         'click == 6.3',
-        'paramiko == 1.15.4',
-        'PyYAML == 3.11',
-        # This is to make PyInstaller work, since dateutil 2.5.0
-        # packaging appears to be broken.
-        # See: https://github.com/pyinstaller/pyinstaller/issues/1848
-        'python-dateutil == 2.4.2',
+        'PyYAML == 3.11'
     ],
 
     entry_points={
