@@ -5,6 +5,7 @@ venv/
 *example.py
 flintrock-logo/
 .hypothesis/
+*.prf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
