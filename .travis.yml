@@ -4,6 +4,13 @@ python:
   - "3.5"
 install:
   - "pip install -r requirements/developer.pip"
+  - "curl -L -o pandoc.deb https://github.com/jgm/pandoc/releases/download/1.16.0.2/pandoc-1.16.0.2-1-amd64.deb && sudo dpkg -i pandoc.deb"
 script:
   - "py.test ./tests/test_static.py"
   - "py.test ./tests/test_flintrock.py"
+  - "py.test ./tests/test_pyinstaller_packaging.py"
+addons:
+  artifacts:
+    paths:
+      - "dist/*.zip"
+  s3_region: "us-east-1"

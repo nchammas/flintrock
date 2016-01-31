@@ -12,7 +12,13 @@ import paramiko
 from .core import FlintrockCluster
 from .ssh import ssh_check_output
 
-THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+FROZEN = getattr(sys, 'frozen', False)
+
+if FROZEN:
+    THIS_DIR = sys._MEIPASS
+else:
+    THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+
 SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
 
 

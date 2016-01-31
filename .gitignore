@@ -6,6 +6,7 @@ venv/
 flintrock-logo/
 .hypothesis/
 *.prf
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

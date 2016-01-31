@@ -5,13 +5,20 @@ import json
 import os
 import posixpath
 import shlex
+import sys
 import time
 
 # Flintrock modules
 from .exceptions import SSHError, NodeError
 from .ssh import get_ssh_client, ssh_check_output, ssh
 
-THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+FROZEN = getattr(sys, 'frozen', False)
+
+if FROZEN:
+    THIS_DIR = sys._MEIPASS
+else:
+    THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+
 SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
 
 
