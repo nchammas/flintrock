@@ -21,7 +21,12 @@ from .exceptions import (
 from flintrock import __version__
 from .services import HDFS, Spark  # TODO: Remove this dependency.
 
-THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+FROZEN = getattr(sys, 'frozen', False)
+
+if FROZEN:
+    THIS_DIR = sys._MEIPASS
+else:
+    THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
 def format_message(*, message: str, indent: int=4, wrap: int=70):
