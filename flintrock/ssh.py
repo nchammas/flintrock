@@ -69,7 +69,10 @@ def get_ssh_client(
         except socket.timeout as e:
             time.sleep(5)
         except socket.error as e:
-            if e.errno != 61:
+            # Connection refused
+            # 61: OS X
+            # 111: Linux
+            if e.errno not in [61, 111]:
                 raise
             time.sleep(5)
         # We get this exception during startup with CentOS but not Amazon Linux,
