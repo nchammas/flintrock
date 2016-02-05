@@ -15,6 +15,7 @@
 * [`de33412`](https://github.com/nchammas/flintrock/commit/de3341221ca8d57f5a465b13f07c8e266ae11a59): Flintrock installs services, not modules. The terminology has been updated accordingly throughout the code and docs. Update your config file to use `services` instead of `modules`. **Warning**: Flintrock will have problems managing existing clusters that were launched with versions of Flintrock from before this change.
 * [#73](https://github.com/nchammas/flintrock/pull/73): Major refactoring of Flintrock internals.
 * [#74](https://github.com/nchammas/flintrock/pull/74): Flintrock now catches common configuration problems upfront and provides simple error messages, instead of barfing out errors from EC2 or launching broken clusters.
+* [`bf766ba`](https://github.com/nchammas/flintrock/commit/bf766ba48f12a8752c2e32f9b3daf29501c30866): Fixed a bug in how Flintrock polls SSH availability from Linux. Cluster launches now work from Linux as intended. 
 
 
 ## [0.1.0](https://github.com/nchammas/flintrock/releases/tag/v0.1.0) - 2015-12-11
