@@ -1,4 +1,5 @@
 import glob
+import runpy
 import subprocess
 import sys
 
@@ -14,9 +15,7 @@ def pyinstaller_exists():
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python 3.5+ is required")
 @pytest.mark.skipif(not pyinstaller_exists(), reason="PyInstaller is required")
 def test_pyinstaller_packaging():
-    subprocess.run(
-        ['python', 'generate-standalone-package.py'],
-        check=True)
+    runpy.run_path('generate-standalone-package.py', run_name='__main__')
     subprocess.run(
         ['./dist/flintrock/flintrock'],
         check=True)
