@@ -1,5 +1,6 @@
 import glob
 import runpy
+import shutil
 import subprocess
 import sys
 
@@ -8,8 +9,7 @@ import pytest
 
 
 def pyinstaller_exists():
-    s = subprocess.run(['command', '-v', 'pyinstaller'])
-    return s.returncode == 0
+    return shutil.which('pyinstaller') is not None
 
 
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python 3.5+ is required")
@@ -19,6 +19,13 @@ def test_pyinstaller_packaging():
         ['python', 'generate-standalone-package.py'],
         check=True)
     subprocess.run(
-        ['./dist/flintrock/flintrock'],
+        # Without explicitly setting the locale here, Click will complain
+        # when this test is run via GitHub Desktop that the locale is
+        # misconfigured.
+        """
+        export LANG=en_US.UTF-8
+        ./dist/flintrock/flintrock
+        """,
+        shell=True,
         check=True)
     assert glob.glob('./dist/*.zip')

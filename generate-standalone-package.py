@@ -8,8 +8,6 @@ from flintrock import __version__ as flintrock_version
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 if __name__ == '__main__':
-    import pprint
-    pprint.pprint(dict(os.environ))
     operating_system = platform.system()
     machine_type = platform.machine()
 
