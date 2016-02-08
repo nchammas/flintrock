@@ -1,11 +1,11 @@
 # Change Log
 
 
-## Unreleased
+## [Unreleased](https://github.com/nchammas/flintrock/compare/v0.2.0...master)
 
 Nothing yet.
 
-## 0.2.0
+## [0.2.0](https://github.com/nchammas/flintrock/compare/v0.1.0...v0.2.0)
 
 ### Added
 
