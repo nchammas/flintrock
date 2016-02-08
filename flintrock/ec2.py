@@ -323,7 +323,7 @@ def get_or_create_ec2_security_groups(
             SourceSecurityGroupName=cluster_group.group_name)
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] != 'InvalidPermission.Duplicate':
-            raise Exception("Error authorizing cluster ingress to self.")
+            raise Exception("Error authorizing cluster ingress to self.") from e
 
     return [flintrock_group, cluster_group]
 
