@@ -235,6 +235,8 @@ Flintrock is really fast. This is how quickly it can launch fully operational cl
 
 The spark-ec2 launch times are sourced from [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189).
 
+Note that AWS performance is highly variable, so you will not get these results consistently. They show the best case scenario for each tool, and not the typical case. For Flintrock, the typical launch time will be a minute or two longer.
+
 ### Advanced Storage Setup
 
 Flintrock automatically configures any available [ephemeral storage](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html) on the cluster and makes it available to installed services like HDFS and Spark. This storage is fast and is perfect for use as a temporary store by those services.
