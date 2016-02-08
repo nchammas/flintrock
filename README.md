@@ -58,16 +58,14 @@ That's not all. Flintrock has a few more [features](#features) that you may find
 
 Before using Flintrock, take a quick look at the [copyright](https://github.com/nchammas/flintrock/blob/master/COPYRIGHT) notice and [license](https://github.com/nchammas/flintrock/blob/master/LICENSE) and make sure you're OK with their terms.
 
-Flintrock requires Python 3.4 or newer. It's currently been tested only on OS X, but it should run on all POSIX systems. We have plans to [add Windows support](https://github.com/nchammas/flintrock/issues/46) in the future, too.
-
-Eventually, we also plan to [release stand-alone executables](https://github.com/nchammas/flintrock/issues/75) so that you can install Flintrock without having to worry about having Python installed.
+**Flintrock requires Python 3.4 or newer**, unless you are using one of our **standalone packages**. Flintrock has been thoroughly tested only on OS X, but it should run on all POSIX systems. We have plans to [add Windows support](https://github.com/nchammas/flintrock/issues/46) in the future, too.
 
 ### Release version
 
 To get the latest release of Flintrock, simply run [pip](https://pip.pypa.io/en/stable/):
 
 ```
-python3 -m pip install flintrock
+pip3 install flintrock
 ```
 
 This will install Flintrock and place it on your path. You should be good to go now!
@@ -78,6 +76,25 @@ You'll probably want to get started with the following two commands:
 flintrock --help
 flintrock configure
 ```
+
+### Standalone version (Python not required!)
+
+If you don't have a recent enough version of Python, or if you don't have Python installed at all, you can still use Flintrock. We publish standalone packages of Flintrock on GitHub with our [releases](https://github.com/nchammas/flintrock/releases).
+
+Find the standalone package for your OS under our [latest release](https://github.com/nchammas/flintrock/releases/latest), unzip it to a location of your choice, and run the `flintrock` executable inside.
+
+For example:
+
+```sh
+curl -LO https://github.com/nchammas/flintrock/releases/download/v0.2.0/flintrock-0.2.0-Darwin-x86_64.zip
+unzip -q -d flintrock flintrock-0.2.0-Darwin-x86_64.zip
+cd flintrock/
+
+# You're good to go!
+./flintrock --help
+```
+
+You'll probably want to add the location of the Flintrock executable to your `PATH` so that you can invoke it from any directory.
 
 ### Development version
 
@@ -94,8 +111,8 @@ source venv/bin/activate
 
 # Install Flintrock.
 # If you want to contribute, install the developer requirements.
-python3 -m pip install -r requirements/user.pip
-python3 -m pip install -r requirements/developer.pip
+pip3 install -r requirements/user.pip
+pip3 install -r requirements/developer.pip
 ```
 
 When you `git pull` the latest changes, don't forget to also rerun the `pip install` step so that Flintrock's dependencies stay up-to-date.
@@ -213,8 +230,8 @@ Flintrock is really fast. This is how quickly it can launch fully operational cl
 | Cluster Size  | Flintrock Launch Time |  spark-ec2 Launch Time  |
 |---------------|----------------------:|------------------------:|
 | 1 slave       | 2m 06s                |     8m 44s              |
-| 50 slaves     | 5m 12s                |    37m 30s              |
-| 100 slaves    | 8m 46s                | 1h 06m 05s              |
+| 50 slaves     | 2m 30s                |    37m 30s              |
+| 100 slaves    | 2m 42s                | 1h 06m 05s              |
 
 The spark-ec2 launch times are sourced from [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189).
 
