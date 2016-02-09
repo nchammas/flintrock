@@ -9,6 +9,8 @@ THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 if __name__ == '__main__':
     operating_system = platform.system()
+    if operating_system.lower() == 'darwin':
+        operating_system = 'OSX'
     machine_type = platform.machine()
 
     subprocess.run([
@@ -22,7 +24,7 @@ if __name__ == '__main__':
     shutil.make_archive(
         base_name=os.path.join(
             THIS_DIR, 'dist',
-            'flintrock-{v}-{os}-{m}'.format(
+            'Flintrock-{v}-standalone-{os}-{m}'.format(
                 v=flintrock_version,
                 os=operating_system,
                 m=machine_type)),
