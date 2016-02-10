@@ -16,6 +16,7 @@ if __name__ == '__main__':
     subprocess.run([
             'pyinstaller',
             '--noconfirm',
+            '--clean',
             '--name', 'flintrock',
             '--additional-hooks-dir', '.',
             'standalone.py'],
