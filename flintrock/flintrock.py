@@ -763,6 +763,7 @@ def flintrock_is_in_development_mode() -> bool:
 def main() -> int:
     if flintrock_is_in_development_mode():
         warnings.simplefilter(action='error', category=DeprecationWarning)
+        # warnings.simplefilter(action='always', category=ResourceWarning)
 
     try:
         # We pass in obj so we can add attributes to it, like provider, which
