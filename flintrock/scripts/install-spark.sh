@@ -26,6 +26,7 @@ while true; do
         exit 1
     else
         tries=$((tries + 1))
+        sleep 1
     fi
 done
 set -e
