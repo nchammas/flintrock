@@ -1,6 +1,7 @@
 import os
 import posixpath
 import errno
+import resource
 import sys
 import shutil
 import textwrap
@@ -760,10 +761,41 @@ def flintrock_is_in_development_mode() -> bool:
         return False
 
 
+def set_open_files_limit(desired_limit):
+    """
+    On POSIX systems, set the open files limit to the desired number, unless
+    it is already equal to or higher than that.
+
+    Setting a high limit enables Flintrock to launch or interact with really
+    large clusters.
+
+    Background discussion: https://github.com/nchammas/flintrock/issues/81
+    """
+    soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+
+    if soft_limit < desired_limit:
+        if desired_limit > hard_limit:
+            warnings.warn(
+                "Flintrock cannot set the open files limit to {l} "
+                "because the OS hard limit is {h}. Going with {h}. "
+                "You may have problems launching or interacting with "
+                "really large clusters."
+                .format(
+                    l=desired_limit,
+                    h=hard_limit),
+                category=RuntimeWarning,
+                stacklevel=2)
+        resource.setrlimit(
+            resource.RLIMIT_NOFILE,
+            (min(desired_limit, hard_limit), hard_limit))
+
+
 def main() -> int:
     if flintrock_is_in_development_mode():
         warnings.simplefilter(action='error', category=DeprecationWarning)
         # warnings.simplefilter(action='always', category=ResourceWarning)
+
+    set_open_files_limit(2048)
 
     try:
         # We pass in obj so we can add attributes to it, like provider, which
