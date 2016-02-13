@@ -795,7 +795,7 @@ def main() -> int:
         warnings.simplefilter(action='error', category=DeprecationWarning)
         # warnings.simplefilter(action='always', category=ResourceWarning)
 
-    set_open_files_limit(2048)
+    set_open_files_limit(4096)
 
     try:
         # We pass in obj so we can add attributes to it, like provider, which
