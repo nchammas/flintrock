@@ -4,14 +4,15 @@
 
 trash dist/ build/ Flintrock.egg-info/
 
-python3 setup.py sdist bdist_wheel
+python setup.py sdist bdist_wheel
 
-# python3 setup.py register -r https://testpypi.python.org/pypi
+# python setup.py register -r https://testpypi.python.org/pypi
 
 twine upload dist/* --repository pypitest
 
 python generate-standalone-package.py
 
+# Upload wheel to GitHub
 # Upload standalone package to GitHub
 # Update version to next.dev0
 # Update CHANGES links
