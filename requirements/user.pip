@@ -1,8 +1,7 @@
 # NOTE: Run pip from Flintrock's root directory, not from the directory containing
 #       this file.
 
-# Due to: https://github.com/pyinstaller/pyinstaller/issues/1781
-setuptools >= 19.0, <= 19.2
+setuptools >= 20.1.1
 
 # NOTE: The `-e .` syntax lets us reuse the requirements already specified under
 #       `install_requires` in setup.py.
