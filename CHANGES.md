@@ -1,7 +1,12 @@
 # Change Log
 
 
-## [Unreleased](https://github.com/nchammas/flintrock/compare/v0.2.0...master)
+## [Unreleased](https://github.com/nchammas/flintrock/compare/v0.3.0...master)
+
+Nothing yet.
+
+
+## [0.3.0](https://github.com/nchammas/flintrock/compare/v0.2.0...v0.3.0) - 2016-02-14
 
 ### Changed
 
