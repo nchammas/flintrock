@@ -3,9 +3,11 @@
 
 ## [Unreleased](https://github.com/nchammas/flintrock/compare/v0.2.0...master)
 
-Nothing yet.
+### Changed
 
-## [0.2.0](https://github.com/nchammas/flintrock/compare/v0.1.0...v0.2.0)
+* [`eca59fc`](https://github.com/nchammas/flintrock/commit/eca59fc0052874d9aa48b7d4d7d79192b5e609d1), [`3cf6ee6`](https://github.com/nchammas/flintrock/commit/3cf6ee64162ceaac6429d79c3bc6ef25988eaa8e): Tweaked a few things so that Flintrock can launch 200+ node clusters without hitting certain limits.
+
+## [0.2.0](https://github.com/nchammas/flintrock/compare/v0.1.0...v0.2.0) - 2016-02-07
 
 ### Added
 
