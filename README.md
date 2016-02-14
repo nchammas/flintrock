@@ -86,8 +86,8 @@ Find the standalone package for your OS under our [latest release](https://githu
 For example:
 
 ```sh
-curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v0.3.0/flintrock-0.3.0-OSX-x86_64.zip"
-unzip -q -d flintrock "flintrock-0.3.0-OSX-x86_64.zip"
+curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v0.3.0/Flintrock-0.3.0-standalone-OSX-x86_64.zip"
+unzip -q -d flintrock "Flintrock-0.3.0-standalone-OSX-x86_64.zip"
 cd flintrock/
 
 # You're good to go!
