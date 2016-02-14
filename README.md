@@ -86,8 +86,8 @@ Find the standalone package for your OS under our [latest release](https://githu
 For example:
 
 ```sh
-curl -LO https://github.com/nchammas/flintrock/releases/download/v0.2.0/flintrock-0.2.0-Darwin-x86_64.zip
-unzip -q -d flintrock flintrock-0.2.0-Darwin-x86_64.zip
+curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v0.3.0/flintrock-0.3.0-OSX-x86_64.zip"
+unzip -q -d flintrock "flintrock-0.3.0-OSX-x86_64.zip"
 cd flintrock/
 
 # You're good to go!
@@ -98,25 +98,13 @@ You'll probably want to add the location of the Flintrock executable to your `PA
 
 ### Development version
 
-If you like living on the edge, or if you want to [contribute](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md), install the development version of Flintrock:
+If you like living on the edge, install the development version of Flintrock:
 
 ```sh
-git clone https://github.com/nchammas/flintrock
-cd flintrock
-
-# Setup a virtual environment.
-# Optional, but *strongly recommended*.
-python3 -m venv venv
-source venv/bin/activate
-
-# Install Flintrock.
-# If you want to contribute, install the developer requirements.
-pip3 install -r requirements/user.pip
-pip3 install -r requirements/developer.pip
+pip3 install git+https://github.com/nchammas/flintrock
 ```
 
-When you `git pull` the latest changes, don't forget to also rerun the `pip install` step so that Flintrock's dependencies stay up-to-date.
-
+If you want to [contribute](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md), follow the instructions in our contributing guide on [how to install Flintrock](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md#contributing-code).
 
 ## Use Cases
 

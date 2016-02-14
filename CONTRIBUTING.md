@@ -52,6 +52,24 @@ Unless you explicitly tell us otherwise, when you contribute code you affirm tha
 
 Please make sure that you are OK with our license's terms before contributing code.
 
+### Setup
+
+If you agree to our license, the next thing you'll want to do is get Flintrock's source code and install its development dependencies.
+
+```sh
+git clone https://github.com/nchammas/flintrock
+cd flintrock
+
+# Setup a virtual environment.
+# Optional, but *strongly recommended*.
+python3 -m venv venv
+source venv/bin/activate
+
+pip3 install -r requirements/developer.pip
+```
+
+When you `git pull` the latest changes, don't forget to also rerun the `pip install` step so that Flintrock's dependencies stay up-to-date.
+
 ### Trivial bug fixes or changes
 
 If you're making a small change, go right ahead and open that pull request. There's no need to coordinate beforehand.
