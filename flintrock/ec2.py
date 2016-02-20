@@ -339,7 +339,10 @@ def get_ec2_block_device_mappings(
     """
     ec2 = boto3.resource(service_name='ec2', region_name=region)
     block_device_mappings = []
+    min_root_device_size_gb = 30
 
+    # An IndexError here is probably a sign of this problem:
+    # https://github.com/boto/boto3/issues/496
     image = list(
         ec2.images.filter(ImageIds=[ami]))[0]
 
@@ -347,15 +350,16 @@ def get_ec2_block_device_mappings(
         root_device = [
             device for device in image.block_device_mappings
             if device['DeviceName'] == image.root_device_name][0]
-        root_device['Ebs'].update({
-            # Max root volume size for instance store-backed AMIs is 10 GiB.
-            # See: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/add-instance-store-volumes.html
-            # Though, this code is probably incorrect for instance store-backed
-            # instances anyway, since boto3 doesn't seem to let you set the size
-            # of a root instance store volume.
-            'VolumeSize': 30,
-            # gp2 is general-purpose SSD
-            'VolumeType': 'gp2'})
+        if root_device['Ebs']['VolumeSize'] < min_root_device_size_gb:
+            root_device['Ebs'].update({
+                # Max root volume size for instance store-backed AMIs is 10 GiB.
+                # See: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/add-instance-store-volumes.html
+                # Though, this code is probably incorrect for instance store-backed
+                # instances anyway, since boto3 doesn't seem to let you set the size
+                # of a root instance store volume.
+                'VolumeSize': min_root_device_size_gb,
+                # gp2 is general-purpose SSD
+                'VolumeType': 'gp2'})
         del root_device['Ebs']['Encrypted']
         block_device_mappings.append(root_device)
 
@@ -453,9 +457,19 @@ def launch(
                 time.sleep(30)
                 spot_requests = client.describe_spot_instance_requests(
                     SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
+
+                failed_requests = [r for r in spot_requests if r['State'] == 'failed']
+                if failed_requests:
+                    failure_reasons = {r['Status']['Code'] for r in failed_requests}
+                    raise Error(
+                        "The spot request failed for the following reason{s}: {reasons}"
+                        .format(
+                            s='' if len(failure_reasons) == 1 else 's',
+                            reasons=', '.join(failure_reasons)))
+
                 pending_request_ids = [
                     r['SpotInstanceRequestId'] for r in spot_requests
-                    if r['State'] != 'active']
+                    if r['State'] == 'open']
 
             print("All {c} instances granted.".format(c=num_instances))
 
@@ -518,7 +532,7 @@ def launch(
 
     except (Exception, KeyboardInterrupt) as e:
         # TODO: Cleanup cluster security group here.
-        print(e, file=sys.stderr)
+        print("There was a problem with the launch. Cleaning up...", file=sys.stderr)
 
         if spot_requests:
             request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
