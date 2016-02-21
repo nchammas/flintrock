@@ -5,7 +5,6 @@ import resource
 import sys
 import shutil
 import textwrap
-import traceback
 import warnings
 
 # External modules
@@ -808,10 +807,6 @@ def main() -> int:
     except UsageError as e:
         print(e, file=sys.stderr)
         return 2
-    except Exception as e:
-        if not isinstance(e, Error):
-            # This not one of our custom exceptions, so print
-            # a traceback to help the user debug.
-            traceback.print_tb(e.__traceback__, file=sys.stderr)
+    except Error as e:
         print(e, file=sys.stderr)
         return 1
