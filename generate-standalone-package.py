@@ -19,6 +19,10 @@ if __name__ == '__main__':
             '--clean',
             '--name', 'flintrock',
             '--additional-hooks-dir', '.',
+            # This hidden import is introduced by botocore.
+            # We won't need this when this issue is resolved:
+            # https://github.com/pyinstaller/pyinstaller/issues/1844
+            '--hidden-import', 'html.parser',
             'standalone.py'],
         check=True)
 

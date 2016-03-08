@@ -49,9 +49,9 @@ setuptools.setup(
     # totally break Flintrock.
     # For example: https://github.com/paramiko/paramiko/issues/615
     install_requires=[
-        'boto3 == 1.2.3',
-        'botocore == 1.3.26',
-        'click == 6.2',
+        'boto3 == 1.2.6',
+        'botocore == 1.4.1',
+        'click == 6.3',
         'paramiko == 1.15.4',
         'PyYAML == 3.11'
     ],
