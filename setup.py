@@ -52,7 +52,11 @@ setuptools.setup(
         'boto3 == 1.2.6',
         'botocore == 1.4.1',
         'click == 6.3',
-        'PyYAML == 3.11'
+        'PyYAML == 3.11',
+        # This is to make PyInstaller work, since dateutil 2.5.0
+        # packaging appears to be broken.
+        # See: https://github.com/pyinstaller/pyinstaller/issues/1848
+        'python-dateutil == 2.4.2',
     ],
 
     entry_points={
