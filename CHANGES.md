@@ -3,7 +3,9 @@
 
 ## [Unreleased](https://github.com/nchammas/flintrock/compare/v0.3.0...master)
 
-Nothing yet.
+### Changed
+
+* [#86](https://github.com/nchammas/flintrock/pull/86): Flintrock now correctly catches when spot requests fail and bubbles up an appropriate error message.
 
 
 ## [0.3.0](https://github.com/nchammas/flintrock/compare/v0.2.0...v0.3.0) - 2016-02-14
