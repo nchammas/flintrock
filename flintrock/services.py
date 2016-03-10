@@ -254,7 +254,11 @@ class Spark(FlintrockService):
                         git clone {repo} spark
                         cd spark
                         git reset --hard {commit}
-                        ./make-distribution.sh -T 1C -Phadoop-2.6
+                        if [ -e "make-distribution.sh" ]; then
+                            ./make-distribution.sh -T 1C -Phadoop-2.6
+                        else
+                            ./dev/make-distribution.sh -Phadoop-2.6
+                        fi
                     """.format(
                         repo=shlex.quote(self.git_repository),
                         commit=shlex.quote(self.git_commit)))
