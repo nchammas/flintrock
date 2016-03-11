@@ -32,6 +32,7 @@ def test_option_name_to_variable_name_conversions():
 
 
 def test_option_requires():
+    some_option = 'something'
     unset_option = None
     set_option = '와 짠이다'
 
@@ -68,44 +69,43 @@ def test_option_requires():
 
 
 def test_option_requires_conditional_value():
-    with pytest.raises(Exception):
-        option_requires(
-            option='--some-option',
-            conditional_value='magic',
-            requires_any=[
-                '--set_option',
-                '--unset-option'],
-            scope=locals()
-        )
+    unset_option = None
+    set_option = '대박'
+
+    some_option = 'magic'
+    option_requires(
+        option='--some-option',
+        conditional_value='magic',
+        requires_any=[
+            '--set-option',
+            '--unset-option'],
+        scope=locals()
+    )
 
     some_option = 'not magic'
     option_requires(
         option='--some-option',
         conditional_value='magic',
         requires_any=[
-            '--set_option',
             '--unset-option'],
         scope=locals()
     )
 
-    some_option = 'magic'
+    some_option = ''
+    option_requires(
+        option='--some-option',
+        conditional_value='',
+        requires_any=[
+            '--unset-option'],
+        scope=locals()
+    )
+
     with pytest.raises(UsageError):
+        some_option = 'magic'
         option_requires(
             option='--some-option',
             conditional_value='magic',
             requires_any=[
-                '--set_option',
-                '--unset-option'],
-            scope=locals()
-        )
-
-    some_option = ''
-    with pytest.raises(UsageError):
-        option_requires(
-            option='--some-option',
-            conditional_value='',
-            requires_any=[
-                '--set_option',
                 '--unset-option'],
             scope=locals()
         )

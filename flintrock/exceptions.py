@@ -36,11 +36,8 @@ class ClusterInvalidState(Error):
 
 
 class SSHError(Error):
-    pass
-
-
-class NodeError(Error):
-    def __init__(self, error: str):
+    def __init__(self, *, host: str, message: str):
         super().__init__(
-            "At least one node raised an error: " + error)
-        self.error = error
+            "[{h}] {m}".format(h=host, m=message))
+        self.host = host
+        self.message = message

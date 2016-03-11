@@ -9,7 +9,7 @@ import sys
 import time
 
 # Flintrock modules
-from .exceptions import SSHError, NodeError
+from .exceptions import SSHError
 from .ssh import get_ssh_client, ssh_check_output, ssh
 
 FROZEN = getattr(sys, 'frozen', False)
@@ -141,7 +141,9 @@ class FlintrockCluster:
         master_ssh_client = get_ssh_client(
             user=user,
             host=self.master_ip,
-            identity_file=identity_file)
+            identity_file=identity_file,
+            wait=True,
+            print_status=False)
 
         with master_ssh_client:
             manifest_raw = ssh_check_output(
@@ -366,8 +368,6 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
         # # Is this the right way to make sure no coroutine failed?
         # for future in done:
         #     future.result()
-    except SSHError as e:
-        raise NodeError(str(e))
     finally:
         # TODO: Let KeyboardInterrupt cleanly cancel hung commands.
         #       Currently, we can't do this without dumping a large stack trace or
@@ -450,7 +450,7 @@ def provision_node(
         user=user,
         host=host,
         identity_file=identity_file,
-        print_status=True)
+        wait=True)
 
     with client:
         ssh_check_output(
@@ -533,7 +533,7 @@ def start_node(
         user=user,
         host=host,
         identity_file=identity_file,
-        print_status=True)
+        wait=True)
 
     with ssh_client:
         # TODO: Consider consolidating ephemeral storage code under a dedicated
@@ -560,7 +560,6 @@ def run_command_node(*, user: str, host: str, identity_file: str, command: tuple
     This method is role-agnostic; it runs on both the cluster master and slaves.
     This method is meant to be called asynchronously.
     """
-    # TODO: Timeout quickly if SSH is not available.
     ssh_client = get_ssh_client(
         user=user,
         host=host,
@@ -591,7 +590,6 @@ def copy_file_node(
     This method is role-agnostic; it runs on both the cluster master and slaves.
     This method is meant to be called asynchronously.
     """
-    # TODO: Timeout quickly if SSH is not available.
     ssh_client = get_ssh_client(
         user=user,
         host=host,
