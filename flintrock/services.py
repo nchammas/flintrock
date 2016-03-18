@@ -255,7 +255,7 @@ class Spark(FlintrockService):
                         cd spark
                         git reset --hard {commit}
                         if [ -e "make-distribution.sh" ]; then
-                            ./make-distribution.sh -T 1C -Phadoop-2.6
+                            ./make-distribution.sh -Phadoop-2.6
                         else
                             ./dev/make-distribution.sh -Phadoop-2.6
                         fi
