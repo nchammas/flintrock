@@ -1,6 +1,7 @@
 import os
 import subprocess
 import tempfile
+import time
 import uuid
 from collections import OrderedDict
 
@@ -95,7 +96,9 @@ def running_cluster(request):
         spark_git_commit=request.param.spark_git_commit)
 
     if request.param.restarted:
+        time.sleep(5)
         stop_cluster(cluster_name)
+        time.sleep(5)
         start_cluster(cluster_name)
 
     def destroy():
