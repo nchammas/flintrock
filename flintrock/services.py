@@ -257,7 +257,7 @@ class Spark(FlintrockService):
                         if [ -e "make-distribution.sh" ]; then
                             ./make-distribution.sh -T 1C -Phadoop-2.6
                         else
-                            ./dev/make-distribution.sh -T 1C -Phadoop-2.6
+                            ./dev/make-distribution.sh -Phadoop-2.6
                         fi
                     """.format(
                         repo=shlex.quote(self.git_repository),
