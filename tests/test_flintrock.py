@@ -1,5 +1,6 @@
 # External modules
 import pytest
+import urllib.error
 
 # Flintrock modules
 from flintrock.exceptions import (
@@ -9,7 +10,8 @@ from flintrock.flintrock import (
     option_name_to_variable_name,
     variable_name_to_option_name,
     option_requires,
-    mutually_exclusive
+    mutually_exclusive,
+    get_latest_commit
 )
 
 
@@ -126,3 +128,14 @@ def test_mutually_exclusive():
                 '--option1',
                 '--option2'],
             scope=locals())
+
+
+def test_get_latest_commit():
+    sha = get_latest_commit("https://github.com/apache/spark")
+    assert len(sha) == 40
+
+    with pytest.raises(UsageError):
+        get_latest_commit("https://google.com")
+
+    with pytest.raises(urllib.error.HTTPError):
+        get_latest_commit("https://github.com/apache/spark2")
