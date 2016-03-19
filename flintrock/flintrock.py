@@ -1,10 +1,13 @@
 import os
 import posixpath
 import errno
+import json
 import resource
 import sys
 import shutil
 import textwrap
+import urllib.parse
+import urllib.request
 import warnings
 
 # External modules
@@ -172,8 +175,11 @@ def cli(cli_context, config, provider):
 @click.option('--spark-version',
               help="Spark release version to install.")
 @click.option('--spark-git-commit',
-              help="Git commit hash to build Spark from. "
-                   "--spark-version and --spark-git-commit are mutually exclusive.")
+              help="Git commit hash to build Spark from."
+                   "Can be \"latest\" to build Spark from the latest available commit."
+                   "--spark-version and --spark-git-commit are mutually exclusive.",
+              default="latest",
+              show_default=True)
 @click.option('--spark-git-repository',
               help="Git repository to clone Spark from.",
               default='https://github.com/apache/spark.git',
@@ -295,6 +301,22 @@ def launch(
             instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior)
     else:
         raise UnsupportedProviderError(provider)
+
+
+def get_last_commit_sha(git_repository: str):
+    """
+    Retrieve the last commit's SHA from a repository hosted on Github.
+    """
+    parsed_url = urllib.parse.urlparse(git_repository)
+    if parsed_url.netloc != "github.com":
+        raise UsageError('Error: Retrieving the last commit\'s SHA only works with '
+                         'repositories hosted on Github.')
+    owner_repo = parsed_url.path[:-4] if parsed_url.path.endswith(".git") else parsed_url.path
+    url = "https://api.github.com/repos{owner_repo}/commits".format(owner_repo=owner_repo)
+    with urllib.request.urlopen(url) as response:
+        if response.getcode() == 200:
+            result = json.loads(response.readall().decode('utf-8'))
+            return result[0]['sha']
 
 
 @cli.command()
