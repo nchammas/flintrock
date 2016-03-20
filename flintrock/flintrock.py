@@ -274,6 +274,8 @@ def launch(
         elif spark_git_commit:
             print("Warning: Building Spark takes a long time. "
                   "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
+            if spark_git_commit == "latest":
+                spark_git_commit = get_last_commit_sha(spark_git_repository)
             spark = Spark(git_commit=spark_git_commit,
                           git_repository=spark_git_repository)
         services += [spark]
@@ -317,6 +319,12 @@ def get_last_commit_sha(git_repository: str):
         if response.getcode() == 200:
             result = json.loads(response.readall().decode('utf-8'))
             return result[0]['sha']
+        else:
+            raise UsageError('Error: Error retrieving last commit\'s SHA of {repo}.\n'
+                             '  {code} {message}'.format(
+                                repo=git_repository,
+                                code=response.getcode(),
+                                message=response.msg))
 
 
 @cli.command()
