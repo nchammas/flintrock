@@ -316,16 +316,8 @@ def get_last_commit_sha(git_repository: str):
     owner_repo = parsed_url.path[:-4] if parsed_url.path.endswith(".git") else parsed_url.path
     url = "https://api.github.com/repos{owner_repo}/commits".format(owner_repo=owner_repo)
     with urllib.request.urlopen(url) as response:
-        if response.getcode() == 200:
-            result = json.loads(response.readall().decode('utf-8'))
-            return result[0]['sha']
-        else:
-            raise UsageError(
-                'Error: Error retrieving last commit\'s SHA of {repo}.\n'
-                '  {code} {message}'.format(
-                    repo=git_repository,
-                    code=response.getcode(),
-                    message=response.msg))
+        result = json.loads(response.read().decode('utf-8'))
+        return result[0]['sha']
 
 
 @cli.command()

@@ -13,6 +13,10 @@ from flintrock.flintrock import (
     get_last_commit_sha
 )
 
+from urllib.error import (
+    HTTPError
+)
+
 
 def test_option_name_to_variable_name_conversions():
     test_cases = [
@@ -139,5 +143,5 @@ def test_get_last_commit_sha():
     with pytest.raises(UsageError):
         get_last_commit_sha("https://google.com")
 
-    with pytest.raises(UsageError):
+    with pytest.raises(HTTPError):
         get_last_commit_sha("https://github.com/apache/spark2.git")
