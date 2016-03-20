@@ -320,11 +320,12 @@ def get_last_commit_sha(git_repository: str):
             result = json.loads(response.readall().decode('utf-8'))
             return result[0]['sha']
         else:
-            raise UsageError('Error: Error retrieving last commit\'s SHA of {repo}.\n'
-                             '  {code} {message}'.format(
-                                repo=git_repository,
-                                code=response.getcode(),
-                                message=response.msg))
+            raise UsageError(
+                'Error: Error retrieving last commit\'s SHA of {repo}.\n'
+                '  {code} {message}'.format(
+                    repo=git_repository,
+                    code=response.getcode(),
+                    message=response.msg))
 
 
 @cli.command()

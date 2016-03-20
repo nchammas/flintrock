@@ -132,12 +132,12 @@ def test_mutually_exclusive():
 def test_get_last_commit_sha():
     sha1 = get_last_commit_sha("https://github.com/apache/spark.git")
     assert len(sha1) == 40
-    
+
     sha2 = get_last_commit_sha("https://github.com/apache/spark.git")
     assert len(sha2) == 40
-    
+
     with pytest.raises(UsageError):
         get_last_commit_sha("https://google.com")
-    
+
     with pytest.raises(UsageError):
         get_last_commit_sha("https://github.com/apache/spark2.git")
