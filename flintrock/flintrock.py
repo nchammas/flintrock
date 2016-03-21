@@ -175,14 +175,14 @@ def cli(cli_context, config, provider):
 @click.option('--spark-version',
               help="Spark release version to install.")
 @click.option('--spark-git-commit',
-              help="Git commit hash to build Spark from."
-                   "Can be \"latest\" to build Spark from the latest available commit."
+              help="Git commit hash to build Spark from. "
+                   "Can be 'latest' to build Spark from the latest available commit. "
                    "--spark-version and --spark-git-commit are mutually exclusive.",
               default="latest",
               show_default=True)
 @click.option('--spark-git-repository',
               help="Git repository to clone Spark from.",
-              default='https://github.com/apache/spark.git',
+              default='https://github.com/apache/spark',
               show_default=True)
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-key-name')
@@ -275,7 +275,8 @@ def launch(
             print("Warning: Building Spark takes a long time. "
                   "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
             if spark_git_commit == "latest":
-                spark_git_commit = get_last_commit_sha(spark_git_repository)
+                spark_git_commit = get_latest_commit(spark_git_repository)
+                print("Retrieved the following latest commit: {c}".format(c=spark_git_commit))
             spark = Spark(git_commit=spark_git_commit,
                           git_repository=spark_git_repository)
         services += [spark]
@@ -305,16 +306,15 @@ def launch(
         raise UnsupportedProviderError(provider)
 
 
-def get_last_commit_sha(git_repository: str):
+def get_latest_commit(github_repository: str):
     """
     Retrieve the last commit's SHA from a repository hosted on Github.
     """
-    parsed_url = urllib.parse.urlparse(git_repository)
-    if parsed_url.netloc != "github.com":
-        raise UsageError('Error: Retrieving the last commit\'s SHA only works with '
+    parsed_url = urllib.parse.urlparse(github_repository)
+    if parsed_url.netloc != 'github.com':
+        raise UsageError('Error: Retrieving the latest commit only works with '
                          'repositories hosted on Github.')
-    owner_repo = parsed_url.path[:-4] if parsed_url.path.endswith(".git") else parsed_url.path
-    url = "https://api.github.com/repos{owner_repo}/commits".format(owner_repo=owner_repo)
+    url = "https://api.github.com/repos{owner_repo}/commits".format(owner_repo=parsed_url.path)
     with urllib.request.urlopen(url) as response:
         result = json.loads(response.read().decode('utf-8'))
         return result[0]['sha']
