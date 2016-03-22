@@ -3,10 +3,14 @@
 
 ## [Unreleased](https://github.com/nchammas/flintrock/compare/v0.3.0...master)
 
+### Added
+
+* [#98](https://github.com/nchammas/flintrock/pull/98)/[#99](https://github.com/nchammas/flintrock/pull/99): You can now specify `latest` for `--spark-git-commit` and Flintrock will automatically build Spark on your cluster at the latest commit. This feature is only available for repos hosted on GitHub.
+
 ### Changed
 
 * [#86](https://github.com/nchammas/flintrock/pull/86): Flintrock now correctly catches when spot requests fail and bubbles up an appropriate error message.
-* [#97](https://github.com/nchammas/flintrock/pull/97): Fixed the ability to build Spark from git. (It was broken for recent commits.)
+* [#93](https://github.com/nchammas/flintrock/pull/93)/[#97](https://github.com/nchammas/flintrock/pull/97): Fixed the ability to build Spark from git. (It was broken for recent commits.)
 
 
 ## [0.3.0](https://github.com/nchammas/flintrock/compare/v0.2.0...v0.3.0) - 2016-02-14
