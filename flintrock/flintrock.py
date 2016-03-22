@@ -176,7 +176,8 @@ def cli(cli_context, config, provider):
               help="Spark release version to install.")
 @click.option('--spark-git-commit',
               help="Git commit hash to build Spark from. "
-                   "Can be 'latest' to build Spark from the latest available commit. "
+                   "Can be 'latest' to build Spark from the latest available commit on the "
+                   "default branch. "
                    "--spark-version and --spark-git-commit are mutually exclusive.",
               default="latest",
               show_default=True)
@@ -308,7 +309,7 @@ def launch(
 
 def get_latest_commit(github_repository: str):
     """
-    Retrieve the last commit's SHA from a repository hosted on Github.
+    Retrieve the latest commit on the default branch of a repository hosted on Github.
     """
     parsed_url = urllib.parse.urlparse(github_repository)
     if parsed_url.netloc != 'github.com':
