@@ -137,5 +137,5 @@ def test_get_latest_commit():
     with pytest.raises(UsageError):
         get_latest_commit("https://google.com")
 
-    with pytest.raises(urllib.error.HTTPError):
-        get_latest_commit("https://github.com/apache/spark2")
+    with pytest.raises(Exception):
+        get_latest_commit("https://github.com/apache/nonexistent-repo")

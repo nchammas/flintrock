@@ -84,8 +84,9 @@ def option_requires(
                 required_name = option_name_to_variable_name(required_option)
                 if required_name not in scope or scope[required_name] is None:
                     raise UsageError(
-                        'Error: Missing option "{missing_option}" is required by '
-                        '"{option}{space}{conditional_value}".'.format(
+                        "Error: Missing option \"{missing_option}\" is required by "
+                        "\"{option}{space}{conditional_value}\"."
+                        .format(
                             missing_option=required_option,
                             option=option,
                             space=' ' if conditional_value is not None else '',
@@ -97,8 +98,9 @@ def option_requires(
                     break
             else:
                 raise UsageError(
-                    'Error: "{option}{space}{conditional_value}" requires at least '
-                    'one of the following options to be set: {at_least}'.format(
+                    "Error: \"{option}{space}{conditional_value}\" requires at least "
+                    "one of the following options to be set: {at_least}"
+                    .format(
                         option=option,
                         space=' ' if conditional_value is not None else '',
                         conditional_value=conditional_value if conditional_value is not None else '',
@@ -124,9 +126,10 @@ def mutually_exclusive(*, options: list, scope: dict):
         bad_option1 = used_options.pop()
         bad_option2 = used_options.pop()
         raise UsageError(
-            'Error: "{option1}" and "{option2}" are mutually exclusive.\n'
-            '  {option1}: {value1}\n'
-            '  {option2}: {value2}'.format(
+            "Error: \"{option1}\" and \"{option2}\" are mutually exclusive.\n"
+            "  {option1}: {value1}\n"
+            "  {option2}: {value2}"
+            .format(
                 option1=variable_name_to_option_name(bad_option1),
                 value1=scope[bad_option1],
                 option2=variable_name_to_option_name(bad_option2),
@@ -175,12 +178,9 @@ def cli(cli_context, config, provider):
 @click.option('--spark-version',
               help="Spark release version to install.")
 @click.option('--spark-git-commit',
-              help="Git commit hash to build Spark from. "
-                   "Can be 'latest' to build Spark from the latest available commit on the "
-                   "default branch. "
-                   "--spark-version and --spark-git-commit are mutually exclusive.",
-              default="latest",
-              show_default=True)
+              help="Git commit to build Spark from. "
+                   "Set to 'latest' to build Spark from the latest commit on the "
+                   "repository's default branch.")
 @click.option('--spark-git-repository',
               help="Git repository to clone Spark from.",
               default='https://github.com/apache/spark',
@@ -273,13 +273,15 @@ def launch(
         if spark_version:
             spark = Spark(version=spark_version)
         elif spark_git_commit:
-            print("Warning: Building Spark takes a long time. "
-                  "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
-            if spark_git_commit == "latest":
+            print(
+                "Warning: Building Spark takes a long time. "
+                "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
+            if spark_git_commit == 'latest':
                 spark_git_commit = get_latest_commit(spark_git_repository)
-                print("Retrieved the following latest commit: {c}".format(c=spark_git_commit))
-            spark = Spark(git_commit=spark_git_commit,
-                          git_repository=spark_git_repository)
+                print("Building Spark at latest commit: {c}".format(c=spark_git_commit))
+            spark = Spark(
+                git_commit=spark_git_commit,
+                git_repository=spark_git_repository)
         services += [spark]
 
     if provider == 'ec2':
@@ -309,16 +311,26 @@ def launch(
 
 def get_latest_commit(github_repository: str):
     """
-    Retrieve the latest commit on the default branch of a repository hosted on Github.
+    Get the latest commit on the default branch of a repository hosted on GitHub.
     """
     parsed_url = urllib.parse.urlparse(github_repository)
-    if parsed_url.netloc != 'github.com':
-        raise UsageError('Error: Retrieving the latest commit only works with '
-                         'repositories hosted on Github.')
-    url = "https://api.github.com/repos{owner_repo}/commits".format(owner_repo=parsed_url.path)
-    with urllib.request.urlopen(url) as response:
-        result = json.loads(response.read().decode('utf-8'))
-        return result[0]['sha']
+    repo_domain, repo_path = parsed_url.netloc, parsed_url.path.strip('/')
+
+    if repo_domain != 'github.com':
+        raise UsageError(
+            "Error: Getting the latest commit is only supported "
+            "for repositories hosted on GitHub. "
+            "Provided repository domain was: {d}".format(d=repo_domain))
+
+    url = "https://api.github.com/repos/{rp}/commits".format(rp=repo_path)
+    try:
+        with urllib.request.urlopen(url) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            return result[0]['sha']
+    except Exception as e:
+        raise Exception(
+            "Could not get latest commit for repository: {r}"
+            .format(r=repo_path)) from e
 
 
 @cli.command()
