@@ -13,16 +13,17 @@ The resulting structure we create is as follows:
         /ephemeral[0-N]: Instance store volumes.
         /persistent[0-N]: EBS volumes.
 
-NOTE: Since this script runs on the remote nodes, it will probably
-      run in Python 2.
-
 WARNING: Be conscious about what this script prints to stdout, as that
          output is parsed by Flintrock.
 """
 from __future__ import print_function
+from __future__ import unicode_literals
 
 import json
+import platform
 import subprocess
+import sys
+
 from collections import namedtuple
 
 # Taken from: http://man7.org/linux/man-pages/man5/fstab.5.html
@@ -60,7 +61,7 @@ def get_non_root_block_devices():
         #   2) we don't get the holder devices themselves
         '--inverse',
         '--nodeps',
-        '--noheadings'])
+        '--noheadings']).decode('utf-8')
     block_devices = [BlockDevice(*line.split()) for line in block_devices_raw.splitlines()]
     non_root_block_devices = [bd for bd in block_devices if bd.mount_point != '/']
     return non_root_block_devices
@@ -95,11 +96,15 @@ def format_devices(devices):
         format_processes.append(p)
 
     for p in format_processes:
-        p.communicate()
+        stdout_raw, stderr_raw = p.communicate()
+        stdout, stderr = stdout_raw.decode('utf-8'), stderr_raw.decode('utf-8')
         return_code = p.returncode
         if return_code != 0:
             raise Exception(
-                "Format process returned non-zero exit code: {c}".format(c=return_code))
+                "Format process returned non-zero exit code: {code}\n{error}"
+                .format(
+                    code=return_code,
+                    error=stderr))
 
 
 def mount_devices(devices):
@@ -155,6 +160,11 @@ def create_root_dir():
 
 
 if __name__ == '__main__':
+    if sys.version_info < (2, 7) or ((3, 0) <= sys.version_info < (3, 4)):
+        raise Exception(
+            "This script is only supported on Python 2.7+ and 3.4+. "
+            "You are running Python {v}.".format(v=platform.python_version()))
+
     non_root_block_devices = get_non_root_block_devices()
 
     # NOTE: For now we are assuming that all non-root devices are ephemeral devices.

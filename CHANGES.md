@@ -11,6 +11,7 @@
 
 * [#86](https://github.com/nchammas/flintrock/pull/86): Flintrock now correctly catches when spot requests fail and bubbles up an appropriate error message.
 * [#93](https://github.com/nchammas/flintrock/pull/93)/[#97](https://github.com/nchammas/flintrock/pull/97): Fixed the ability to build Spark from git. (It was broken for recent commits.)
+* [#96](https://github.com/nchammas/flintrock/pull/96): Flintrock launches now work correctly when the default Python on the cluster is Python 3.
 
 
 ## [0.3.0](https://github.com/nchammas/flintrock/compare/v0.2.0...v0.3.0) - 2016-02-14
