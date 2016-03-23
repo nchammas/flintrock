@@ -1,6 +1,5 @@
 # External modules
 import pytest
-import urllib.error
 
 # Flintrock modules
 from flintrock.exceptions import (

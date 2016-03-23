@@ -9,7 +9,6 @@ import sys
 import time
 
 # Flintrock modules
-from .exceptions import SSHError
 from .ssh import get_ssh_client, ssh_check_output, ssh
 
 FROZEN = getattr(sys, 'frozen', False)
