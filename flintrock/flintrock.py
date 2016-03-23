@@ -67,8 +67,11 @@ def option_requires(
         requires_any: list=[],
         scope: dict):
     """
-    Raise an exception if an option's requirements are not met. If conditional_value
-    is not None, then only check the requirements if option is set to that value.
+    Raise an exception if an option's requirements are not met.
+
+    The option's requirements are checked only if the option has a "truthy" value
+    (i.e. it's not a "falsy" value like '', None, or False), and if its value is
+    equal to conditional_value, if conditional_value is not None.
 
     requires_all: Every option in this list must be defined.
     requires_any: At least one option in this list must be defined.
@@ -77,12 +80,14 @@ def option_requires(
     corresponding variable names (e.g. --option-a becomes option_a) and looking them
     up in the provided scope.
     """
-    if (conditional_value is None or
-            scope[option_name_to_variable_name(option)] == conditional_value):
+    option_value = scope[option_name_to_variable_name(option)]
+
+    if option_value and \
+            (conditional_value is None or option_value == conditional_value):
         if requires_all:
             for required_option in requires_all:
                 required_name = option_name_to_variable_name(required_option)
-                if required_name not in scope or scope[required_name] is None:
+                if required_name not in scope or not scope[required_name]:
                     raise UsageError(
                         "Error: Missing option \"{missing_option}\" is required by "
                         "\"{option}{space}{conditional_value}\"."
@@ -198,7 +203,7 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-ami')
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
-@click.option('--ec2-vpc-id', default='')
+@click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-subnet-id', default='')
 @click.option('--ec2-instance-profile-name', default='')
 @click.option('--ec2-placement-group', default='')
@@ -264,6 +269,16 @@ def launch(
             '--ec2-region',
             '--ec2-ami',
             '--ec2-user'],
+        scope=locals())
+    # The subnet is required for non-default VPCs because EC2 does not
+    # support user-defined default subnets.
+    # See: https://forums.aws.amazon.com/thread.jspa?messageID=707417
+    #      https://github.com/mitchellh/packer/issues/1935#issuecomment-111235752
+    option_requires(
+        option='--ec2-vpc-id',
+        requires_all=[
+            '--ec2-subnet-id'
+        ],
         scope=locals())
 
     if install_hdfs:
@@ -337,8 +352,9 @@ def get_latest_commit(github_repository: str):
 @click.argument('cluster-name')
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.pass_context
-def destroy(cli_context, cluster_name, assume_yes, ec2_region):
+def destroy(cli_context, cluster_name, assume_yes, ec2_region, ec2_vpc_id):
     """
     Destroy a cluster.
     """
@@ -353,7 +369,8 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region):
     if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            region=ec2_region)
+            region=ec2_region,
+            vpc_id=ec2_vpc_id)
     else:
         raise UnsupportedProviderError(provider)
 
@@ -370,13 +387,15 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region):
 @cli.command()
 @click.argument('cluster-name', required=False)
 @click.option('--master-hostname-only', is_flag=True, default=False)
-@click.option('--ec2-region')
+@click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.pass_context
 def describe(
         cli_context,
         cluster_name,
         master_hostname_only,
-        ec2_region):
+        ec2_region,
+        ec2_vpc_id):
     """
     Describe an existing cluster.
 
@@ -403,7 +422,8 @@ def describe(
         search_area = "in region {r}".format(r=ec2_region)
         clusters = ec2.get_clusters(
             cluster_names=cluster_names,
-            region=ec2_region)
+            region=ec2_region,
+            vpc_id=ec2_vpc_id)
     else:
         raise UnsupportedProviderError(provider)
 
@@ -433,13 +453,14 @@ def describe(
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 # TODO: Move identity-file to global, non-provider-specific option. (?)
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.pass_context
-def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
+def login(cli_context, cluster_name, ec2_region, ec2_vpc_id, ec2_identity_file, ec2_user):
     """
     Login to the master of an existing cluster.
     """
@@ -457,7 +478,8 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
     if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            region=ec2_region)
+            region=ec2_region,
+            vpc_id=ec2_vpc_id)
         user = ec2_user
         identity_file = ec2_identity_file
     else:
@@ -471,13 +493,14 @@ def login(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 # TODO: Move identity-file to global, non-provider-specific option. (?)
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.pass_context
-def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
+def start(cli_context, cluster_name, ec2_region, ec2_vpc_id, ec2_identity_file, ec2_user):
     """
     Start an existing, stopped cluster.
     """
@@ -495,7 +518,8 @@ def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
     if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            region=ec2_region)
+            region=ec2_region,
+            vpc_id=ec2_vpc_id)
         user = ec2_user
         identity_file = ec2_identity_file
     else:
@@ -509,9 +533,10 @@ def start(cli_context, cluster_name, ec2_region, ec2_identity_file, ec2_user):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.pass_context
-def stop(cli_context, cluster_name, ec2_region, assume_yes):
+def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
     """
     Stop an existing, running cluster.
     """
@@ -526,7 +551,8 @@ def stop(cli_context, cluster_name, ec2_region, assume_yes):
     if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            region=ec2_region)
+            region=ec2_region,
+            vpc_id=ec2_vpc_id)
     else:
         raise UnsupportedProviderError(provider)
 
@@ -548,6 +574,7 @@ def stop(cli_context, cluster_name, ec2_region, assume_yes):
 @click.argument('command', nargs=-1)
 @click.option('--master-only', help="Run on the master only.", is_flag=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
@@ -559,6 +586,7 @@ def run_command(
         command,
         master_only,
         ec2_region,
+        ec2_vpc_id,
         ec2_identity_file,
         ec2_user):
     """
@@ -586,7 +614,8 @@ def run_command(
     if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            region=ec2_region)
+            region=ec2_region,
+            vpc_id=ec2_vpc_id)
         user = ec2_user
         identity_file = ec2_identity_file
     else:
@@ -610,6 +639,7 @@ def run_command(
 @click.argument('remote_path', type=click.Path())
 @click.option('--master-only', help="Copy to the master only.", is_flag=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
+@click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
@@ -623,6 +653,7 @@ def copy_file(
         remote_path,
         master_only,
         ec2_region,
+        ec2_vpc_id,
         ec2_identity_file,
         ec2_user,
         assume_yes):
@@ -657,7 +688,8 @@ def copy_file(
     if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
-            region=ec2_region)
+            region=ec2_region,
+            vpc_id=ec2_vpc_id)
         user = ec2_user
         identity_file = ec2_identity_file
     else:
@@ -827,7 +859,7 @@ def set_open_files_limit(desired_limit):
 
 def main() -> int:
     if flintrock_is_in_development_mode():
-        warnings.simplefilter(action='error', category=DeprecationWarning)
+        warnings.simplefilter(action='always', category=DeprecationWarning)
         # warnings.simplefilter(action='always', category=ResourceWarning)
 
     set_open_files_limit(4096)

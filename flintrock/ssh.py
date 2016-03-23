@@ -41,21 +41,28 @@ def get_ssh_client(
         user: str,
         host: str,
         identity_file: str,
-        # TODO: Add option to not wait for SSH availability.
-        print_status: bool=False) -> paramiko.client.SSHClient:
+        wait: bool=False,
+        print_status: bool=None) -> paramiko.client.SSHClient:
     """
     Get an SSH client for the provided host, waiting as necessary for SSH to become
     available.
     """
-    # paramiko.common.logging.basicConfig(level=paramiko.common.DEBUG)
+    if print_status is None:
+        print_status = wait
 
     client = paramiko.client.SSHClient()
 
     client.load_system_host_keys()
     client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
 
-    while True:
+    if wait:
+        tries = 100
+    else:
+        tries = 1
+
+    while tries > 0:
         try:
+            tries -= 1
             client.connect(
                 username=user,
                 hostname=host,
@@ -65,8 +72,6 @@ def get_ssh_client(
             if print_status:
                 print("[{h}] SSH online.".format(h=host))
             break
-        # TODO: Somehow rationalize these expected exceptions.
-        # TODO: Add some kind of limit on number of failures.
         except socket.timeout as e:
             time.sleep(5)
         except socket.error as e:
@@ -77,6 +82,10 @@ def get_ssh_client(
         # for some reason.
         except paramiko.ssh_exception.AuthenticationException as e:
             time.sleep(5)
+    else:
+        raise SSHError(
+            host=host,
+            message="Could not connect via SSH.")
 
     return client
 
@@ -102,7 +111,9 @@ def ssh_check_output(client: paramiko.client.SSHClient, command: str):
         #       See: https://docs.python.org/3/library/subprocess.html#subprocess.check_output
         # NOTE: We are losing the output order here since output from stdout and stderr
         #       may be interleaved.
-        raise SSHError(stdout_output + stderr_output)
+        raise SSHError(
+            host=client.get_transport().getpeername()[0],
+            message=stdout_output + stderr_output)
 
     return stdout_output
 
