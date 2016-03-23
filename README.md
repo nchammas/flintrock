@@ -86,8 +86,9 @@ Find the standalone package for your OS under our [latest release](https://githu
 For example:
 
 ```sh
-curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v0.3.0/Flintrock-0.3.0-standalone-OSX-x86_64.zip"
-unzip -q -d flintrock "Flintrock-0.3.0-standalone-OSX-x86_64.zip"
+flintrock_version="0.3.0"
+curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
+unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
 cd flintrock/
 
 # You're good to go!
@@ -163,7 +164,13 @@ flintrock launch test-cluster --num-slaves 10
 
 Flintrock lets you persist your desired configuration to a YAML file so that you don't have to keep typing out the same options over and over at the command line.
 
-To setup and edit the default config file, call `flintrock configure`. You can also point Flintrock to a non-default config file by using the `--config` option.
+To setup and edit the default config file, run this:
+
+```sh
+flintrock configure
+```
+
+You can also point Flintrock to a non-default config file by using the `--config` option.
 
 #### Sample `config.yaml`
 
