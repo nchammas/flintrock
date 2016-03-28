@@ -1,5 +1,5 @@
 # Update Flintrock version
-# Update change log
+# Update CHANGES
 # Tag release on GitHub
 
 trash dist/ build/ Flintrock.egg-info/
@@ -12,10 +12,11 @@ twine upload dist/* --repository pypitest
 
 python generate-standalone-package.py
 
-# Upload wheel to GitHub
-# Upload standalone package to GitHub
+# Upload release builds to GitHub
+#   - Wheel
+#   - OS X standalone package
+#   - Linux standalone package
 # Update version to next.dev0
-# Update CHANGES links
 
 # ---
 
