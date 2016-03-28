@@ -1,11 +1,16 @@
 # Change Log
 
 
-## [Unreleased](https://github.com/nchammas/flintrock/compare/v0.3.0...master)
+## [Unreleased](https://github.com/nchammas/flintrock/compare/v0.4.0...master)
+
+Nothing notable yet.
+
+
+## [0.4.0](https://github.com/nchammas/flintrock/compare/v0.3.0...v0.4.0) - 2016-03-27
 
 ### Added
 
-* [#98](https://github.com/nchammas/flintrock/pull/98), [#99](https://github.com/nchammas/flintrock/pull/99): You can now specify `latest` for `--spark-git-commit` and Flintrock will automatically build Spark on your cluster at the latest commit. This feature is only available for repos hosted on GitHub.
+* [#98](https://github.com/nchammas/flintrock/pull/98), [#99](https://github.com/nchammas/flintrock/pull/99): You can now specify `latest` for `--spark-git-commit` and Flintrock will automatically build Spark on your cluster at the latest commit. This feature is only available for Spark repos hosted on GitHub.
 * [#94](https://github.com/nchammas/flintrock/pull/94): Flintrock now supports launching clusters into non-default VPCs.
 
 ### Changed
