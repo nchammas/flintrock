@@ -197,7 +197,7 @@ class HDFS(FlintrockService):
 
 
 class Spark(FlintrockService):
-    def __init__(self, version: str=None, git_commit: str=None, git_repository: str=None, preferred_mirror: str="https://s3.amazonaws.com/spark-related-packages/${file}"):
+    def __init__(self, version: str=None, distribution: str=None, git_commit: str=None, git_repository: str=None, download_source: str="https://s3.amazonaws.com/spark-related-packages/spark-${version}-bin-hadoop${distribution}.tgz"):
         # TODO: Convert these checks into something that throws a proper exception.
         #       Perhaps reuse logic from CLI.
         assert bool(version) ^ bool(git_commit)
@@ -205,22 +205,22 @@ class Spark(FlintrockService):
             assert git_repository
 
         self.version = version
+        self.distribution = distribution
         self.git_commit = git_commit
         self.git_repository = git_repository
-        self.preferred_mirror = preferred_mirror
+        self.download_source = download_source
 
         self.manifest = {
             'version': version,
+            'distribution': distribution,
             'git_commit': git_commit,
             'git_repository': git_repository,
-            'preferred_mirror': preferred_mirror}
+            'download_source': download_source}
 
     def install(
             self,
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
-        # TODO: Allow users to specify the Spark "distribution". (?)
-        distribution = 'hadoop2.6'
 
         print("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
@@ -236,12 +236,12 @@ class Spark(FlintrockService):
                     client=ssh_client,
                     command="""
                         set -e
-                        /tmp/install-spark.sh {spark_version} {distribution} {mirror}
+                        /tmp/install-spark.sh {version} {distribution} {download_source}
                         rm -f /tmp/install-spark.sh
                     """.format(
-                            spark_version=shlex.quote(self.version),
-                            distribution=shlex.quote(distribution),
-                            mirror=shlex.quote(self.preferred_mirror)))
+                            version=shlex.quote(self.version),
+                            distribution=shlex.quote(self.distribution),
+                            download_source=shlex.quote(self.download_source)))
             else:
                 ssh_check_output(
                     client=ssh_client,
@@ -258,13 +258,14 @@ class Spark(FlintrockService):
                         cd spark
                         git reset --hard {commit}
                         if [ -e "make-distribution.sh" ]; then
-                            ./make-distribution.sh -Phadoop-2.6
+                            ./make-distribution.sh -Phadoop-{distribution}
                         else
-                            ./dev/make-distribution.sh -Phadoop-2.6
+                            ./dev/make-distribution.sh -Phadoop-{distribution}
                         fi
                     """.format(
                         repo=shlex.quote(self.git_repository),
-                        commit=shlex.quote(self.git_commit)))
+                        commit=shlex.quote(self.git_commit),
+                        distribution=shlex.quote(self.distribution)))
         except Exception as e:
             # TODO: This should be a more specific exception.
             print("Error: Failed to install Spark.", file=sys.stderr)

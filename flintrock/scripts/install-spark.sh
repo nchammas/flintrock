@@ -2,17 +2,18 @@
 
 set -e
 
-spark_version="$1"
+version="$1"
 distribution="$2"
-mirror="$3"
+download_source="$3"
+
+url=$(eval "echo \"$download_source\"")
+file="${url##*/}"
 
 echo "Installing Spark..."
 echo "  version: ${spark_version}"
 echo "  distribution: ${distribution}"
-echo "  mirror: ${mirror}"
-
-file="spark-${spark_version}-bin-${distribution}.tgz"
-url=$(eval "echo \"$mirror\"")
+echo "  download source: ${download_source}"
+echo "Final Spark URL: ${url}"
 
 # S3 is generally reliable, but sometimes when launching really large
 # clusters it can hiccup on us, in which case we'll need to retry the

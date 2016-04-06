@@ -182,14 +182,16 @@ def cli(cli_context, config, provider):
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-version',
               help="Spark release version to install.")
+@click.option('--spark-distribution',
+              help="Hadoop distribution for Spark release to install.", default='2.6')
 @click.option('--spark-git-commit',
               help="Git commit to build Spark from. "
                    "Set to 'latest' to build Spark from the latest commit on the "
                    "repository's default branch.")
-@click.option('--spark-preferred-mirror',
-              help="HTTP mirror to download the spark binaries. "
+@click.option('--spark-download-source',
+              help="HTTP source to download the spark binaries. "
                    "Available variable : file, spark_version, distribution",
-              default="https://s3.amazonaws.com/spark-related-packages/${file}",
+              default="https://s3.amazonaws.com/spark-related-packages/spark-${version}-bin-hadoop${distribution}.tgz",
               show_default=True)
 @click.option('--spark-git-repository',
               help="Git repository to clone Spark from.",
@@ -225,9 +227,10 @@ def launch(
         hdfs_version,
         install_spark,
         spark_version,
+        spark_distribution,
         spark_git_commit,
         spark_git_repository,
-        spark_preferred_mirror,
+        spark_download_source,
         assume_yes,
         ec2_key_name,
         ec2_identity_file,
@@ -292,7 +295,7 @@ def launch(
         services += [hdfs]
     if install_spark:
         if spark_version:
-            spark = Spark(version=spark_version, preferred_mirror=spark_preferred_mirror)
+            spark = Spark(version=spark_version, distribution=spark_distribution, download_source=spark_download_source)
         elif spark_git_commit:
             print(
                 "Warning: Building Spark takes a long time. "
