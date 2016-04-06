@@ -292,7 +292,7 @@ def launch(
         services += [hdfs]
     if install_spark:
         if spark_version:
-            spark = Spark(version=spark_version,preferred_mirror=spark_preferred_mirror)
+            spark = Spark(version=spark_version, preferred_mirror=spark_preferred_mirror)
         elif spark_git_commit:
             print(
                 "Warning: Building Spark takes a long time. "
