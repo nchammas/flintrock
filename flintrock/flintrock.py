@@ -186,6 +186,11 @@ def cli(cli_context, config, provider):
               help="Git commit to build Spark from. "
                    "Set to 'latest' to build Spark from the latest commit on the "
                    "repository's default branch.")
+@click.option('--spark-preferred-mirror',
+              help="HTTP mirror to download the spark binaries. "
+                   "Available variable : file, spark_version, distribution",
+              default="https://s3.amazonaws.com/spark-related-packages/${file}",
+              show_default=True)
 @click.option('--spark-git-repository',
               help="Git repository to clone Spark from.",
               default='https://github.com/apache/spark',
@@ -222,6 +227,7 @@ def launch(
         spark_version,
         spark_git_commit,
         spark_git_repository,
+        spark_preferred_mirror,
         assume_yes,
         ec2_key_name,
         ec2_identity_file,
@@ -286,7 +292,7 @@ def launch(
         services += [hdfs]
     if install_spark:
         if spark_version:
-            spark = Spark(version=spark_version)
+            spark = Spark(version=spark_version,preferred_mirror=spark_preferred_mirror)
         elif spark_git_commit:
             print(
                 "Warning: Building Spark takes a long time. "

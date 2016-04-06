@@ -197,7 +197,7 @@ class HDFS(FlintrockService):
 
 
 class Spark(FlintrockService):
-    def __init__(self, version: str=None, git_commit: str=None, git_repository: str=None):
+    def __init__(self, version: str=None, git_commit: str=None, git_repository: str=None, preferred_mirror: str="https://s3.amazonaws.com/spark-related-packages/${file}"):
         # TODO: Convert these checks into something that throws a proper exception.
         #       Perhaps reuse logic from CLI.
         assert bool(version) ^ bool(git_commit)
@@ -207,11 +207,13 @@ class Spark(FlintrockService):
         self.version = version
         self.git_commit = git_commit
         self.git_repository = git_repository
+        self.preferred_mirror = preferred_mirror
 
         self.manifest = {
             'version': version,
             'git_commit': git_commit,
-            'git_repository': git_repository}
+            'git_repository': git_repository,
+            'preferred_mirror': preferred_mirror}
 
     def install(
             self,
@@ -234,11 +236,12 @@ class Spark(FlintrockService):
                     client=ssh_client,
                     command="""
                         set -e
-                        /tmp/install-spark.sh {spark_version} {distribution}
+                        /tmp/install-spark.sh {spark_version} {distribution} {mirror}
                         rm -f /tmp/install-spark.sh
                     """.format(
                             spark_version=shlex.quote(self.version),
-                            distribution=shlex.quote(distribution)))
+                            distribution=shlex.quote(distribution),
+                            mirror=shlex.quote(self.preferred_mirror)))
             else:
                 ssh_check_output(
                     client=ssh_client,

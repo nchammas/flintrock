@@ -4,12 +4,15 @@ set -e
 
 spark_version="$1"
 distribution="$2"
+mirror="$3"
 
 echo "Installing Spark..."
 echo "  version: ${spark_version}"
 echo "  distribution: ${distribution}"
+echo "  mirror: ${mirror}"
 
 file="spark-${spark_version}-bin-${distribution}.tgz"
+url=$(eval "echo \"$mirror\"")
 
 # S3 is generally reliable, but sometimes when launching really large
 # clusters it can hiccup on us, in which case we'll need to retry the
@@ -17,7 +20,7 @@ file="spark-${spark_version}-bin-${distribution}.tgz"
 set +e
 tries=1
 while true; do
-    curl --remote-name "https://s3.amazonaws.com/spark-related-packages/${file}"
+    curl --remote-name "${url}"
     curl_ret=$?
 
     if ((curl_ret == 0)); then
