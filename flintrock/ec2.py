@@ -335,7 +335,7 @@ def get_or_create_ec2_security_groups(
             VpcId=vpc_id)
 
     # Rules for the client interacting with the cluster.
-    flintrock_clients_cidr=[]
+    flintrock_clients_cidr = []
     if not access_origins:
         flintrock_client_ip = (
             urllib.request.urlopen('http://checkip.amazonaws.com/')
