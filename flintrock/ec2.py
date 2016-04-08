@@ -514,7 +514,8 @@ def launch(
         get_cluster(
             cluster_name=cluster_name,
             region=region,
-            vpc_id=vpc_id)
+            vpc_id=vpc_id,
+            use_private_network=use_private_network)
     except ClusterNotFound as e:
         pass
     else:
@@ -692,18 +693,19 @@ def launch(
         raise
 
 
-def get_cluster(*, cluster_name: str, region: str, vpc_id: str) -> EC2Cluster:
+def get_cluster(*, cluster_name: str, region: str, vpc_id: str, use_private_network: bool) -> EC2Cluster:
     """
     Get an existing EC2 cluster.
     """
     cluster = get_clusters(
         cluster_names=[cluster_name],
         region=region,
-        vpc_id=vpc_id)
+        vpc_id=vpc_id,
+        use_private_network=use_private_network)
     return cluster[0]
 
 
-def get_clusters(*, cluster_names: list=[], region: str, vpc_id: str) -> list:
+def get_clusters(*, cluster_names: list=[], region: str, vpc_id: str, use_private_network: bool) -> list:
     """
     Get all the named clusters. If no names are given, get all clusters.
 
@@ -743,7 +745,8 @@ def get_clusters(*, cluster_names: list=[], region: str, vpc_id: str) -> list:
             region=region,
             vpc_id=vpc_id,
             instances=list(filter(
-                lambda x: _get_cluster_name(x) == cluster_name, all_clusters_instances)))
+                lambda x: _get_cluster_name(x) == cluster_name, all_clusters_instances)),
+            use_private_network=use_private_network)
         for cluster_name in found_cluster_names]
 
     return clusters
@@ -790,7 +793,7 @@ def _get_cluster_master_slaves(
     return (master_instance, slave_instances)
 
 
-def _compose_cluster(*, name: str, region: str, vpc_id: str, instances: list) -> EC2Cluster:
+def _compose_cluster(*, name: str, region: str, vpc_id: str, instances: list, use_private_network: bool) -> EC2Cluster:
     """
     Compose an EC2Cluster object from a set of raw EC2 instances representing
     a Flintrock cluster.
@@ -802,6 +805,7 @@ def _compose_cluster(*, name: str, region: str, vpc_id: str, instances: list) ->
         region=region,
         vpc_id=vpc_id,
         master_instance=master_instance,
-        slave_instances=slave_instances)
+        slave_instances=slave_instances,
+        use_private_network=use_private_network)
 
     return cluster
