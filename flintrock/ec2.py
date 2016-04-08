@@ -372,6 +372,13 @@ def get_or_create_ec2_security_groups(
             to_port=4040,
             cidr_ip=flintrock_client_cidr,
             src_group=None))
+        client_rules.append(SecurityGroupRule(
+            ip_protocol='tcp',
+            from_port=7077,
+            to_port=7077,
+            cidr_ip=flintrock_client_cidr,
+            src_group=None)
+    ]
 
     # TODO: Don't try adding rules that already exist.
     # TODO: Add rules in one shot.
