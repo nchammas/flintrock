@@ -57,6 +57,7 @@ class EC2Cluster(FlintrockCluster):
             vpc_id: str,
             master_instance: 'boto3.resources.factory.ec2.Instance',
             slave_instances: "List[boto3.resources.factory.ec2.Instance]",
+            use_private_network: bool,
             *args,
             **kwargs):
         super().__init__(*args, **kwargs)
@@ -64,6 +65,7 @@ class EC2Cluster(FlintrockCluster):
         self.vpc_id = vpc_id
         self.master_instance = master_instance
         self.slave_instances = slave_instances
+        self.use_private_network = use_private_network
 
     @property
     def instances(self):
@@ -71,19 +73,31 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def master_ip(self):
-        return self.master_instance.public_ip_address
+        if self.use_private_network:
+            return self.master_instance.private_ip_address
+        else:
+            return self.master_instance.public_ip_address
 
     @property
     def master_host(self):
-        return self.master_instance.public_dns_name
+        if self.use_private_network:
+            return self.master_instance.private_dns_name
+        else:
+            return self.master_instance.public_dns_name
 
     @property
     def slave_ips(self):
-        return [i.public_ip_address for i in self.slave_instances]
+        if self.use_private_network:
+            return [i.private_ip_address for i in self.slave_instances]
+        else:
+            return [i.public_ip_address for i in self.slave_instances]
 
     @property
     def slave_hosts(self):
-        return [i.public_dns_name for i in self.slave_instances]
+        if self.use_private_network:
+            return [i.private_dns_name for i in self.slave_instances]
+        else:
+            return [i.public_dns_name for i in self.slave_instances]
 
     @property
     def state(self):
@@ -481,6 +495,7 @@ def launch(
         placement_group,
         tenancy='default',
         ebs_optimized=False,
+        use_private_network=False,
         access_origins='',
         instance_initiated_shutdown_behavior='stop'):
     """
@@ -630,7 +645,8 @@ def launch(
             vpc_id=vpc_id,
             ssh_key_pair=generate_ssh_key_pair(),
             master_instance=master_instance,
-            slave_instances=slave_instances)
+            slave_instances=slave_instances,
+            use_private_network=use_private_network)
 
         cluster.wait_for_state('running')
 
