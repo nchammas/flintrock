@@ -2,14 +2,18 @@
 
 set -e
 
-spark_version="$1"
+version="$1"
 distribution="$2"
+download_source="$3"
+
+url=$(eval "echo \"$download_source\"")
+file="${url##*/}"
 
 echo "Installing Spark..."
 echo "  version: ${spark_version}"
 echo "  distribution: ${distribution}"
-
-file="spark-${spark_version}-bin-${distribution}.tgz"
+echo "  download source: ${download_source}"
+echo "Final Spark URL: ${url}"
 
 # S3 is generally reliable, but sometimes when launching really large
 # clusters it can hiccup on us, in which case we'll need to retry the
@@ -17,7 +21,7 @@ file="spark-${spark_version}-bin-${distribution}.tgz"
 set +e
 tries=1
 while true; do
-    curl --remote-name "https://s3.amazonaws.com/spark-related-packages/${file}"
+    curl --remote-name "${url}"
     curl_ret=$?
 
     if ((curl_ret == 0)); then

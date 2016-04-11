@@ -1,6 +1,8 @@
 services:
   spark:
     version: 1.6.0
+    # distribution: # optional; default to '2.6'
+    # download-source: # optional; default to 'https://s3.amazonaws.com/spark-related-packages/spark-${version}-bin-hadoop${distribution}.tgz'
     # git-commit: latest  # if not 'latest', provide a full commit SHA; e.g. d6dc12ef0146ae409834c78737c116050961f350
     # git-repository:  # optional; defaults to https://github.com/apache/spark
   hdfs:
