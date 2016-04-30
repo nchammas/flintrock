@@ -192,6 +192,16 @@ class EC2Cluster(FlintrockCluster):
             .stop())
         self.wait_for_state('stopped')
 
+    @timeit
+    def remove_slaves(self, *, user: str, identity_file: str, num_slaves: int):
+        # self.remove_slaves_check() (?)
+        removed_slave_instances, self.slave_instances = \
+            self.slave_instances[0:num_slaves], self.slave_instances[num_slaves:]
+        super().remove_slaves(user=user, identity_file=identity_file)
+        for instance in removed_slave_instances:
+            # TODO: Remove security group assignments.
+            instance.terminate()
+
     def run_command_check(self):
         if self.state != 'running':
             raise ClusterInvalidState(
@@ -714,6 +724,7 @@ def get_cluster(*, cluster_name: str, region: str, vpc_id: str) -> EC2Cluster:
     """
     Get an existing EC2 cluster.
     """
+    # TODO: load_manifest: bool=False
     cluster = get_clusters(
         cluster_names=[cluster_name],
         region=region,
@@ -801,9 +812,9 @@ def _get_cluster_master_slaves(
                     slave_instances.append(instance)
 
     if not master_instance:
-        raise Exception("No master found.")
-    elif not slave_instances:
-        raise Exception("No slaves found.")
+        print("Warning: No master found.", file=sys.stderr)
+    # elif not slave_instances:
+    #     print("Warning: No slaves found.", file=sys.stderr)
 
     return (master_instance, slave_instances)
 

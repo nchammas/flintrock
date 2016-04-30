@@ -28,6 +28,9 @@ class StorageDirs:
         self.persistent = persistent
 
 
+# TODO: Implement concept of ClusterNode. (?) That way we can
+#       define a cluster as having several nodes, and implement
+#       actions as `for node in nodes: node.action()`.
 # NOTE: We take both IP addresses and host names because we
 #       don't understand why Spark doesn't accept IP addresses
 #       in its config, yet we prefer IP addresses when
@@ -40,18 +43,12 @@ class FlintrockCluster:
             *,
             name,
             ssh_key_pair=None,
-            # master_ip,
-            # master_host,
-            # slave_ips,
-            # slave_hosts,
             storage_dirs=StorageDirs(root=None, ephemeral=None, persistent=None)):
         self.name = name
         self.ssh_key_pair = ssh_key_pair
-        # self.master_ip = None
-        # self.master_host = None
-        # self.slave_ips = []
-        # self.slave_hosts = []
         self.storage_dirs = storage_dirs
+        # TODO: Track services here. (?) It could be populated
+        #       as part of get_cluster() when requested.
 
     @property
     def master_ip(self) -> str:
@@ -228,6 +225,71 @@ class FlintrockCluster:
         before the underlying provider stops the nodes.
         """
         pass
+
+    # We can probably do without this method in core and just use service.configure().
+    def remove_slaves(self, *, user: str, identity_file: str):
+        """
+        Remove some slaves from the cluster.
+
+        Providers should implement this method with the following signature:
+
+            remove_slaves(self, user: str, identity_file: str, num_slaves: int)
+
+        The provider should pick which slaves to remove given the requested
+        number, and then pass the addresses of those specific slaves to this
+        method.
+
+        This method should be called before/after... (?)
+
+        This method simply makes sure that the rest of the cluster knows that
+        the relevant slaves are no longer part of the cluster.
+        """
+        # TODO: Reading the manifest and translating it into cluster attributes
+        #       should be part of get_cluster() or a similar method.
+        master_ssh_client = get_ssh_client(
+            user=user,
+            host=self.master_ip,
+            identity_file=identity_file,
+            wait=True,
+            print_status=False)
+
+        with master_ssh_client:
+            manifest_raw = ssh_check_output(
+                client=master_ssh_client,
+                command="""
+                    cat /home/{u}/.flintrock-manifest.json
+                """.format(u=shlex.quote(user)))
+            ephemeral_dirs_raw = ssh_check_output(
+                client=master_ssh_client,
+                command="""
+                    shopt -s nullglob
+                    for f in /media/ephemeral*; do
+                        echo "$f"
+                    done
+                """)
+        manifest = json.loads(manifest_raw)
+
+        services = []
+        for [service_name, manifest] in manifest['services']:
+            # TODO: Expose the classes being used here.
+            service = globals()[service_name](**manifest)
+            services.append(service)
+
+        storage_dirs = StorageDirs(
+            root='/media/root',
+            ephemeral=sorted(ephemeral_dirs_raw.splitlines()),
+            persistent=None)
+        self.storage_dirs = storage_dirs
+
+        partial_func = functools.partial(
+            remove_slaves_node,
+            user=user,
+            identity_file=identity_file,
+            services=services,
+            cluster=self)
+        hosts = [self.master_ip] + self.slave_ips
+
+        _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
     def run_command_check(self):
         """
@@ -550,6 +612,30 @@ def start_node(
             service.configure(
                 ssh_client=ssh_client,
                 cluster=cluster)
+
+
+def remove_slaves_node(
+        *,
+        user: str,
+        host: str,
+        identity_file: str,
+        services: list,
+        cluster: FlintrockCluster):
+    """
+    Update the services on a node to remove the provided slaves.
+    """
+    ssh_client = get_ssh_client(
+        user=user,
+        host=host,
+        identity_file=identity_file)
+
+    for service in services:
+        service.configure(
+            ssh_client=ssh_client,
+            cluster=cluster)
+
+    # Restart master? If we don't do that, Spark, for example, will keep the
+    # removed slaves around and mark them as dead.
 
 
 def run_command_node(*, user: str, host: str, identity_file: str, command: tuple):

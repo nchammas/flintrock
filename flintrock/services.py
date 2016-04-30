@@ -287,6 +287,8 @@ class Spark(FlintrockService):
             self,
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
+        # import pudb
+        # pudb.set_trace()
         template_paths = [
             'spark/conf/spark-env.sh',
             'spark/conf/slaves']
