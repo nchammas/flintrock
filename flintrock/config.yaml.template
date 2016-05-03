@@ -25,6 +25,8 @@ providers:
     # placement-group: <name>
     tenancy: default  # default | dedicated
     ebs-optimized: no  # yes | no
+    # use-private-network: # optional; defaults to False; if set to True, access-origins is required
+    # access-origins: # optional; must be written within quote; default to your public ip address
     instance-initiated-shutdown-behavior: terminate  # terminate | stop
 
 launch:
