@@ -209,6 +209,7 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-placement-group', default='')
 @click.option('--ec2-tenancy', default='default')
 @click.option('--ec2-ebs-optimized/--no-ec2-ebs-optimized', default=False)
+@click.option('--ec2-access-origins', help="Comma separated CIDR adresses as point of origin to access the spark cluster. This parameter must be set within quote.")
 @click.option('--ec2-instance-initiated-shutdown-behavior', default='stop',
               type=click.Choice(['stop', 'terminate']))
 @click.pass_context
@@ -237,6 +238,7 @@ def launch(
         ec2_placement_group,
         ec2_tenancy,
         ec2_ebs_optimized,
+        ec2_access_origins,
         ec2_instance_initiated_shutdown_behavior):
     """
     Launch a new cluster.
@@ -319,6 +321,7 @@ def launch(
             placement_group=ec2_placement_group,
             tenancy=ec2_tenancy,
             ebs_optimized=ec2_ebs_optimized,
+            access_origins=ec2_access_origins,
             instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior)
     else:
         raise UnsupportedProviderError(provider)

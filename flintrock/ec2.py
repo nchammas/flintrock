@@ -287,7 +287,8 @@ def get_or_create_ec2_security_groups(
         *,
         cluster_name,
         vpc_id,
-        region) -> "List[boto3.resource('ec2').SecurityGroup]":
+        region,
+        access_origins) -> "List[boto3.resource('ec2').SecurityGroup]":
     """
     If they do not already exist, create all the security groups needed for a
     Flintrock cluster.
@@ -334,47 +335,49 @@ def get_or_create_ec2_security_groups(
             VpcId=vpc_id)
 
     # Rules for the client interacting with the cluster.
-    flintrock_client_ip = (
-        urllib.request.urlopen('http://checkip.amazonaws.com/')
-        .read().decode('utf-8').strip())
-    flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+    flintrock_clients_cidr = []
+    if not access_origins:
+        flintrock_client_ip = (
+            urllib.request.urlopen('http://checkip.amazonaws.com/')
+            .read().decode('utf-8').strip())
+        flintrock_clients_cidr.append('{ip}/32'.format(ip=flintrock_client_ip))
+    else:
+        for item in access_origins.split(','):
+            flintrock_clients_cidr.append(item)
 
     # TODO: Services should be responsible for registering what ports they want exposed.
-    client_rules = [
-        # SSH
-        SecurityGroupRule(
+    client_rules = []
+    for flintrock_client_cidr in flintrock_clients_cidr:
+        client_rules.append(SecurityGroupRule(
             ip_protocol='tcp',
             from_port=22,
             to_port=22,
             cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # HDFS
-        SecurityGroupRule(
+            src_group=None))
+        client_rules.append(SecurityGroupRule(
             ip_protocol='tcp',
             from_port=50070,
             to_port=50070,
             cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # Spark
-        SecurityGroupRule(
+            src_group=None))
+        client_rules.append(SecurityGroupRule(
             ip_protocol='tcp',
             from_port=8080,
             to_port=8081,
             cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        SecurityGroupRule(
+            src_group=None))
+        client_rules.append(SecurityGroupRule(
             ip_protocol='tcp',
             from_port=4040,
             to_port=4040,
             cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        SecurityGroupRule(
+            src_group=None))
+        client_rules.append(SecurityGroupRule(
             ip_protocol='tcp',
             from_port=7077,
             to_port=7077,
             cidr_ip=flintrock_client_cidr,
-            src_group=None)
-    ]
+            src_group=None))
 
     # TODO: Don't try adding rules that already exist.
     # TODO: Add rules in one shot.
@@ -477,6 +480,7 @@ def launch(
         placement_group,
         tenancy='default',
         ebs_optimized=False,
+        access_origins='',
         instance_initiated_shutdown_behavior='stop'):
     """
     Launch a cluster.
@@ -509,7 +513,8 @@ def launch(
         security_groups = get_or_create_ec2_security_groups(
             cluster_name=cluster_name,
             vpc_id=vpc_id,
-            region=region)
+            region=region,
+            access_origins=access_origins)
         block_device_mappings = get_ec2_block_device_mappings(
             ami=ami,
             region=region)
