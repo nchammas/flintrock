@@ -3,7 +3,10 @@
 
 ## [Unreleased](https://github.com/nchammas/flintrock/compare/v0.4.0...master)
 
-Nothing notable yet.
+### Changed
+
+* [#103](https://github.com/nchammas/flintrock/pull/103): Flintrock now opens port 7077 so local
+  clients like Apache Zeppelin can connect directly to the Spark master on the cluster.
 
 
 ## [0.4.0](https://github.com/nchammas/flintrock/compare/v0.3.0...v0.4.0) - 2016-03-27
