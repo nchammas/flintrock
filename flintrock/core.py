@@ -47,8 +47,7 @@ class FlintrockCluster:
         self.name = name
         self.ssh_key_pair = ssh_key_pair
         self.storage_dirs = storage_dirs
-        # TODO: Track services here. (?) It could be populated
-        #       as part of get_cluster() when requested.
+        self.services = []
 
     @property
     def master_ip(self) -> str:
@@ -89,6 +88,57 @@ class FlintrockCluster:
         an underlying object, like an EC2 instance.
         """
         raise NotImplementedError
+
+    def load_manifest(self, *, user: str, identity_file: str):
+        """
+        Load a cluster's manifest from the master. This will populate information
+        about installed services and configured storage.
+
+        Providers shouldn't need to override this method.
+        """
+        if not self.master_ip:
+            return
+
+        master_ssh_client = get_ssh_client(
+            user=user,
+            host=self.master_ip,
+            identity_file=identity_file,
+            wait=True,
+            print_status=False)
+
+        with master_ssh_client:
+            manifest_raw = ssh_check_output(
+                client=master_ssh_client,
+                command="""
+                    cat /home/{u}/.flintrock-manifest.json
+                """.format(u=shlex.quote(user)))
+            # TODO: Would it be better if storage (ephemeral and otherwise) was
+            #       implemented as a Flintrock service and tracked in the manifest?
+            ephemeral_dirs_raw = ssh_check_output(
+                client=master_ssh_client,
+                # It's generally safer to avoid using ls:
+                # http://mywiki.wooledge.org/ParsingLs
+                command="""
+                    shopt -s nullglob
+                    for f in /media/ephemeral*; do
+                        echo "$f"
+                    done
+                """)
+
+        manifest = json.loads(manifest_raw)
+
+        services = []
+        for [service_name, manifest] in manifest['services']:
+            # TODO: Expose the classes being used here.
+            service = globals()[service_name](**manifest)
+            services.append(service)
+        self.services = services
+
+        storage_dirs = StorageDirs(
+            root='/media/root',
+            ephemeral=sorted(ephemeral_dirs_raw.splitlines()),
+            persistent=None)
+        self.storage_dirs = storage_dirs
 
     def destroy_check(self):
         """
@@ -134,53 +184,11 @@ class FlintrockCluster:
         started up by the provider (e.g. EC2, GCE, etc.) they're hosted on
         and are running.
         """
-        master_ssh_client = get_ssh_client(
-            user=user,
-            host=self.master_ip,
-            identity_file=identity_file,
-            wait=True,
-            print_status=False)
-
-        with master_ssh_client:
-            manifest_raw = ssh_check_output(
-                client=master_ssh_client,
-                command="""
-                    cat /home/{u}/.flintrock-manifest.json
-                """.format(u=shlex.quote(user)))
-            # TODO: Reconsider where this belongs. In the manifest? We can implement
-            #       ephemeral storage support as a Flintrock service, and add methods to
-            #       serialize and deserialize critical service info like installed versions
-            #       or ephemeral drives to the to/from the manifest.
-            #       Another approach is to auto-detect storage inside a start_node()
-            #       method. Yet another approach is to determine storage upfront by the
-            #       instance type.
-            # NOTE: As for why we aren't using ls here, see:
-            #       http://mywiki.wooledge.org/ParsingLs
-            ephemeral_dirs_raw = ssh_check_output(
-                client=master_ssh_client,
-                command="""
-                    shopt -s nullglob
-                    for f in /media/ephemeral*; do
-                        echo "$f"
-                    done
-                """)
-
-        manifest = json.loads(manifest_raw)
-        storage_dirs = StorageDirs(
-            root='/media/root',
-            ephemeral=sorted(ephemeral_dirs_raw.splitlines()),
-            persistent=None)
-        self.storage_dirs = storage_dirs
-
-        services = []
-        for [service_name, manifest] in manifest['services']:
-            # TODO: Expose the classes being used here.
-            service = globals()[service_name](**manifest)
-            services.append(service)
+        self.load_manifest(user=user, identity_file=identity_file)
 
         partial_func = functools.partial(
             start_node,
-            services=services,
+            services=self.services,
             user=user,
             identity_file=identity_file,
             cluster=self)
@@ -194,7 +202,7 @@ class FlintrockCluster:
             identity_file=identity_file)
 
         with master_ssh_client:
-            for service in services:
+            for service in self.services:
                 service.configure_master(
                     ssh_client=master_ssh_client,
                     cluster=self)
@@ -202,10 +210,10 @@ class FlintrockCluster:
         # NOTE: We sleep here so that the slave services have time to come up.
         #       If we refactor stuff to have a start_slave() that blocks until
         #       the slave is fully up, then we won't need this sleep anymore.
-        if services:
+        if self.services:
             time.sleep(30)
 
-        for service in services:
+        for service in self.services:
             service.health_check(master_host=self.master_ip)
 
     def stop_check(self):
@@ -244,48 +252,13 @@ class FlintrockCluster:
         This method simply makes sure that the rest of the cluster knows that
         the relevant slaves are no longer part of the cluster.
         """
-        # TODO: Reading the manifest and translating it into cluster attributes
-        #       should be part of get_cluster() or a similar method.
-        master_ssh_client = get_ssh_client(
-            user=user,
-            host=self.master_ip,
-            identity_file=identity_file,
-            wait=True,
-            print_status=False)
-
-        with master_ssh_client:
-            manifest_raw = ssh_check_output(
-                client=master_ssh_client,
-                command="""
-                    cat /home/{u}/.flintrock-manifest.json
-                """.format(u=shlex.quote(user)))
-            ephemeral_dirs_raw = ssh_check_output(
-                client=master_ssh_client,
-                command="""
-                    shopt -s nullglob
-                    for f in /media/ephemeral*; do
-                        echo "$f"
-                    done
-                """)
-        manifest = json.loads(manifest_raw)
-
-        services = []
-        for [service_name, manifest] in manifest['services']:
-            # TODO: Expose the classes being used here.
-            service = globals()[service_name](**manifest)
-            services.append(service)
-
-        storage_dirs = StorageDirs(
-            root='/media/root',
-            ephemeral=sorted(ephemeral_dirs_raw.splitlines()),
-            persistent=None)
-        self.storage_dirs = storage_dirs
+        self.load_manifest(user=user, identity_file=identity_file)
 
         partial_func = functools.partial(
             remove_slaves_node,
             user=user,
             identity_file=identity_file,
-            services=services,
+            services=self.services,
             cluster=self)
         hosts = [self.master_ip] + self.slave_ips
 
