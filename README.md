@@ -18,10 +18,10 @@ Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
-    --spark-version 1.6.0 \
+    --spark-version 1.6.1 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
-    --ec2-ami ami-60b6c60a \
+    --ec2-ami ami-08111162 \
     --ec2-user ec2-user
 ```
 
@@ -81,14 +81,18 @@ flintrock configure
 
 ### Standalone version (Python not required!)
 
-If you don't have a recent enough version of Python, or if you don't have Python installed at all, you can still use Flintrock. We publish standalone packages of Flintrock on GitHub with our [releases](https://github.com/nchammas/flintrock/releases).
+If you don't have a recent enough version of Python, or if you don't have Python installed at all,
+you can still use Flintrock. We publish standalone packages of Flintrock on GitHub with our
+[releases](https://github.com/nchammas/flintrock/releases).
 
-Find the standalone package for your OS under our [latest release](https://github.com/nchammas/flintrock/releases/latest), unzip it to a location of your choice, and run the `flintrock` executable inside.
+Find the standalone package for your OS under our [latest release](https://github.com/nchammas/flintrock/releases/latest),
+unzip it to a location of your choice, and run the `flintrock` executable inside.
 
 For example:
 
 ```sh
-flintrock_version="0.3.0"
+flintrock_version="0.4.0"
+
 curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
 unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
 cd flintrock/
@@ -97,7 +101,8 @@ cd flintrock/
 ./flintrock --help
 ```
 
-You'll probably want to add the location of the Flintrock executable to your `PATH` so that you can invoke it from any directory.
+You'll probably want to add the location of the Flintrock executable to your `PATH` so that you
+can invoke it from any directory.
 
 ### Development version
 
@@ -181,7 +186,7 @@ provider: ec2
 
 services:
   spark:
-    version: 1.6.0
+    version: 1.6.1
 
 launch:
   num-slaves: 1
@@ -191,7 +196,7 @@ ec2:
   identity-file: /path/to/.ssh/key.pem
   instance-type: m3.medium
   region: us-east-1
-  ami: ami-60b6c60a
+  ami: ami-08111162
   user: ec2-user
 ```
 

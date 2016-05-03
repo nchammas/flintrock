@@ -1,6 +1,6 @@
 services:
   spark:
-    version: 1.6.0
+    version: 1.6.1
     # git-commit: latest  # if not 'latest', provide a full commit SHA; e.g. d6dc12ef0146ae409834c78737c116050961f350
     # git-repository:  # optional; defaults to https://github.com/apache/spark
   hdfs:
@@ -15,7 +15,7 @@ providers:
     instance-type: m3.medium
     region: us-east-1
     # availability-zone: <name>
-    ami: ami-60b6c60a   # Amazon Linux, us-east-1
+    ami: ami-08111162   # Amazon Linux, us-east-1
     user: ec2-user
     # ami: ami-61bbf104   # CentOS 7, us-east-1
     # user: centos
