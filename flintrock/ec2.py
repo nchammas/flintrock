@@ -374,6 +374,7 @@ def get_or_create_ec2_security_groups(
             to_port=7077,
             cidr_ip=flintrock_client_cidr,
             src_group=None),
+        # Spark REST Server
         SecurityGroupRule(
             ip_protocol='tcp',
             from_port=6066,
