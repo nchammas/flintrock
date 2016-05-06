@@ -89,6 +89,20 @@ class FlintrockCluster:
         """
         raise NotImplementedError
 
+    @property
+    def num_slaves(self) -> int:
+        """
+        How many slaves the cluster has.
+
+        This is typically just len(self.slave_ips), but we need a separate
+        property because slave IPs are not available when the cluster is
+        stopped, and sometimes in that situation we still want to know how
+        many slaves there are.
+
+        Providers must override this property.
+        """
+        raise NotImplementedError
+
     def load_manifest(self, *, user: str, identity_file: str):
         """
         Load a cluster's manifest from the master. This will populate information
@@ -243,11 +257,9 @@ class FlintrockCluster:
 
             remove_slaves(self, user: str, identity_file: str, num_slaves: int)
 
-        The provider should pick which slaves to remove given the requested
-        number, and then pass the addresses of those specific slaves to this
-        method.
-
-        This method should be called before/after... (?)
+        This method should be called after the provider has removed the slaves
+        from the cluster's internal list but before the instances themselves
+        have been terminated.
 
         This method simply makes sure that the rest of the cluster knows that
         the relevant slaves are no longer part of the cluster.

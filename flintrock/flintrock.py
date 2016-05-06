@@ -176,7 +176,7 @@ def cli(cli_context, config, provider):
 
 @cli.command()
 @click.argument('cluster-name')
-@click.option('--num-slaves', type=int, required=True)
+@click.option('--num-slaves', type=click.IntRange(min=0), required=True)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version')
 @click.option('--hdfs-download-source',
@@ -585,7 +585,7 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 
 @cli.command(name='remove-slaves')
 @click.argument('cluster-name')
-@click.option('--num-slaves', type=int, required=True)
+@click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-user')
@@ -627,18 +627,10 @@ def remove_slaves(
     else:
         raise UnsupportedProviderError(provider)
 
-    # START HERE
-    # * How do we query the number of slaves when the cluster is stopped?
-    # * Can we remove slaves?
-    #   * Show warning if requested is more than available.
-    #   * e.g. cluster has 4 slaves, user asks to remove 5
-    # * Should we allow all slaves to be removed? (Yes?)
-    # * Terminate instances
-    # * Does the cluster need to be started at this point? (Yes?)
-    # * Update `slaves` file on all nodes
-    # * Does Spark need to be restarted? (No?)
-    # * Make sure cluster can be launched with 0 slaves. (?)
-    # * NOTE: cluster start will autoamtically fix slaves file (?)
+    # TODO:
+    #   * Show warning if requested is more than available. Remove available.
+    #   * Does Spark need to be restarted if cluster is running? (No?)
+    #   * Make sure cluster can be launched with 0 slaves. (?)
 
     # cluster.remove_slaves_check() ?
 
