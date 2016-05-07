@@ -176,7 +176,7 @@ def cli(cli_context, config, provider):
 
 @cli.command()
 @click.argument('cluster-name')
-@click.option('--num-slaves', type=click.IntRange(min=0), required=True)
+@click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version')
 @click.option('--hdfs-download-source',
@@ -627,12 +627,17 @@ def remove_slaves(
     else:
         raise UnsupportedProviderError(provider)
 
-    # TODO:
-    #   * Show warning if requested is more than available. Remove available.
-    #   * Does Spark need to be restarted if cluster is running? (No?)
-    #   * Make sure cluster can be launched with 0 slaves. (?)
+    if num_slaves > cluster.num_slaves:
+        print(
+            "Warning: Cluster has {c} slaves. "
+            "You asked to remove {n} slaves."
+            .format(
+                c=cluster.num_slaves,
+                n=num_slaves))
+        num_slaves = cluster.num_slaves
 
-    # cluster.remove_slaves_check() ?
+    # TODO:
+    #   * Does Spark need to be restarted if cluster is running? (No?)
 
     if not assume_yes:
         cluster.print()
