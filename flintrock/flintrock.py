@@ -636,9 +636,6 @@ def remove_slaves(
                 n=num_slaves))
         num_slaves = cluster.num_slaves
 
-    # TODO:
-    #   * Does Spark need to be restarted if cluster is running? (No?)
-
     if not assume_yes:
         cluster.print()
         click.confirm(
