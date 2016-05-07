@@ -640,15 +640,15 @@ def remove_slaves(
         cluster.print()
         click.confirm(
             text=("Are you sure you want to remove {n} slave{s} from this cluster?"
-                .format(
-                    n=num_slaves,
-                    s='' if num_slaves == 1 else 's')),
+                  .format(
+                      n=num_slaves,
+                      s='' if num_slaves == 1 else 's')),
             abort=True)
 
     print("Removing {n} slave{s}..."
-        .format(
-            n=num_slaves,
-            s='' if num_slaves == 1 else 's'))
+          .format(
+              n=num_slaves,
+              s='' if num_slaves == 1 else 's'))
     cluster.remove_slaves(
         user=user,
         identity_file=identity_file,
