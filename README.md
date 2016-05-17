@@ -191,13 +191,14 @@ services:
 launch:
   num-slaves: 1
 
-ec2:
-  key-name: key_name
-  identity-file: /path/to/.ssh/key.pem
-  instance-type: m3.medium
-  region: us-east-1
-  ami: ami-08111162
-  user: ec2-user
+providers:
+  ec2:
+    key-name: key_name
+    identity-file: /path/to/.ssh/key.pem
+    instance-type: m3.medium
+    region: us-east-1
+    ami: ami-08111162
+    user: ec2-user
 ```
 
 With a config file like that, you can now launch a cluster with just this:
