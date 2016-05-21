@@ -17,23 +17,28 @@ else:
 
 
 if __name__ == '__main__':
-    arg_names = ['hadoop_version', 'custom_mirror_url']
-    args = dict(zip(arg_names, sys.argv))
+    hadoop_version = sys.argv[1]
+    custom_mirror_url = sys.argv[2]
 
-    if 'custom_mirror_url' in args.keys:
-        mirror_url = args['custom_mirror_url'].format(v=args['hadoop_version'])
+    if custom_mirror_url:
+        mirror_url = custom_mirror_url.format(v=hadoop_version)
     else:
         mirror_url = "http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json"\
-            .format(v=args['hadoop_version'])
+            .format(v=hadoop_version)
 
     tries = 0
     while tries < 3:
-        mirror_info = json.loads(urlopen(mirror_url).read().decode('utf-8'))
-        file_url = mirror_info['preferred'] + mirror_info['path_info']
-        file_name = os.path.basename(mirror_info['path_info'])
-        print('Downloading file at:', file_url)
+        if custom_mirror_url:
+            print("Downloading file at:", mirror_url)
+            file_name = os.path.basename(mirror_url)
+            file_path, _ = urlretrieve(url=mirror_url, filename=file_name)
+        else:
+            mirror_info = json.loads(urlopen(mirror_url).read().decode('utf-8'))
+            file_url = mirror_info['preferred'] + mirror_info['path_info']
+            file_name = os.path.basename(mirror_info['path_info'])
+            print("Downloading file at:", file_url)
+            file_path, _ = urlretrieve(url=file_url, filename=file_name)
 
-        file_path, _ = urlretrieve(url=file_url, filename=file_name)
         ret = subprocess.call(['gzip', '--test', file_path])
 
         if ret == 0:
