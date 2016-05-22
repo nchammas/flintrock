@@ -180,7 +180,7 @@ def cli(cli_context, config, provider):
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version')
 @click.option('--hdfs-download-source',
-              help="Custom URL to download hadoop from.",
+              help="URL to download Hadoop from.",
               default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
               show_default=True)
 @click.option('--install-spark/--no-install-spark', default=True)
