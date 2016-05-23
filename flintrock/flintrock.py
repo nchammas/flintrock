@@ -179,6 +179,7 @@ def cli(cli_context, config, provider):
 @click.option('--num-slaves', type=int, required=True)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version')
+@click.option('--hdfs-download-source')
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-version',
               help="Spark release version to install.")
@@ -218,6 +219,7 @@ def launch(
         num_slaves,
         install_hdfs,
         hdfs_version,
+        hdfs_download_source,
         install_spark,
         spark_version,
         spark_git_commit,
@@ -282,7 +284,7 @@ def launch(
         scope=locals())
 
     if install_hdfs:
-        hdfs = HDFS(version=hdfs_version)
+        hdfs = HDFS(version=hdfs_version, download_source=hdfs_download_source)
         services += [hdfs]
     if install_spark:
         if spark_version:

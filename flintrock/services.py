@@ -108,9 +108,10 @@ class FlintrockService:
 
 
 class HDFS(FlintrockService):
-    def __init__(self, version):
+    def __init__(self, version, download_source):
         self.version = version
-        self.manifest = {'version': version}
+        self.download_source = download_source
+        self.manifest = {'version': version, 'download_source': download_source}
 
     def install(
             self,
@@ -119,24 +120,44 @@ class HDFS(FlintrockService):
         print("[{h}] Installing HDFS...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
-        with ssh_client.open_sftp() as sftp:
-            sftp.put(
-                localpath=os.path.join(SCRIPTS_DIR, 'download-hadoop.py'),
-                remotepath='/tmp/download-hadoop.py')
+        if not self.download_source:
+            with ssh_client.open_sftp() as sftp:
+                sftp.put(
+                    localpath=os.path.join(SCRIPTS_DIR, 'download-hadoop.py'),
+                    remotepath='/tmp/download-hadoop.py')
 
-        ssh_check_output(
-            client=ssh_client,
-            command="""
-                set -e
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    set -e
 
-                python /tmp/download-hadoop.py "{version}"
+                    python /tmp/download-hadoop.py "{version}"
 
-                mkdir "hadoop"
-                mkdir "hadoop/conf"
+                    mkdir "hadoop"
+                    mkdir "hadoop/conf"
 
-                tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
-                rm "hadoop-{version}.tar.gz"
-            """.format(version=self.version))
+                    tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
+                    rm "hadoop-{version}.tar.gz"
+                """.format(version=self.version))
+        else:
+            with ssh_client.open_sftp() as sftp:
+                sftp.put(
+                    localpath=os.path.join(SCRIPTS_DIR, 'download-hadoop.sh'),
+                    remotepath='/tmp/download-hadoop.sh')
+                sftp.chmod(path='/tmp/download-hadoop.sh', mode=0o755)
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    set -e
+
+                    /tmp/download-hadoop.sh "{version}" {download_source}
+
+                    mkdir "hadoop"
+                    mkdir "hadoop/conf"
+
+                    tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
+                    rm "hadoop-{version}.tar.gz"
+                """.format(version=self.version, download_source=shlex.quote(self.download_source)))
 
     def configure(
             self,
