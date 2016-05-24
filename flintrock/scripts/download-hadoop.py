@@ -1,11 +1,10 @@
 """
-Download Hadoop from the best available Apache mirror.
+Download Hadoop from the best available Apache mirror or a custom location.
 """
 
 from __future__ import print_function
 
 import json
-import os
 import sys
 import subprocess
 
@@ -18,16 +17,22 @@ else:
 
 if __name__ == '__main__':
     hadoop_version = sys.argv[1]
-    apache_mirror_url = "http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json".format(v=hadoop_version)
+    mirror_url = sys.argv[2].format(v=hadoop_version)
+    default_mirror_url = \
+        'http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json'\
+        .format(v=hadoop_version)
 
     tries = 0
     while tries < 3:
-        mirror_info = json.loads(urlopen(apache_mirror_url).read().decode('utf-8'))
-        file_url = mirror_info['preferred'] + mirror_info['path_info']
-        file_name = os.path.basename(mirror_info['path_info'])
-        print('Downloading file at:', file_url)
+        if mirror_url == default_mirror_url:
+            mirror_info = json.loads(urlopen(mirror_url).read().decode('utf-8'))
+            file_url = mirror_info['preferred'] + mirror_info['path_info']
+        else:
+            file_url = mirror_url
 
-        file_path, _ = urlretrieve(url=file_url, filename=file_name)
+        print("Downloading file at:", file_url)
+        file_path, _ = \
+            urlretrieve(url=file_url, filename="hadoop-{v}.tar.gz".format(v=hadoop_version))
         ret = subprocess.call(['gzip', '--test', file_path])
 
         if ret == 0:

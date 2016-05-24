@@ -108,9 +108,10 @@ class FlintrockService:
 
 
 class HDFS(FlintrockService):
-    def __init__(self, version):
+    def __init__(self, version, download_source):
         self.version = version
-        self.manifest = {'version': version}
+        self.download_source = download_source
+        self.manifest = {'version': version, 'download_source': download_source}
 
     def install(
             self,
@@ -129,14 +130,14 @@ class HDFS(FlintrockService):
             command="""
                 set -e
 
-                python /tmp/download-hadoop.py "{version}"
+                python /tmp/download-hadoop.py "{version}" "{download_source}"
 
                 mkdir "hadoop"
                 mkdir "hadoop/conf"
 
                 tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
                 rm "hadoop-{version}.tar.gz"
-            """.format(version=self.version))
+            """.format(version=self.version, download_source=self.download_source))
 
     def configure(
             self,

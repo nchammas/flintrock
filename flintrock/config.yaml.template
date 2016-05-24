@@ -5,6 +5,9 @@ services:
     # git-repository:  # optional; defaults to https://github.com/apache/spark
   hdfs:
     version: 2.7.2
+    # optional; defaults to download from a dynamically selected Apache mirror
+    # must contain a {v} template corresponding to the version; must be a .tar.gz file
+    # download-source: "https://www.example.com/files/hadoop/{v}/hadoop-{v}.tar.gz"
 
 provider: ec2
 
