@@ -504,6 +504,18 @@ def provision_node(
                     sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/jre >> /etc/environment"
                     source /etc/environment
                 """)
+        print("[{h}] Configuring hostname...".format(h=host))
+        ssh_check_output(
+                client=client,
+                command="""
+                    set -e
+                    
+                    fullname=`hostname`.ec2.internal
+
+                    echo "{h} $fullname $(hostname)" |sudo tee -a /etc/hosts
+
+                    set +e
+                    """.format(h=host))
 
         for service in services:
             service.install(
