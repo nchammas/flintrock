@@ -274,6 +274,7 @@ class Spark(FlintrockService):
                     for f in $(find spark/bin -type f -executable ! -name '*.cmd'); do
                         sudo ln -s $(pwd)/$f /usr/local/bin/$(basename $f)
                     done
+                    echo "export SPARK_HOME='$(pwd)/spark'" >> .bashrc
                 """)
         except Exception as e:
             # TODO: This should be a more specific exception.
