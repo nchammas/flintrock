@@ -293,7 +293,8 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
     if use_private_vpc:
         print("{s} does not auto-assign public IP addresses. "
               "Flintrock will use private IP addresses.".format(s=subnet_id))
-        return use_private_vpc
+    return use_private_vpc
+
 
 def get_or_create_ec2_security_groups(
         *,
@@ -348,7 +349,7 @@ def get_or_create_ec2_security_groups(
 
     # Rules for the client interacting with the cluster.
     if use_private_vpc:
-        flintrock_client_ip = socket.gethostbyname(socket.gethostname()) 
+        flintrock_client_ip = socket.gethostbyname(socket.gethostname())
     else:
         flintrock_client_ip = (
             urllib.request.urlopen('http://checkip.amazonaws.com/')
@@ -510,9 +511,9 @@ def launch(
         # If it's a non-default VPC -- i.e. the user set it up -- make sure it's
         # configured correctly.
         use_private_vpc = check_network_config(
-                              region_name=region,
-                              vpc_id=vpc_id,
-                              subnet_id=subnet_id)
+            region_name=region,
+            vpc_id=vpc_id,
+            subnet_id=subnet_id)
 
     try:
         get_cluster(
@@ -650,7 +651,6 @@ def launch(
             master_instance=master_instance,
             slave_instances=slave_instances,
             use_private_vpc=use_private_vpc)
-
 
         cluster.wait_for_state('running')
 

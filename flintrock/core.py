@@ -506,16 +506,16 @@ def provision_node(
                 """)
         print("[{h}] Configuring hostname...".format(h=host))
         ssh_check_output(
-                client=client,
-                command="""
-                    set -e
-                    
-                    fullname=`hostname`.ec2.internal
+            client=client,
+            command="""
+                set -e
 
-                    echo "{h} $fullname $(hostname)" |sudo tee -a /etc/hosts
+                fullname=`hostname`.ec2.internal
 
-                    set +e
-                    """.format(h=host))
+                echo "{h} $fullname $(hostname)" |sudo tee -a /etc/hosts
+
+                set +e
+                """.format(h=host))
 
         for service in services:
             service.install(
