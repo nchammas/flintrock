@@ -354,7 +354,6 @@ def get_or_create_ec2_security_groups(
             urllib.request.urlopen('http://checkip.amazonaws.com/')
             .read().decode('utf-8').strip())
     flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
-    print(flintrock_client_cidr)
 
     # TODO: Services should be responsible for registering what ports they want exposed.
     client_rules = [
