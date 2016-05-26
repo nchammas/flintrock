@@ -5,6 +5,7 @@ import time
 import urllib.request
 from collections import namedtuple
 from datetime import datetime
+import socket
 
 # External modules
 import boto3
@@ -298,7 +299,8 @@ def get_or_create_ec2_security_groups(
         *,
         cluster_name,
         vpc_id,
-        region) -> "List[boto3.resource('ec2').SecurityGroup]":
+        region,
+        use_private_vpc) -> "List[boto3.resource('ec2').SecurityGroup]":
     """
     If they do not already exist, create all the security groups needed for a
     Flintrock cluster.
@@ -345,10 +347,14 @@ def get_or_create_ec2_security_groups(
             VpcId=vpc_id)
 
     # Rules for the client interacting with the cluster.
-    flintrock_client_ip = (
-        urllib.request.urlopen('http://checkip.amazonaws.com/')
-        .read().decode('utf-8').strip())
+    if use_private_vpc:
+        flintrock_client_ip = socket.gethostbyname(socket.gethostname()) 
+    else:
+        flintrock_client_ip = (
+            urllib.request.urlopen('http://checkip.amazonaws.com/')
+            .read().decode('utf-8').strip())
     flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+    print(flintrock_client_cidr)
 
     # TODO: Services should be responsible for registering what ports they want exposed.
     client_rules = [
@@ -527,7 +533,8 @@ def launch(
         security_groups = get_or_create_ec2_security_groups(
             cluster_name=cluster_name,
             vpc_id=vpc_id,
-            region=region)
+            region=region,
+            use_private_vpc=use_private_vpc)
         block_device_mappings = get_ec2_block_device_mappings(
             ami=ami,
             region=region)
