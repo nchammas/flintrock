@@ -513,8 +513,6 @@ def provision_node(
                 fullname=`hostname`.ec2.internal
 
                 echo "{h} $fullname $(hostname)" |sudo tee -a /etc/hosts
-
-                set +e
                 """.format(h=host))
 
         for service in services:

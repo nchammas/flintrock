@@ -58,7 +58,6 @@ class EC2Cluster(FlintrockCluster):
             vpc_id: str,
             master_instance: 'boto3.resources.factory.ec2.Instance',
             slave_instances: "List[boto3.resources.factory.ec2.Instance]",
-            use_private_vpc,
             *args,
             **kwargs):
         super().__init__(*args, **kwargs)
@@ -66,7 +65,6 @@ class EC2Cluster(FlintrockCluster):
         self.vpc_id = vpc_id
         self.master_instance = master_instance
         self.slave_instances = slave_instances
-        self.use_private_vpc = use_private_vpc
 
     @property
     def instances(self):
@@ -74,31 +72,36 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def master_ip(self):
-        if self.use_private_vpc:
+        if self.subnet_is_private:
             return self.master_instance.private_ip_address
         else:
             return self.master_instance.public_ip_address
 
     @property
     def master_host(self):
-        if self.use_private_vpc:
+        if self.subnet_is_private:
             return self.master_instance.private_dns_name
         else:
             return self.master_instance.public_dns_name
 
     @property
     def slave_ips(self):
-        if self.use_private_vpc:
+        if self.subnet_is_private:
             return [i.private_ip_address for i in self.slave_instances]
         else:
             return [i.public_ip_address for i in self.slave_instances]
 
     @property
     def slave_hosts(self):
-        if self.use_private_vpc:
+        if self.subnet_is_private:
             return [i.private_dns_name for i in self.slave_instances]
         else:
             return [i.public_dns_name for i in self.slave_instances]
+
+    @property
+    def subnet_is_private(self):
+        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
+        return not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
 
     @property
     def state(self):
@@ -649,8 +652,7 @@ def launch(
             vpc_id=vpc_id,
             ssh_key_pair=generate_ssh_key_pair(),
             master_instance=master_instance,
-            slave_instances=slave_instances,
-            use_private_vpc=use_private_vpc)
+            slave_instances=slave_instances)
 
         cluster.wait_for_state('running')
 
@@ -802,15 +804,11 @@ def _compose_cluster(*, name: str, region: str, vpc_id: str, instances: list) ->
     """
     (master_instance, slave_instances) = _get_cluster_master_slaves(instances)
 
-    ec2 = boto3.resource(service_name='ec2', region_name=region)
-    use_private_vpc = not ec2.Subnet(master_instance.subnet_id).map_public_ip_on_launch
-
     cluster = EC2Cluster(
         name=name,
         region=region,
         vpc_id=vpc_id,
         master_instance=master_instance,
-        slave_instances=slave_instances,
-        use_private_vpc=use_private_vpc)
+        slave_instances=slave_instances)
 
     return cluster
