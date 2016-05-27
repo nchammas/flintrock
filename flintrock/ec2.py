@@ -292,19 +292,13 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
             "See: https://github.com/nchammas/flintrock/issues/43"
             .format(v=vpc_id)
         )
-    use_private_vpc = not ec2.Subnet(subnet_id).map_public_ip_on_launch
-    if use_private_vpc:
-        print("{s} does not auto-assign public IP addresses. "
-              "Flintrock will use private IP addresses.".format(s=subnet_id))
-    return use_private_vpc
 
 
 def get_or_create_ec2_security_groups(
         *,
         cluster_name,
         vpc_id,
-        region,
-        use_private_vpc) -> "List[boto3.resource('ec2').SecurityGroup]":
+        region) -> "List[boto3.resource('ec2').SecurityGroup]":
     """
     If they do not already exist, create all the security groups needed for a
     Flintrock cluster.
@@ -351,57 +345,58 @@ def get_or_create_ec2_security_groups(
             VpcId=vpc_id)
 
     # Rules for the client interacting with the cluster.
-    if use_private_vpc:
-        flintrock_client_ip = socket.gethostbyname(socket.gethostname())
-    else:
-        flintrock_client_ip = (
-            urllib.request.urlopen('http://checkip.amazonaws.com/')
-            .read().decode('utf-8').strip())
-    flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+    flintrock_client_ips = []
+    flintrock_client_ips[0] = socket.gethostbyname(socket.gethostname())
+    flintrock_client_ips[1] = (
+        urllib.request.urlopen('http://checkip.amazonaws.com/')
+        .read().decode('utf-8').strip())
+    flintrock_client_cidrs = ['{ip}/32'.format(ip) for ip in flintrock_client_ips]
 
     # TODO: Services should be responsible for registering what ports they want exposed.
-    client_rules = [
-        # SSH
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=22,
-            to_port=22,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # HDFS
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=50070,
-            to_port=50070,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # Spark
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=8080,
-            to_port=8081,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=4040,
-            to_port=4040,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=7077,
-            to_port=7077,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # Spark REST Server
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=6066,
-            to_port=6066,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None)
-    ]
+    client_rules = []
+    for flintrock_client_cidr in flintrock_client_cidrs:
+        client_rules.extend([
+            # SSH
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=22,
+                to_port=22,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            # HDFS
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=50070,
+                to_port=50070,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            # Spark
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=8080,
+                to_port=8081,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=4040,
+                to_port=4040,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=7077,
+                to_port=7077,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            # Spark REST Server
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=6066,
+                to_port=6066,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None)
+        ])
 
     # TODO: Don't try adding rules that already exist.
     # TODO: Add rules in one shot.
@@ -513,7 +508,7 @@ def launch(
     else:
         # If it's a non-default VPC -- i.e. the user set it up -- make sure it's
         # configured correctly.
-        use_private_vpc = check_network_config(
+        check_network_config(
             region_name=region,
             vpc_id=vpc_id,
             subnet_id=subnet_id)
@@ -536,8 +531,7 @@ def launch(
         security_groups = get_or_create_ec2_security_groups(
             cluster_name=cluster_name,
             vpc_id=vpc_id,
-            region=region,
-            use_private_vpc=use_private_vpc)
+            region=region)
         block_device_mappings = get_ec2_block_device_mappings(
             ami=ami,
             region=region)
