@@ -346,11 +346,11 @@ def get_or_create_ec2_security_groups(
 
     # Rules for the client interacting with the cluster.
     flintrock_client_ips = []
-    flintrock_client_ips[0] = socket.gethostbyname(socket.gethostname())
-    flintrock_client_ips[1] = (
+    flintrock_client_ips.append(socket.gethostbyname(socket.gethostname()))
+    flintrock_client_ips.append((
         urllib.request.urlopen('http://checkip.amazonaws.com/')
-        .read().decode('utf-8').strip())
-    flintrock_client_cidrs = ['{ip}/32'.format(ip) for ip in flintrock_client_ips]
+        .read().decode('utf-8').strip()))
+    flintrock_client_cidrs = ['{ip}/32'.format(ip=fcip) for fcip in flintrock_client_ips]
 
     # TODO: Services should be responsible for registering what ports they want exposed.
     client_rules = []
