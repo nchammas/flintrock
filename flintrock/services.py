@@ -137,6 +137,10 @@ class HDFS(FlintrockService):
 
                 tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
                 rm "hadoop-{version}.tar.gz"
+
+                for f in $(find hadoop/bin -type f -executable ! -name '*.cmd'); do
+                    sudo ln -s $(pwd)/$f /usr/local/bin/$(basename $f)
+                done
             """.format(version=self.version, download_source=self.download_source))
 
     def configure(
@@ -263,6 +267,15 @@ class Spark(FlintrockService):
                     """.format(
                         repo=shlex.quote(self.git_repository),
                         commit=shlex.quote(self.git_commit)))
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    set -e
+                    for f in $(find spark/bin -type f -executable ! -name '*.cmd'); do
+                        sudo ln -s $(pwd)/$f /usr/local/bin/$(basename $f)
+                    done
+                    echo "export SPARK_HOME='$(pwd)/spark'" >> .bashrc
+                """)
         except Exception as e:
             # TODO: This should be a more specific exception.
             print("Error: Failed to install Spark.", file=sys.stderr)
