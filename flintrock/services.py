@@ -138,8 +138,8 @@ class HDFS(FlintrockService):
                 tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
                 rm "hadoop-{version}.tar.gz"
 
-                for f in $(find hadoop/bin -type f -executable ! -name '*.cmd'); do
-                    sudo ln -s $(pwd)/$f /usr/local/bin/$(basename $f)
+                for f in $(find hadoop/bin -type f -executable -not -name '*.cmd'); do
+                    sudo ln -s "$(pwd)/$f" "/usr/local/bin/$(basename $f)"
                 done
             """.format(version=self.version, download_source=self.download_source))
 
@@ -271,8 +271,8 @@ class Spark(FlintrockService):
                 client=ssh_client,
                 command="""
                     set -e
-                    for f in $(find spark/bin -type f -executable ! -name '*.cmd'); do
-                        sudo ln -s $(pwd)/$f /usr/local/bin/$(basename $f)
+                    for f in $(find spark/bin -type f -executable -not -name '*.cmd'); do
+                        sudo ln -s "$(pwd)/$f" "/usr/local/bin/$(basename $f)"
                     done
                     echo "export SPARK_HOME='$(pwd)/spark'" >> .bashrc
                 """)
