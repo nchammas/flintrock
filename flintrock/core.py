@@ -93,6 +93,16 @@ class FlintrockCluster:
         """
         raise NotImplementedError
 
+    @property
+    def subnet_is_private(self) -> bool:
+        """
+        A boolean set to true if the subnet is private..
+
+        Providers must override this property since it is typically derived from
+        an underlying object, like an EC2 instance.
+        """
+        raise NotImplementedError
+
     def destroy_check(self):
         """
         Check that the cluster is in a state in which it can be destroyed.
@@ -504,16 +514,17 @@ def provision_node(
                     sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/jre >> /etc/environment"
                     source /etc/environment
                 """)
-        print("[{h}] Configuring hostname...".format(h=host))
-        ssh_check_output(
-            client=client,
-            command="""
-                set -e
+        if cluster.subnet_is_private:
+            print("[{h}] Configuring hostname...".format(h=host))
+            ssh_check_output(
+                client=client,
+                command="""
+                    set -e
 
-                fullname=`hostname`.ec2.internal
+                    fullname=`hostname`.ec2.internal
 
-                echo "{h} $fullname $(hostname)" |sudo tee -a /etc/hosts
-                """.format(h=host))
+                    echo "{h} $fullname $(hostname)" |sudo tee -a /etc/hosts
+                    """.format(h=host))
 
         for service in services:
             service.install(
