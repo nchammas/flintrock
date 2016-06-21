@@ -194,6 +194,10 @@ def cli(cli_context, config, provider):
               help="Git repository to clone Spark from.",
               default='https://github.com/apache/spark',
               show_default=True)
+@click.option('--spark-download-source',
+              help="URL to download Spark from.",
+              default='https://s3.amazonaws.com/spark-related-packages/spark-{v}-bin-hadoop2.6.tgz',
+              show_default=True)
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-key-name')
 @click.option('--ec2-identity-file',
@@ -227,6 +231,7 @@ def launch(
         spark_version,
         spark_git_commit,
         spark_git_repository,
+        spark_download_source,
         assume_yes,
         ec2_key_name,
         ec2_identity_file,
@@ -289,7 +294,7 @@ def launch(
         services += [hdfs]
     if install_spark:
         if spark_version:
-            spark = Spark(version=spark_version)
+            spark = Spark(version=spark_version, download_source=spark_download_source)
         elif spark_git_commit:
             print(
                 "Warning: Building Spark takes a long time. "
