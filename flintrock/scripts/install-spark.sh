@@ -7,7 +7,7 @@ url="$1"
 echo "Installing Spark..."
 echo "  from: ${url}"
 
-file=$(basename ${url})
+file="$(basename ${url})"
 
 # S3 is generally reliable, but sometimes when launching really large
 # clusters it can hiccup on us, in which case we'll need to retry the

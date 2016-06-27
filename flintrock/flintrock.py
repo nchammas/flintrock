@@ -186,6 +186,10 @@ def cli(cli_context, config, provider):
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-version',
               help="Spark release version to install.")
+@click.option('--spark-download-source',
+              help="URL to download a release of Spark from.",
+              default='https://s3.amazonaws.com/spark-related-packages/spark-{v}-bin-hadoop2.6.tgz',
+              show_default=True)
 @click.option('--spark-git-commit',
               help="Git commit to build Spark from. "
                    "Set to 'latest' to build Spark from the latest commit on the "
@@ -193,10 +197,6 @@ def cli(cli_context, config, provider):
 @click.option('--spark-git-repository',
               help="Git repository to clone Spark from.",
               default='https://github.com/apache/spark',
-              show_default=True)
-@click.option('--spark-download-source',
-              help="URL to download Spark from.",
-              default='https://s3.amazonaws.com/spark-related-packages/spark-{v}-bin-hadoop2.6.tgz',
               show_default=True)
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-key-name')
