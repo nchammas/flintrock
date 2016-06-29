@@ -202,7 +202,8 @@ class HDFS(FlintrockService):
 
 
 class Spark(FlintrockService):
-    def __init__(self, version: str=None, git_commit: str=None, git_repository: str=None):
+    def __init__(self, version: str=None, download_source: str=None,
+                 git_commit: str=None, git_repository: str=None):
         # TODO: Convert these checks into something that throws a proper exception.
         #       Perhaps reuse logic from CLI.
         assert bool(version) ^ bool(git_commit)
@@ -210,11 +211,13 @@ class Spark(FlintrockService):
             assert git_repository
 
         self.version = version
+        self.download_source = download_source
         self.git_commit = git_commit
         self.git_repository = git_repository
 
         self.manifest = {
             'version': version,
+            'download_source': download_source,
             'git_commit': git_commit,
             'git_repository': git_repository}
 
@@ -222,8 +225,6 @@ class Spark(FlintrockService):
             self,
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
-        # TODO: Allow users to specify the Spark "distribution". (?)
-        distribution = 'hadoop2.6'
 
         print("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
@@ -235,15 +236,14 @@ class Spark(FlintrockService):
                         localpath=os.path.join(SCRIPTS_DIR, 'install-spark.sh'),
                         remotepath='/tmp/install-spark.sh')
                     sftp.chmod(path='/tmp/install-spark.sh', mode=0o755)
+                url = self.download_source.format(v=self.version)
                 ssh_check_output(
                     client=ssh_client,
                     command="""
                         set -e
-                        /tmp/install-spark.sh {spark_version} {distribution}
+                        /tmp/install-spark.sh {url}
                         rm -f /tmp/install-spark.sh
-                    """.format(
-                            spark_version=shlex.quote(self.version),
-                            distribution=shlex.quote(distribution)))
+                    """.format(url=shlex.quote(url)))
             else:
                 ssh_check_output(
                     client=ssh_client,
