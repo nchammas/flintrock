@@ -141,6 +141,7 @@ class HDFS(FlintrockService):
                 for f in $(find hadoop/bin -type f -executable -not -name '*.cmd'); do
                     sudo ln -s "$(pwd)/$f" "/usr/local/bin/$(basename $f)"
                 done
+                echo "export HADOOP_LIBEXEC_DIR='$(pwd)/hadoop/libexec'" >> .bashrc
             """.format(version=self.version, download_source=self.download_source))
 
     def configure(
