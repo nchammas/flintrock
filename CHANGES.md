@@ -9,8 +9,15 @@
 * [#118]: You can now specify `--hdfs-download-source` (or the
   equivalent in your config file) to tell Flintrock to download Hadoop
   from a specific URL when launching your cluster.
+* [#125]: You can now specify `--spark-download-source` (or the
+  equivalent in your config file) to tell Flintrock to download Spark
+  from a specific URL when launching your cluster.
+* [#112]: You can now specify `--ec2-security-group` to associate
+  additional security groups with your cluster on launch.
 
 [#118]: https://github.com/nchammas/flintrock/pull/118
+[#125]: https://github.com/nchammas/flintrock/pull/125
+[#112]: https://github.com/nchammas/flintrock/pull/112
 
 ### Changed
 
