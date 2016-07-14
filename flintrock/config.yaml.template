@@ -32,6 +32,9 @@ providers:
     # vpc-id: <id>
     # subnet-id: <id>
     # placement-group: <name>
+    # security-groups:
+    #   - sg-group-name1
+    #   - sg-group-name2
     tenancy: default  # default | dedicated
     ebs-optimized: no  # yes | no
     instance-initiated-shutdown-behavior: terminate  # terminate | stop

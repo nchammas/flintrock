@@ -283,6 +283,31 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
         )
 
 
+def get_ec2_security_groups(
+        vpc_id,
+        region,
+        security_groups) -> "List[boto3.resource('ec2').SecurityGroup]":
+    ec2 = boto3.resource(service_name='ec2', region_name=region)
+
+    # Resolve security group names
+    groups = list(
+        ec2.security_groups.filter(
+            Filters=[
+                # 'group-name' supports non-default VPC security group name search
+                {'Name': 'group-name', 'Values': security_groups},
+                {'Name': 'vpc-id', 'Values': [vpc_id]},
+            ]))
+
+    # Find if any groups are missing
+    group_names = [group.group_name for group in groups]
+    non_found_groups = set(security_groups) - set(group_names)
+    if len(non_found_groups) > 0:
+        raise Exception("Error security group name not found: {groups}".format(
+            groups=non_found_groups))
+
+    return groups
+
+
 def get_or_create_ec2_security_groups(
         *,
         cluster_name,
@@ -477,6 +502,7 @@ def launch(
         availability_zone,
         ami,
         user,
+        security_groups,
         spot_price=None,
         vpc_id,
         subnet_id,
@@ -513,10 +539,16 @@ def launch(
                 v=vpc_id))
 
     try:
-        security_groups = get_or_create_ec2_security_groups(
+        flintrock_security_groups = get_or_create_ec2_security_groups(
             cluster_name=cluster_name,
             vpc_id=vpc_id,
             region=region)
+        # Convert security group ids to boto3 security groups
+        security_groups = get_ec2_security_groups(
+            vpc_id=vpc_id,
+            region=region,
+            security_groups=security_groups)
+        security_group_ids = [sg.id for sg in security_groups + flintrock_security_groups]
         block_device_mappings = get_ec2_block_device_mappings(
             ami=ami,
             region=region)
@@ -551,7 +583,7 @@ def launch(
                     'Placement': {
                         'AvailabilityZone': availability_zone,
                         'GroupName': placement_group},
-                    'SecurityGroupIds': [sg.id for sg in security_groups],
+                    'SecurityGroupIds': security_group_ids,
                     'SubnetId': subnet_id,
                     'IamInstanceProfile': {
                         'Name': instance_profile_name},
@@ -600,7 +632,7 @@ def launch(
                     'AvailabilityZone': availability_zone,
                     'Tenancy': tenancy,
                     'GroupName': placement_group},
-                SecurityGroupIds=[sg.id for sg in security_groups],
+                SecurityGroupIds=security_group_ids,
                 SubnetId=subnet_id,
                 IamInstanceProfile={
                     'Name': instance_profile_name},

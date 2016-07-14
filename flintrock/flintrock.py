@@ -210,6 +210,10 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-availability-zone', default='')
 @click.option('--ec2-ami')
 @click.option('--ec2-user')
+@click.option('--ec2-security-group', 'ec2_security_groups',
+              multiple=True,
+              help="Additional security groups names to assign to the instances. "
+                   "You can specify this option multiple times.")
 @click.option('--ec2-spot-price', type=float)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-subnet-id', default='')
@@ -240,6 +244,7 @@ def launch(
         ec2_availability_zone,
         ec2_ami,
         ec2_user,
+        ec2_security_groups,
         ec2_spot_price,
         ec2_vpc_id,
         ec2_subnet_id,
@@ -320,6 +325,7 @@ def launch(
             availability_zone=ec2_availability_zone,
             ami=ec2_ami,
             user=ec2_user,
+            security_groups=ec2_security_groups,
             spot_price=ec2_spot_price,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
