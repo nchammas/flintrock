@@ -1,7 +1,7 @@
 # NOTE: Run pip from Flintrock's root directory, not from the directory containing
 #       this file.
 
-setuptools >= 20.2.2
+setuptools >= 24.0.2
 
 # NOTE: The `-e .` syntax lets us reuse the requirements already specified under
 #       `install_requires` in setup.py.
