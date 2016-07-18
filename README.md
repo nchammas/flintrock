@@ -58,9 +58,17 @@ That's not all. Flintrock has a few more [features](#features) that you may find
 
 ## Installation
 
-Before using Flintrock, take a quick look at the [copyright](https://github.com/nchammas/flintrock/blob/master/COPYRIGHT) notice and [license](https://github.com/nchammas/flintrock/blob/master/LICENSE) and make sure you're OK with their terms.
+Before using Flintrock, take a quick look at the
+[copyright](https://github.com/nchammas/flintrock/blob/master/COPYRIGHT)
+notice and [license](https://github.com/nchammas/flintrock/blob/master/LICENSE)
+and make sure you're OK with their terms.
 
-**Flintrock requires Python 3.4 or newer**, unless you are using one of our **standalone packages**. Flintrock has been thoroughly tested only on OS X, but it should run on all POSIX systems. We have plans to [add Windows support](https://github.com/nchammas/flintrock/issues/46) in the future, too.
+**Flintrock requires Python 3.4 or newer**, unless you are using one
+of our **standalone packages**. Flintrock has been thoroughly tested
+only on OS X, but it should run on all POSIX systems.
+A motivated contributor should be able to add
+[Windows support](https://github.com/nchammas/flintrock/issues/46)
+without too much trouble, too.
 
 ### Release version
 
