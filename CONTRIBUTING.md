@@ -98,8 +98,6 @@ When building something new, don't just consider the value it will provide. Cons
 
 Make sure each pull request you submit captures a single coherent idea. This limits the scope of any given pull request and makes it much easier for a reviewer to understand what you are doing and give precise feedback. Don't mix logically independent changes in the same request if they can be submitted separately.
 
-After you and the reviewers agree that a pull request is ready to be accepted, you will be asked to squash your commits into one before your change is merged in. This helps us ensure that every commit in Flintrock's history represents a working state, and makes changes easier to browse through and understand.
-
 #### Expect many revisions
 
 If you are adding or touching lots of code, then be prepared to go through many rounds of revisions before your pull request is accepted. This is normal, especially as you are still getting acquainted with the project's standards and style.
