@@ -1,3 +1,4 @@
+# Run full acceptance tests
 # Update Flintrock version
 # Update CHANGES
 # Tag release on GitHub
