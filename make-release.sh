@@ -1,5 +1,6 @@
 # Run full acceptance tests
 # Update Flintrock version
+# Update README Spark and Flintrock version defaults
 # Update CHANGES
 # Tag release on GitHub
 
@@ -13,6 +14,7 @@ twine upload dist/* --repository pypitest
 
 python generate-standalone-package.py
 
+# open dist/
 # Upload release builds to GitHub
 #   - Wheel
 #   - OS X standalone package
