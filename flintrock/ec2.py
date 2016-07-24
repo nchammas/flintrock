@@ -216,8 +216,7 @@ class EC2Cluster(FlintrockCluster):
             user: str,
             identity_file: str,
             num_slaves: int,
-            spot_price: float
-        ):
+            spot_price: float):
         security_group_ids = [
             group['GroupId']
             for group in self.master_instance.security_groups]
