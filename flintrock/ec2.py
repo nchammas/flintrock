@@ -67,7 +67,10 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def instances(self):
-        return [self.master_instance] + self.slave_instances
+        if self.master_instance:
+            return [self.master_instance] + self.slave_instances
+        else:
+            return self.slave_instances
 
     @property
     def master_ip(self):
@@ -84,6 +87,10 @@ class EC2Cluster(FlintrockCluster):
     @property
     def slave_hosts(self):
         return [i.public_dns_name for i in self.slave_instances]
+
+    @property
+    def num_masters(self):
+        return 1 if self.master_instance else 0
 
     @property
     def num_slaves(self):
@@ -195,6 +202,68 @@ class EC2Cluster(FlintrockCluster):
             .filter(InstanceIds=[instance.id for instance in self.instances])
             .stop())
         self.wait_for_state('stopped')
+
+    def add_slaves_check(self):
+        if self.state != 'running':
+            raise ClusterInvalidState(
+                attempted_command='add-slaves',
+                state=self.state)
+
+    @timeit
+    def add_slaves(
+            self,
+            *,
+            user: str,
+            identity_file: str,
+            num_slaves: int,
+            spot_price: float
+        ):
+        security_group_ids = [
+            group['GroupId']
+            for group in self.master_instance.security_groups]
+        block_device_mappings = get_ec2_block_device_mappings(
+            ami=self.master_instance.image_id,
+            region=self.region)
+        availability_zone = self.master_instance.placement['AvailabilityZone']
+
+        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
+        client = ec2.meta.client
+
+        response = client.describe_instance_attribute(
+            InstanceId=self.master_instance.id,
+            Attribute='instanceInitiatedShutdownBehavior'
+        )
+
+        if not self.master_instance.iam_instance_profile:
+            instance_profile_name = ''
+        else:
+            instance_profile_name = self.master_instance.iam_instance_profile['Id']
+        instance_initiated_shutdown_behavior = response['InstanceInitiatedShutdownBehavior']['Value']
+
+        self.add_slaves_check()
+        slave_instances = _create_instances(
+            num_instances=num_slaves,
+            region=self.region,
+            spot_price=spot_price,
+            ami=self.master_instance.image_id,
+            key_name=self.master_instance.key_name,
+            instance_type=self.master_instance.instance_type,
+            block_device_mappings=block_device_mappings,
+            availability_zone=availability_zone,
+            placement_group=self.master_instance.placement['GroupName'],
+            tenancy=self.master_instance.placement['Tenancy'],
+            security_group_ids=security_group_ids,
+            subnet_id=self.master_instance.subnet_id,
+            instance_profile_name=instance_profile_name,
+            ebs_optimized=self.master_instance.ebs_optimized,
+            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
+
+        (ec2.instances
+            .filter(InstanceIds=[i.id for i in slave_instances])
+            .create_tags(
+                Tags=[
+                    {'Key': 'flintrock-role', 'Value': 'slave'},
+                    {'Key': 'Name', 'Value': '{c}-slave'.format(c=self.name)}]))
 
     @timeit
     def remove_slaves(self, *, user: str, identity_file: str, num_slaves: int):
@@ -521,6 +590,142 @@ def get_ec2_block_device_mappings(
     return block_device_mappings
 
 
+def _create_instances(
+        *,
+        num_instances,
+        region,
+        spot_price,
+        ami,
+        key_name,
+        instance_type,
+        block_device_mappings,
+        availability_zone,
+        placement_group,
+        tenancy,
+        security_group_ids,
+        subnet_id,
+        instance_profile_name,
+        ebs_optimized,
+        instance_initiated_shutdown_behavior) -> 'List[boto3.resources.factory.ec2.Instance]':
+    ec2 = boto3.resource(service_name='ec2', region_name=region)
+
+    cluster_instances = []
+    spot_requests = []
+
+    try:
+        if spot_price:
+            print("Requesting {c} spot instances at a max price of ${p}...".format(
+                c=num_instances, p=spot_price))
+            client = ec2.meta.client
+            spot_requests = client.request_spot_instances(
+                SpotPrice=str(spot_price),
+                InstanceCount=num_instances,
+                LaunchSpecification={
+                    'ImageId': ami,
+                    'KeyName': key_name,
+                    'InstanceType': instance_type,
+                    'BlockDeviceMappings': block_device_mappings,
+                    'Placement': {
+                        'AvailabilityZone': availability_zone,
+                        'GroupName': placement_group},
+                    'SecurityGroupIds': security_group_ids,
+                    'SubnetId': subnet_id,
+                    'IamInstanceProfile': {
+                        'Name': instance_profile_name},
+                    'EbsOptimized': ebs_optimized})['SpotInstanceRequests']
+
+            request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
+            pending_request_ids = request_ids
+
+            while pending_request_ids:
+                print("{grant} of {req} instances granted. Waiting...".format(
+                    grant=num_instances - len(pending_request_ids),
+                    req=num_instances))
+                time.sleep(30)
+                spot_requests = client.describe_spot_instance_requests(
+                    SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
+
+                failed_requests = [r for r in spot_requests if r['State'] == 'failed']
+                if failed_requests:
+                    failure_reasons = {r['Status']['Code'] for r in failed_requests}
+                    raise Error(
+                        "The spot request failed for the following reason{s}: {reasons}"
+                        .format(
+                            s='' if len(failure_reasons) == 1 else 's',
+                            reasons=', '.join(failure_reasons)))
+
+                pending_request_ids = [
+                    r['SpotInstanceRequestId'] for r in spot_requests
+                    if r['State'] == 'open']
+
+            print("All {c} instances granted.".format(c=num_instances))
+
+            cluster_instances = list(
+                ec2.instances.filter(
+                    InstanceIds=[r['InstanceId'] for r in spot_requests]))
+        else:
+            # Move this to flintrock.py?
+            print("Launching {c} instance{s}...".format(
+                c=num_instances,
+                s='' if num_instances == 1 else 's'))
+
+            cluster_instances = ec2.create_instances(
+                MinCount=num_instances,
+                MaxCount=num_instances,
+                ImageId=ami,
+                KeyName=key_name,
+                InstanceType=instance_type,
+                BlockDeviceMappings=block_device_mappings,
+                Placement={
+                    'AvailabilityZone': availability_zone,
+                    'Tenancy': tenancy,
+                    'GroupName': placement_group},
+                SecurityGroupIds=security_group_ids,
+                SubnetId=subnet_id,
+                IamInstanceProfile={
+                    'Name': instance_profile_name},
+                EbsOptimized=ebs_optimized,
+                InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior)
+
+        time.sleep(10)  # AWS metadata eventual consistency tax.
+        return cluster_instances
+    except (Exception, KeyboardInterrupt) as e:
+        # TODO: Cleanup cluster security group here.
+        print("There was a problem with the launch. Cleaning up...", file=sys.stderr)
+
+        if spot_requests:
+            request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
+            if any([r['State'] != 'active' for r in spot_requests]):
+                print("Canceling spot instance requests...", file=sys.stderr)
+                client.cancel_spot_instance_requests(
+                    SpotInstanceRequestIds=request_ids)
+            # Make sure we have the latest information on any launched spot instances.
+            spot_requests = client.describe_spot_instance_requests(
+                SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
+            instance_ids = [
+                r['InstanceId'] for r in spot_requests
+                if 'InstanceId' in r]
+            if instance_ids:
+                cluster_instances = list(
+                    ec2.instances.filter(InstanceIds=instance_ids))
+
+        if cluster_instances:
+            if not assume_yes:
+                yes = click.confirm(
+                    text="Do you want to terminate the {c} instances created by this operation?"
+                         .format(c=len(cluster_instances)),
+                    err=True,
+                    default=True)
+
+            if assume_yes or yes:
+                print("Terminating instances...", file=sys.stderr)
+                (ec2.instances
+                    .filter(InstanceIds=[instance.id for instance in cluster_instances])
+                    .terminate())
+
+        raise
+
+
 @timeit
 def launch(
         *,
@@ -596,150 +801,55 @@ def launch(
     ec2 = boto3.resource(service_name='ec2', region_name=region)
 
     num_instances = num_slaves + 1
-    spot_requests = []
-    cluster_instances = []
 
-    try:
-        if spot_price:
-            print("Requesting {c} spot instances at a max price of ${p}...".format(
-                c=num_instances, p=spot_price))
-            client = ec2.meta.client
-            spot_requests = client.request_spot_instances(
-                SpotPrice=str(spot_price),
-                InstanceCount=num_instances,
-                LaunchSpecification={
-                    'ImageId': ami,
-                    'KeyName': key_name,
-                    'InstanceType': instance_type,
-                    'BlockDeviceMappings': block_device_mappings,
-                    'Placement': {
-                        'AvailabilityZone': availability_zone,
-                        'GroupName': placement_group},
-                    'SecurityGroupIds': security_group_ids,
-                    'SubnetId': subnet_id,
-                    'IamInstanceProfile': {
-                        'Name': instance_profile_name},
-                    'EbsOptimized': ebs_optimized})['SpotInstanceRequests']
+    cluster_instances = _create_instances(
+        num_instances=num_instances,
+        region=region,
+        spot_price=spot_price,
+        ami=ami,
+        key_name=key_name,
+        instance_type=instance_type,
+        block_device_mappings=block_device_mappings,
+        availability_zone=availability_zone,
+        placement_group=placement_group,
+        tenancy=tenancy,
+        security_group_ids=security_group_ids,
+        subnet_id=subnet_id,
+        instance_profile_name=instance_profile_name,
+        ebs_optimized=ebs_optimized,
+        instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
 
-            request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
-            pending_request_ids = request_ids
+    master_instance = cluster_instances[0]
+    slave_instances = cluster_instances[1:]
 
-            while pending_request_ids:
-                print("{grant} of {req} instances granted. Waiting...".format(
-                    grant=num_instances - len(pending_request_ids),
-                    req=num_instances))
-                time.sleep(30)
-                spot_requests = client.describe_spot_instance_requests(
-                    SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
+    (ec2.instances
+        .filter(InstanceIds=[master_instance.id])
+        .create_tags(
+            Tags=[
+                {'Key': 'flintrock-role', 'Value': 'master'},
+                {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]))
+    (ec2.instances
+        .filter(InstanceIds=[i.id for i in slave_instances])
+        .create_tags(
+            Tags=[
+                {'Key': 'flintrock-role', 'Value': 'slave'},
+                {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]))
 
-                failed_requests = [r for r in spot_requests if r['State'] == 'failed']
-                if failed_requests:
-                    failure_reasons = {r['Status']['Code'] for r in failed_requests}
-                    raise Error(
-                        "The spot request failed for the following reason{s}: {reasons}"
-                        .format(
-                            s='' if len(failure_reasons) == 1 else 's',
-                            reasons=', '.join(failure_reasons)))
+    cluster = EC2Cluster(
+        name=cluster_name,
+        region=region,
+        vpc_id=vpc_id,
+        ssh_key_pair=generate_ssh_key_pair(),
+        master_instance=master_instance,
+        slave_instances=slave_instances)
 
-                pending_request_ids = [
-                    r['SpotInstanceRequestId'] for r in spot_requests
-                    if r['State'] == 'open']
+    cluster.wait_for_state('running')
 
-            print("All {c} instances granted.".format(c=num_instances))
-
-            cluster_instances = list(
-                ec2.instances.filter(
-                    InstanceIds=[r['InstanceId'] for r in spot_requests]))
-        else:
-            print("Launching {c} instances...".format(c=num_instances))
-
-            cluster_instances = ec2.create_instances(
-                MinCount=num_instances,
-                MaxCount=num_instances,
-                ImageId=ami,
-                KeyName=key_name,
-                InstanceType=instance_type,
-                BlockDeviceMappings=block_device_mappings,
-                Placement={
-                    'AvailabilityZone': availability_zone,
-                    'Tenancy': tenancy,
-                    'GroupName': placement_group},
-                SecurityGroupIds=security_group_ids,
-                SubnetId=subnet_id,
-                IamInstanceProfile={
-                    'Name': instance_profile_name},
-                EbsOptimized=ebs_optimized,
-                InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior)
-
-        time.sleep(10)  # AWS metadata eventual consistency tax.
-
-        master_instance = cluster_instances[0]
-        slave_instances = cluster_instances[1:]
-
-        (ec2.instances
-            .filter(InstanceIds=[master_instance.id])
-            .create_tags(
-                Tags=[
-                    {'Key': 'flintrock-role', 'Value': 'master'},
-                    {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]))
-        (ec2.instances
-            .filter(InstanceIds=[i.id for i in slave_instances])
-            .create_tags(
-                Tags=[
-                    {'Key': 'flintrock-role', 'Value': 'slave'},
-                    {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]))
-
-        cluster = EC2Cluster(
-            name=cluster_name,
-            region=region,
-            vpc_id=vpc_id,
-            ssh_key_pair=generate_ssh_key_pair(),
-            master_instance=master_instance,
-            slave_instances=slave_instances)
-
-        cluster.wait_for_state('running')
-
-        provision_cluster(
-            cluster=cluster,
-            services=services,
-            user=user,
-            identity_file=identity_file)
-
-    except (Exception, KeyboardInterrupt) as e:
-        # TODO: Cleanup cluster security group here.
-        print("There was a problem with the launch. Cleaning up...", file=sys.stderr)
-
-        if spot_requests:
-            request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
-            if any([r['State'] != 'active' for r in spot_requests]):
-                print("Canceling spot instance requests...", file=sys.stderr)
-                client.cancel_spot_instance_requests(
-                    SpotInstanceRequestIds=request_ids)
-            # Make sure we have the latest information on any launched spot instances.
-            spot_requests = client.describe_spot_instance_requests(
-                SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
-            instance_ids = [
-                r['InstanceId'] for r in spot_requests
-                if 'InstanceId' in r]
-            if instance_ids:
-                cluster_instances = list(
-                    ec2.instances.filter(InstanceIds=instance_ids))
-
-        if cluster_instances:
-            if not assume_yes:
-                yes = click.confirm(
-                    text="Do you want to terminate the {c} instances created by this operation?"
-                         .format(c=len(cluster_instances)),
-                    err=True,
-                    default=True)
-
-            if assume_yes or yes:
-                print("Terminating instances...", file=sys.stderr)
-                (ec2.instances
-                    .filter(InstanceIds=[instance.id for instance in cluster_instances])
-                    .terminate())
-
-        raise
+    provision_cluster(
+        cluster=cluster,
+        services=services,
+        user=user,
+        identity_file=identity_file)
 
 
 def get_cluster(*, cluster_name: str, region: str, vpc_id: str) -> EC2Cluster:
@@ -832,8 +942,8 @@ def _get_cluster_master_slaves(
                 elif tag['Value'] == 'slave':
                     slave_instances.append(instance)
 
-    if not master_instance:
-        print("Warning: No master found.", file=sys.stderr)
+    # if not master_instance:
+    #     print("Warning: No master found.", file=sys.stderr)
     # elif not slave_instances:
     #     print("Warning: No slaves found.", file=sys.stderr)
 

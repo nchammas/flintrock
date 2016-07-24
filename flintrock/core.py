@@ -90,6 +90,18 @@ class FlintrockCluster:
         raise NotImplementedError
 
     @property
+    def num_masters(self) -> int:
+        """
+        How many masters the cluster has.
+
+        This normally just equals 1, but in cases where the cluster master
+        has been destroyed this should return 0.
+
+        Providers must override this property.
+        """
+        raise NotImplementedError
+
+    @property
     def num_slaves(self) -> int:
         """
         How many slaves the cluster has.
@@ -246,6 +258,12 @@ class FlintrockCluster:
         There's currently nothing to do here, but this method should be called
         before the underlying provider stops the nodes.
         """
+        pass
+
+    def add_slaves_check(self):
+        pass
+
+    def add_slaves(self, *, user: str, identity_file: str):
         pass
 
     # We can probably do without this method in core and just use service.configure().
