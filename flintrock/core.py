@@ -8,8 +8,11 @@ import shlex
 import sys
 import time
 
+# External modules
+import paramiko
+
 # Flintrock modules
-from .ssh import get_ssh_client, ssh_check_output, ssh
+from .ssh import get_ssh_client, ssh_check_output, ssh, SSHKeyPair
 
 FROZEN = getattr(sys, 'frozen', False)
 
@@ -153,6 +156,10 @@ class FlintrockCluster:
 
         manifest = json.loads(manifest_raw)
 
+        self.ssh_key_pair = SSHKeyPair(
+            public=manifest['ssh_key_pair']['public'],
+            private=manifest['ssh_key_pair']['private'])
+
         services = []
         for [service_name, manifest] in manifest['services']:
             # TODO: Expose the classes being used here.
@@ -263,17 +270,44 @@ class FlintrockCluster:
     def add_slaves_check(self):
         pass
 
-    def add_slaves(self, *, user: str, identity_file: str):
-        pass
+    def add_slaves(self, *, user: str, identity_file: str, new_hosts: list):
+        """
+        Add new slaves to the cluster.
 
-    # We can probably do without this method in core and just use service.configure().
+        Providers should implement this with the following signature:
+
+            add_slaves(self, *, user: str, identity_file: str, num_slaves: int, **provider_specific_options)
+
+        This method should be called after the new hosts are online and have been
+        added to the cluster's internal list.
+        """
+        hosts = [self.master_ip] + self.slave_ips
+        partial_func = functools.partial(
+            add_slaves_node,
+            services=self.services,
+            user=user,
+            identity_file=identity_file,
+            cluster=self,
+            new_hosts=new_hosts)
+        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+
+        master_ssh_client = get_ssh_client(
+            user=user,
+            host=self.master_ip,
+            identity_file=identity_file)
+        with master_ssh_client:
+            for service in self.services:
+                service.configure_master(
+                    ssh_client=master_ssh_client,
+                    cluster=self)
+
     def remove_slaves(self, *, user: str, identity_file: str):
         """
         Remove some slaves from the cluster.
 
         Providers should implement this method with the following signature:
 
-            remove_slaves(self, user: str, identity_file: str, num_slaves: int)
+            remove_slaves(self, *, user: str, identity_file: str, num_slaves: int)
 
         This method should be called after the provider has removed the slaves
         from the cluster's internal list but before the instances themselves
@@ -444,6 +478,80 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
         loop.close()
 
 
+def setup_node(
+        *,
+        # Change this to take host, user, and identity_file?
+        # Add some kind of caching for SSH connections so that they
+        # can be looked up by host and reused?
+        ssh_client: paramiko.client.SSHClient,
+        services: list,
+        cluster: FlintrockCluster):
+    """
+    Setup a new node.
+
+    Cluster methods like provision_node() and add_slaves_node() should
+    delegate the main work of setting up new nodes to this function.
+    """
+    host = ssh_client.get_transport().getpeername()[0]
+    ssh_check_output(
+        client=ssh_client,
+        command="""
+            set -e
+
+            echo {private_key} > ~/.ssh/id_rsa
+            echo {public_key} >> ~/.ssh/authorized_keys
+
+            chmod 400 ~/.ssh/id_rsa
+        """.format(
+            private_key=shlex.quote(cluster.ssh_key_pair.private),
+            public_key=shlex.quote(cluster.ssh_key_pair.public)))
+
+    with ssh_client.open_sftp() as sftp:
+        sftp.put(
+            localpath=os.path.join(SCRIPTS_DIR, 'setup-ephemeral-storage.py'),
+            remotepath='/tmp/setup-ephemeral-storage.py')
+
+    print("[{h}] Configuring ephemeral storage...".format(h=host))
+    # TODO: Print some kind of warning if storage is large, since formatting
+    #       will take several minutes (~4 minutes for 2TB).
+    storage_dirs_raw = ssh_check_output(
+        client=ssh_client,
+        command="""
+            set -e
+            python /tmp/setup-ephemeral-storage.py
+            rm -f /tmp/setup-ephemeral-storage.py
+        """)
+    storage_dirs = json.loads(storage_dirs_raw)
+
+    cluster.storage_dirs.root = storage_dirs['root']
+    cluster.storage_dirs.ephemeral = storage_dirs['ephemeral']
+
+    # The default CentOS AMIs on EC2 don't come with Java installed.
+    java_home = ssh_check_output(
+        client=ssh_client,
+        command="""
+            echo "$JAVA_HOME"
+        """)
+
+    if not java_home.strip():
+        print("[{h}] Installing Java...".format(h=host))
+
+        ssh_check_output(
+            client=ssh_client,
+            command="""
+                set -e
+
+                sudo yum install -y java-1.7.0-openjdk
+                sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/jre >> /etc/environment"
+                source /etc/environment
+            """)
+
+    for service in services:
+        service.install(
+            ssh_client=ssh_client,
+            cluster=cluster)
+
+
 def provision_cluster(
         *,
         cluster: FlintrockCluster,
@@ -470,13 +578,16 @@ def provision_cluster(
 
     with master_ssh_client:
         manifest = {
-            'services': [[type(m).__name__, m.manifest] for m in services]}
+            'services': [[type(m).__name__, m.manifest] for m in services],
+            'ssh_key_pair': cluster.ssh_key_pair._asdict(),
+        }
         # The manifest tells us how the cluster is configured. We'll need this
         # when we resize the cluster or restart it.
         ssh_check_output(
             client=master_ssh_client,
             command="""
                 echo {m} > /home/{u}/.flintrock-manifest.json
+                chmod go-rw /home/{u}/.flintrock-manifest.json
             """.format(
                 m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
                 u=shlex.quote(user)))
@@ -517,63 +628,11 @@ def provision_node(
         wait=True)
 
     with client:
-        ssh_check_output(
-            client=client,
-            command="""
-                set -e
-
-                echo {private_key} > ~/.ssh/id_rsa
-                echo {public_key} >> ~/.ssh/authorized_keys
-
-                chmod 400 ~/.ssh/id_rsa
-            """.format(
-                private_key=shlex.quote(cluster.ssh_key_pair.private),
-                public_key=shlex.quote(cluster.ssh_key_pair.public)))
-
-        with client.open_sftp() as sftp:
-            sftp.put(
-                localpath=os.path.join(SCRIPTS_DIR, 'setup-ephemeral-storage.py'),
-                remotepath='/tmp/setup-ephemeral-storage.py')
-
-        print("[{h}] Configuring ephemeral storage...".format(h=host))
-        # TODO: Print some kind of warning if storage is large, since formatting
-        #       will take several minutes (~4 minutes for 2TB).
-        storage_dirs_raw = ssh_check_output(
-            client=client,
-            command="""
-                set -e
-                python /tmp/setup-ephemeral-storage.py
-                rm -f /tmp/setup-ephemeral-storage.py
-            """)
-        storage_dirs = json.loads(storage_dirs_raw)
-
-        cluster.storage_dirs.root = storage_dirs['root']
-        cluster.storage_dirs.ephemeral = storage_dirs['ephemeral']
-
-        # The default CentOS AMIs on EC2 don't come with Java installed.
-        java_home = ssh_check_output(
-            client=client,
-            command="""
-                echo "$JAVA_HOME"
-            """)
-
-        if not java_home.strip():
-            print("[{h}] Installing Java...".format(h=host))
-
-            ssh_check_output(
-                client=client,
-                command="""
-                    set -e
-
-                    sudo yum install -y java-1.7.0-openjdk
-                    sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/jre >> /etc/environment"
-                    source /etc/environment
-                """)
-
+        setup_node(
+            ssh_client=client,
+            services=services,
+            cluster=cluster)
         for service in services:
-            service.install(
-                ssh_client=client,
-                cluster=cluster)
             service.configure(
                 ssh_client=client,
                 cluster=cluster)
@@ -617,6 +676,42 @@ def start_node(
                 cluster=cluster)
 
 
+def add_slaves_node(
+        *,
+        user: str,
+        host: str,
+        identity_file: str,
+        services: list,
+        cluster: FlintrockCluster,
+        new_hosts: list):
+    """
+    If the node is new, set it up. If not, just reconfigure it to recognize
+    the newly added nodes.
+
+    This method is role-agnostic; it runs on both the cluster master and slaves.
+    This method is meant to be called asynchronously.
+    """
+    is_new_host = host in new_hosts
+
+    client = get_ssh_client(
+        user=user,
+        host=host,
+        identity_file=identity_file,
+        wait=is_new_host)
+
+    with client:
+        if is_new_host:
+            setup_node(
+                ssh_client=client,
+                services=services,
+                cluster=cluster)
+
+        for service in services:
+            service.configure(
+                ssh_client=client,
+                cluster=cluster)
+
+
 def remove_slaves_node(
         *,
         user: str,
@@ -626,6 +721,9 @@ def remove_slaves_node(
         cluster: FlintrockCluster):
     """
     Update the services on a node to remove the provided slaves.
+
+    This method is role-agnostic; it runs on both the cluster master and slaves.
+    This method is meant to be called asynchronously.
     """
     ssh_client = get_ssh_client(
         user=user,
@@ -637,8 +735,8 @@ def remove_slaves_node(
             ssh_client=ssh_client,
             cluster=cluster)
 
-    # Restart master? If we don't do that, Spark, for example, will keep the
-    # removed slaves around and mark them as dead.
+    # TODO: Restart master? If we don't do that, Spark, for example, will keep the
+    #       removed slaves around and mark them as dead.
 
 
 def run_command_node(*, user: str, host: str, identity_file: str, command: tuple):

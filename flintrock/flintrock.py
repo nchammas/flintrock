@@ -637,6 +637,9 @@ def add_slaves(
             .format(
                 c=cluster_name))
 
+    cluster.load_manifest(
+        user=user,
+        identity_file=identity_file)
     cluster.add_slaves_check()
 
     print("Adding {n} slave{s}..."

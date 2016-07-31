@@ -240,7 +240,7 @@ class EC2Cluster(FlintrockCluster):
         instance_initiated_shutdown_behavior = response['InstanceInitiatedShutdownBehavior']['Value']
 
         self.add_slaves_check()
-        slave_instances = _create_instances(
+        new_slave_instances = _create_instances(
             num_instances=num_slaves,
             region=self.region,
             spot_price=spot_price,
@@ -258,11 +258,23 @@ class EC2Cluster(FlintrockCluster):
             instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
 
         (ec2.instances
-            .filter(InstanceIds=[i.id for i in slave_instances])
+            .filter(InstanceIds=[i.id for i in new_slave_instances])
             .create_tags(
                 Tags=[
                     {'Key': 'flintrock-role', 'Value': 'slave'},
                     {'Key': 'Name', 'Value': '{c}-slave'.format(c=self.name)}]))
+
+        existing_slaves = {i.public_ip_address for i in self.slave_instances}
+
+        self.slave_instances += new_slave_instances
+        self.wait_for_state('running')
+
+        new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
+
+        super().add_slaves(
+            user=user,
+            identity_file=identity_file,
+            new_hosts=new_slaves)
 
     @timeit
     def remove_slaves(self, *, user: str, identity_file: str, num_slaves: int):

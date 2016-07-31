@@ -180,6 +180,8 @@ class HDFS(FlintrockService):
         ssh_check_output(
             client=ssh_client,
             command="""
+                ./hadoop/sbin/stop-dfs.sh
+                sleep 3
                 ./hadoop/bin/hdfs namenode -format -nonInteractive
                 ./hadoop/sbin/start-dfs.sh
             """)
@@ -287,8 +289,6 @@ class Spark(FlintrockService):
             self,
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
-        # import pudb
-        # pudb.set_trace()
         template_paths = [
             'spark/conf/spark-env.sh',
             'spark/conf/slaves']
@@ -323,6 +323,8 @@ class Spark(FlintrockService):
             command="""
                 set -e
 
+                spark/sbin/stop-master.sh
+                sleep 3
                 spark/sbin/start-master.sh
 
                 set +e
