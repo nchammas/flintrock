@@ -1,7 +1,7 @@
 language: python
 python:
   - "3.4"
-  - "3.5.2"
+  - "3.5"
 install:
   - "pip install -r requirements/developer.pip"
   - "curl -L -o pandoc.deb https://github.com/jgm/pandoc/releases/download/1.16.0.2/pandoc-1.16.0.2-1-amd64.deb && sudo dpkg -i pandoc.deb"
