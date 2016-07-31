@@ -1,7 +1,7 @@
 ![Flintrock logo](https://raw.githubusercontent.com/nchammas/flintrock/master/flintrock-logo.png)
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/nchammas/flintrock/blob/master/LICENSE)
-[![Build Status](https://img.shields.io/travis/nchammas/flintrock.svg)](https://travis-ci.org/nchammas/flintrock)
+[![Build Status](https://img.shields.io/travis/nchammas/flintrock/master.svg)](https://travis-ci.org/nchammas/flintrock)
 [![Chat](https://img.shields.io/gitter/room/nchammas/flintrock.svg)](https://gitter.im/nchammas/flintrock)
 
 *Watch [@nchammas](https://github.com/nchammas)'s talk on Flintrock at Spark Summit East 2016: [talk](https://www.youtube.com/watch?v=3aeIpOGrJOA) / [slides](http://www.slideshare.net/SparkSummit/flintrock-a-faster-better-sparkec2-by-nicholas-chammas)*
