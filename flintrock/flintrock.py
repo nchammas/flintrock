@@ -642,11 +642,6 @@ def add_slaves(
         identity_file=identity_file)
     cluster.add_slaves_check()
 
-    print("Adding {n} slave{s}..."
-          .format(
-              n=num_slaves,
-              s='' if num_slaves == 1 else 's'))
-
     if provider == 'ec2':
         cluster.add_slaves(
             user=user,
@@ -701,11 +696,13 @@ def remove_slaves(
 
     if num_slaves > cluster.num_slaves:
         print(
-            "Warning: Cluster has {c} slaves. "
-            "You asked to remove {n} slaves."
+            "Warning: Cluster has {c} slave{cs}. "
+            "You asked to remove {n} slave{ns}."
             .format(
                 c=cluster.num_slaves,
-                n=num_slaves))
+                cs='' if cluster.num_slaves == 1 else 's',
+                n=num_slaves,
+                ns='' if num_slaves == 1 else 's'))
         num_slaves = cluster.num_slaves
 
     if not assume_yes:
