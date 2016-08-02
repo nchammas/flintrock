@@ -347,7 +347,7 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
 
     This function assumes that partial_func accepts `host` as a keyword argument.
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     executor = concurrent.futures.ThreadPoolExecutor(len(hosts))
 
     tasks = []
