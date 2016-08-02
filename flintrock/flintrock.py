@@ -22,7 +22,7 @@ from .exceptions import (
     NothingToDo,
     Error)
 from flintrock import __version__
-from .services import HDFS, Spark  # TODO: Remove this dependency.
+from .services import HDFS, Spark, UserScript  # TODO: Remove this dependency.
 
 FROZEN = getattr(sys, 'frozen', False)
 
@@ -198,6 +198,22 @@ def cli(cli_context, config, provider):
               help="Git repository to clone Spark from.",
               default='https://github.com/apache/spark',
               show_default=True)
+@click.option('--preinstall-master',
+              multiple=True,
+              help="Script to run on master before installing Spark and HDFS. "
+                   "You can specify this option multiple times.")
+@click.option('--preinstall-slave',
+              multiple=True,
+              help="Script to run on slaves before installing Spark and HDFS. "
+                   "You can specify this option multiple times.")
+@click.option('--postinstall-master',
+              multiple=True,
+              help="Script to run on master after installing Spark and HDFS. "
+                   "You can specify this option multiple times.")
+@click.option('--postinstall-slave',
+              multiple=True,
+              help="Script to run on slaves after installing Spark and HDFS. "
+                   "You can specify this option multiple times.")
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-key-name')
 @click.option('--ec2-identity-file',
@@ -236,6 +252,10 @@ def launch(
         spark_git_commit,
         spark_git_repository,
         spark_download_source,
+        preinstall_master,
+        preinstall_slave,
+        postinstall_master,
+        postinstall_slave,
         assume_yes,
         ec2_key_name,
         ec2_identity_file,
@@ -294,6 +314,10 @@ def launch(
         requires_all=['--ec2-subnet-id'],
         scope=locals())
 
+    preinstall = UserScript(
+        master_scripts=preinstall_master,
+        slave_scripts=preinstall_slave)
+    services += [preinstall]
     if install_hdfs:
         hdfs = HDFS(version=hdfs_version, download_source=hdfs_download_source)
         services += [hdfs]
@@ -311,6 +335,10 @@ def launch(
                 git_commit=spark_git_commit,
                 git_repository=spark_git_repository)
         services += [spark]
+    postinstall = UserScript(
+        master_scripts=postinstall_master,
+        slave_scripts=postinstall_slave)
+    services += [postinstall]
 
     if provider == 'ec2':
         return ec2.launch(

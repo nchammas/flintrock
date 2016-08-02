@@ -14,6 +14,13 @@ services:
     #   - must contain a {v} template corresponding to the version
     #   - must be a .tar.gz file
     # download-source: "https://www.example.com/files/hadoop/{v}/hadoop-{v}.tar.gz"
+  # optional; run scripts prior or posterior to cluster provision
+  # preinstall:
+  #   master: path/to/script.sh
+  #   slave: path/to/script.sh
+  # postinstall:
+  #   master: path/to/script.sh
+  #   slave: path/to/script.sh
 
 provider: ec2
 
