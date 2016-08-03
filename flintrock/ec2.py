@@ -5,6 +5,7 @@ import time
 import urllib.request
 from collections import namedtuple
 from datetime import datetime
+import socket
 
 # External modules
 import boto3
@@ -71,19 +72,36 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def master_ip(self):
-        return self.master_instance.public_ip_address
+        if self.subnet_is_private:
+            return self.master_instance.private_ip_address
+        else:
+            return self.master_instance.public_ip_address
 
     @property
     def master_host(self):
-        return self.master_instance.public_dns_name
+        if self.subnet_is_private:
+            return self.master_instance.private_dns_name
+        else:
+            return self.master_instance.public_dns_name
 
     @property
     def slave_ips(self):
-        return [i.public_ip_address for i in self.slave_instances]
+        if self.subnet_is_private:
+            return [i.private_ip_address for i in self.slave_instances]
+        else:
+            return [i.public_ip_address for i in self.slave_instances]
 
     @property
     def slave_hosts(self):
-        return [i.public_dns_name for i in self.slave_instances]
+        if self.subnet_is_private:
+            return [i.private_dns_name for i in self.slave_instances]
+        else:
+            return [i.public_dns_name for i in self.slave_instances]
+
+    @property
+    def subnet_is_private(self):
+        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
+        return not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
 
     @property
     def state(self):
@@ -274,13 +292,6 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
             "See: https://github.com/nchammas/flintrock/issues/43"
             .format(v=vpc_id)
         )
-    if not ec2.Subnet(subnet_id).map_public_ip_on_launch:
-        raise ConfigurationNotSupported(
-            "{s} does not auto-assign public IP addresses. "
-            "Flintrock requires public IP addresses.\n"
-            "See: https://github.com/nchammas/flintrock/issues/14"
-            .format(s=subnet_id)
-        )
 
 
 def get_security_groups(
@@ -360,54 +371,58 @@ def get_or_create_flintrock_security_groups(
             VpcId=vpc_id)
 
     # Rules for the client interacting with the cluster.
-    flintrock_client_ip = (
+    flintrock_client_ips = []
+    flintrock_client_ips.append(socket.gethostbyname(socket.gethostname()))
+    flintrock_client_ips.append((
         urllib.request.urlopen('http://checkip.amazonaws.com/')
-        .read().decode('utf-8').strip())
-    flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+        .read().decode('utf-8').strip()))
+    flintrock_client_cidrs = ['{ip}/32'.format(ip=fcip) for fcip in flintrock_client_ips]
 
     # TODO: Services should be responsible for registering what ports they want exposed.
-    client_rules = [
-        # SSH
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=22,
-            to_port=22,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # HDFS
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=50070,
-            to_port=50070,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # Spark
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=8080,
-            to_port=8081,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=4040,
-            to_port=4040,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=7077,
-            to_port=7077,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # Spark REST Server
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=6066,
-            to_port=6066,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None)
-    ]
+    client_rules = []
+    for flintrock_client_cidr in flintrock_client_cidrs:
+        client_rules.extend([
+            # SSH
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=22,
+                to_port=22,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            # HDFS
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=50070,
+                to_port=50070,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            # Spark
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=8080,
+                to_port=8081,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=4040,
+                to_port=4040,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=7077,
+                to_port=7077,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            # Spark REST Server
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=6066,
+                to_port=6066,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None)
+        ])
 
     # TODO: Don't try adding rules that already exist.
     # TODO: Add rules in one shot.
