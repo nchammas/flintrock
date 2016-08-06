@@ -122,7 +122,11 @@ class EC2Cluster(FlintrockCluster):
             # instances.
             instances = list(
                 ec2.instances.filter(
-                    InstanceIds=[i.id for i in self.instances]))
+                    # NOTE: We use Filters instead of InstanceIds to avoid
+                    #       the issue described here: https://github.com/boto/boto3/issues/479
+                    Filters=[
+                        {'Name': 'instance-id', 'Values': [i.id for i in self.instances]}
+                    ]))
             (self.master_instance, self.slave_instances) = _get_cluster_master_slaves(instances)
             time.sleep(3)
 
@@ -159,7 +163,10 @@ class EC2Cluster(FlintrockCluster):
         cluster_group.delete()
 
         (ec2.instances
-            .filter(InstanceIds=[instance.id for instance in self.instances])
+            .filter(
+                Filters=[
+                    {'Name': 'instance-id', 'Values': [i.id for i in self.instances]}
+                ])
             .terminate())
 
     def start_check(self):
@@ -176,7 +183,10 @@ class EC2Cluster(FlintrockCluster):
         self.start_check()
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
         (ec2.instances
-            .filter(InstanceIds=[instance.id for instance in self.instances])
+            .filter(
+                Filters=[
+                    {'Name': 'instance-id', 'Values': [i.id for i in self.instances]}
+                ])
             .start())
         self.wait_for_state('running')
 
@@ -199,7 +209,10 @@ class EC2Cluster(FlintrockCluster):
 
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
         (ec2.instances
-            .filter(InstanceIds=[instance.id for instance in self.instances])
+            .filter(
+                Filters=[
+                    {'Name': 'instance-id', 'Values': [i.id for i in self.instances]}
+                ])
             .stop())
         self.wait_for_state('stopped')
 
@@ -258,7 +271,10 @@ class EC2Cluster(FlintrockCluster):
             instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
 
         (ec2.instances
-            .filter(InstanceIds=[i.id for i in new_slave_instances])
+            .filter(
+                Filters=[
+                    {'Name': 'instance-id', 'Values': [i.id for i in new_slave_instances]}
+                ])
             .create_tags(
                 Tags=[
                     {'Key': 'flintrock-role', 'Value': 'slave'},
@@ -301,7 +317,10 @@ class EC2Cluster(FlintrockCluster):
                 Groups=[flintrock_base_group.id])
 
         (ec2.instances
-            .filter(InstanceIds=[instance.id for instance in removed_slave_instances])
+            .filter(
+                Filters=[
+                    {'Name': 'instance-id', 'Values': [i.id for i in removed_slave_instances]}
+                ])
             .terminate())
 
     def run_command_check(self):
@@ -573,7 +592,10 @@ def get_ec2_block_device_mappings(
     # An IndexError here is probably a sign of this problem:
     # https://github.com/boto/boto3/issues/496
     image = list(
-        ec2.images.filter(ImageIds=[ami]))[0]
+        ec2.images.filter(
+            Filters=[
+                {'Name': 'image-id', 'Values': [ami]}
+            ]))[0]
 
     if image.root_device_type == 'ebs':
         root_device = [
@@ -673,7 +695,9 @@ def _create_instances(
 
             cluster_instances = list(
                 ec2.instances.filter(
-                    InstanceIds=[r['InstanceId'] for r in spot_requests]))
+                    Filters=[
+                        {'Name': 'instance-id', 'Values': [r['InstanceId'] for r in spot_requests]}
+                    ]))
         else:
             # Move this to flintrock.py?
             print("Launching {c} instance{s}...".format(
@@ -718,7 +742,10 @@ def _create_instances(
                 if 'InstanceId' in r]
             if instance_ids:
                 cluster_instances = list(
-                    ec2.instances.filter(InstanceIds=instance_ids))
+                    ec2.instances.filter(
+                        Filters=[
+                            {'Name': 'instance-id', 'Values': instance_ids}
+                        ]))
 
         if cluster_instances:
             if not assume_yes:
@@ -731,7 +758,10 @@ def _create_instances(
             if assume_yes or yes:
                 print("Terminating instances...", file=sys.stderr)
                 (ec2.instances
-                    .filter(InstanceIds=[instance.id for instance in cluster_instances])
+                    .filter(
+                        Filters=[
+                            {'Name': 'instance-id', 'Values': [i.id for i in cluster_instances]}
+                        ])
                     .terminate())
 
         raise
@@ -834,13 +864,19 @@ def launch(
     slave_instances = cluster_instances[1:]
 
     (ec2.instances
-        .filter(InstanceIds=[master_instance.id])
+        .filter(
+            Filters=[
+                {'Name': 'instance-id', 'Values': [master_instance.id]}
+            ])
         .create_tags(
             Tags=[
                 {'Key': 'flintrock-role', 'Value': 'master'},
                 {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]))
     (ec2.instances
-        .filter(InstanceIds=[i.id for i in slave_instances])
+        .filter(
+            Filters=[
+                {'Name': 'instance-id', 'Values': [i.id for i in slave_instances]}
+            ])
         .create_tags(
             Tags=[
                 {'Key': 'flintrock-role', 'Value': 'slave'},
