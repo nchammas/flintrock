@@ -180,8 +180,6 @@ class HDFS(FlintrockService):
         ssh_check_output(
             client=ssh_client,
             command="""
-                ./hadoop/sbin/stop-dfs.sh
-                sleep 3
                 ./hadoop/bin/hdfs namenode -format -nonInteractive
                 ./hadoop/sbin/start-dfs.sh
             """)
@@ -321,13 +319,7 @@ class Spark(FlintrockService):
         ssh_check_output(
             client=ssh_client,
             command="""
-                set -e
-
-                spark/sbin/stop-master.sh
-                sleep 3
-                spark/sbin/start-master.sh
-
-                set +e
+                spark/sbin/start-all.sh
 
                 master_ui_response_code=0
                 while [ "$master_ui_response_code" -ne 200 ]; do
@@ -337,10 +329,6 @@ class Spark(FlintrockService):
                              --write-out "%{{http_code}}" {m}:8080
                     )"
                 done
-
-                set -e
-
-                spark/sbin/start-slaves.sh
             """.format(
                 m=shlex.quote(cluster.master_host)))
 
