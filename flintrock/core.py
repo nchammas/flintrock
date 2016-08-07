@@ -735,9 +735,6 @@ def remove_slaves_node(
             ssh_client=ssh_client,
             cluster=cluster)
 
-    # TODO: Restart master? If we don't do that, Spark, for example, will keep the
-    #       removed slaves around and mark them as dead.
-
 
 def run_command_node(*, user: str, host: str, identity_file: str, command: tuple):
     """
