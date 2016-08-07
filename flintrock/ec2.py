@@ -368,8 +368,10 @@ class EC2Cluster(FlintrockCluster):
         print('  state: {s}'.format(s=self.state))
         print('  node-count: {nc}'.format(nc=len(self.instances)))
         if self.state == 'running':
-            print('  master:', self.master_host)
-            print('\n    - '.join(['  slaves:'] + self.slave_hosts))
+            print('  master:', self.master_host if self.num_masters > 0 else '')
+            print(
+                '\n    - '.join(
+                    ['  slaves:'] + (self.slave_hosts if self.num_slaves > 0 else [])))
         # print('...')
 
 
