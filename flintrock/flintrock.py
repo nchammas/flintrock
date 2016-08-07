@@ -605,6 +605,9 @@ def add_slaves(
         ec2_spot_price):
     """
     Add slaves to an existing cluster.
+
+    Flintrock will configure new slaves based on information queried
+    automatically from the master.
     """
     provider = cli_context.obj['provider']
 
