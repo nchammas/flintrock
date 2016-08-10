@@ -297,8 +297,14 @@ class EC2Cluster(FlintrockCluster):
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
 
         # self.remove_slaves_check() (?)
+
+        # Remove spot instances first, if any.
+        _instances = sorted(
+            self.slave_instances,
+            key=lambda x: x.instance_lifecycle == 'spot',
+            reverse=True)
         removed_slave_instances, self.slave_instances = \
-            self.slave_instances[0:num_slaves], self.slave_instances[num_slaves:]
+            _instances[0:num_slaves], _instances[num_slaves:]
 
         if self.state == 'running':
             super().remove_slaves(user=user, identity_file=identity_file)
