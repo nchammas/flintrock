@@ -245,24 +245,12 @@ class EC2Cluster(FlintrockCluster):
             InstanceId=self.master_instance.id,
             Attribute='instanceInitiatedShutdownBehavior'
         )
+        instance_initiated_shutdown_behavior = response['InstanceInitiatedShutdownBehavior']['Value']
 
         if not self.master_instance.iam_instance_profile:
-            instance_profile_name = ''
+            instance_profile_arn = ''
         else:
-            instance_profile_id = self.master_instance.iam_instance_profile['Id']
-            # We have to do this convoluted dance because the instance doesn't
-            # return the profile name, just the ID, and on top of that we can't
-            # lookup the profile by ID directly.
-            # See:
-            #   - https://github.com/boto/boto3/issues/768
-            #   - https://github.com/boto/boto3/issues/769
-            iam = boto3.resource('iam')
-            profiles = filter(
-                lambda x: x.instance_profile_id == instance_profile_id,
-                iam.instance_profiles.all())
-            instance_profile_name = list(profiles)[0].instance_profile_name
-
-        instance_initiated_shutdown_behavior = response['InstanceInitiatedShutdownBehavior']['Value']
+            instance_profile_arn = self.master_instance.iam_instance_profile['Arn']
 
         self.add_slaves_check()
         new_slave_instances = _create_instances(
@@ -278,7 +266,7 @@ class EC2Cluster(FlintrockCluster):
             tenancy=self.master_instance.placement['Tenancy'],
             security_group_ids=security_group_ids,
             subnet_id=self.master_instance.subnet_id,
-            instance_profile_name=instance_profile_name,
+            instance_profile_arn=instance_profile_arn,
             ebs_optimized=self.master_instance.ebs_optimized,
             instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
 
@@ -657,7 +645,7 @@ def _create_instances(
         tenancy,
         security_group_ids,
         subnet_id,
-        instance_profile_name,
+        instance_profile_arn,
         ebs_optimized,
         instance_initiated_shutdown_behavior) -> 'List[boto3.resources.factory.ec2.Instance]':
     ec2 = boto3.resource(service_name='ec2', region_name=region)
@@ -684,7 +672,7 @@ def _create_instances(
                     'SecurityGroupIds': security_group_ids,
                     'SubnetId': subnet_id,
                     'IamInstanceProfile': {
-                        'Name': instance_profile_name},
+                        'Arn': instance_profile_arn},
                     'EbsOptimized': ebs_optimized})['SpotInstanceRequests']
 
             request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
@@ -738,7 +726,7 @@ def _create_instances(
                 SecurityGroupIds=security_group_ids,
                 SubnetId=subnet_id,
                 IamInstanceProfile={
-                    'Name': instance_profile_name},
+                    'Arn': instance_profile_arn},
                 EbsOptimized=ebs_optimized,
                 InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior)
 
@@ -860,6 +848,15 @@ def launch(
             raise
 
     ec2 = boto3.resource(service_name='ec2', region_name=region)
+    iam = boto3.resource(service_name='iam', region_name=region)
+
+    # We use IAM profile ARNs internally because AWS's API prefers that in
+    # a few places.
+    # See: https://github.com/boto/boto3/issues/769
+    if instance_profile_name:
+        instance_profile_arn = iam.InstanceProfile(instance_profile_name).arn
+    else:
+        instance_profile_arn = ''
 
     num_instances = num_slaves + 1
 
@@ -876,7 +873,7 @@ def launch(
         tenancy=tenancy,
         security_group_ids=security_group_ids,
         subnet_id=subnet_id,
-        instance_profile_name=instance_profile_name,
+        instance_profile_arn=instance_profile_arn,
         ebs_optimized=ebs_optimized,
         instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
 
