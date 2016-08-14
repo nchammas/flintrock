@@ -12,8 +12,10 @@ import paramiko
 # Flintrock modules
 from .exceptions import SSHError
 
+SSHKeyPair = namedtuple('KeyPair', ['public', 'private'])
 
-def generate_ssh_key_pair() -> namedtuple('KeyPair', ['public', 'private']):
+
+def generate_ssh_key_pair() -> SSHKeyPair:
     """
     Generate an SSH key pair that the cluster can use for intra-cluster
     communication.

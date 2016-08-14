@@ -6,7 +6,7 @@ export SPARK_LOCAL_DIRS="{root_ephemeral_dirs}"
 export SPARK_EXECUTOR_INSTANCES="1"
 export SPARK_WORKER_CORES="$(nproc)"
 
-export SPARK_MASTER_IP="{master_host}"
+export SPARK_MASTER_HOST="{master_host}"
 
 # TODO: Make this dependent on HDFS install.
 export HADOOP_CONF_DIR="/home/$(logname)/hadoop/conf"

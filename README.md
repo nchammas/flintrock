@@ -42,6 +42,8 @@ Other things you can do with Flintrock include:
 ```sh
 flintrock login test-cluster
 flintrock describe test-cluster
+flintrock add-slaves test-cluster --num-slaves 2
+flintrock remove-slaves test-cluster --num-slaves 1
 flintrock run-command test-cluster 'sudo yum install -y package'
 flintrock copy-file test-cluster /local/path /remote/path
 ```

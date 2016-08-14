@@ -2,9 +2,22 @@
 
 ## [Unreleased]
 
-Nothing notable yet.
-
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v0.5.0...master
+
+### Added
+
+* [#115]: Flintrock can now resize existing clusters with the new
+  `add-slaves` and `remove-slaves` commands.
+
+[#115]: https://github.com/nchammas/flintrock/pull/115
+
+### Changed
+
+* [#115]: If you lost your master somehow, Flintrock can now still
+  destroy the cluster.
+* [#115]: You can no longer launch clusters with 0 slaves. The
+  implementation was broken. We may fix and add this capability back
+  in the future.
 
 ## [0.5.0] - 2016-07-20
 

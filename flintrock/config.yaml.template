@@ -35,6 +35,7 @@ providers:
     # security-groups:
     #   - group-name1
     #   - group-name2
+    # instance-profile-name:
     tenancy: default  # default | dedicated
     ebs-optimized: no  # yes | no
     instance-initiated-shutdown-behavior: terminate  # terminate | stop
