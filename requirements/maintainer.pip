@@ -1,5 +1,5 @@
 -r developer.pip
 wheel >= 0.29.0
-twine >= 1.7.4
+twine >= 1.8.1
 pypandoc >= 1.2.0
 PyInstaller >= 3.2
