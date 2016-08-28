@@ -151,7 +151,10 @@ def get_config_file() -> str:
 
 
 @click.group()
-@click.option('--config', default=get_config_file())
+@click.option(
+    '--config',
+    help="Path to a Flintrock configuration file.",
+    default=get_config_file())
 @click.option('--provider', default='ec2', type=click.Choice(['ec2']))
 @click.version_option(version=__version__)
 @click.pass_context
@@ -159,7 +162,7 @@ def cli(cli_context, config, provider):
     """
     Flintrock
 
-    A command-line tool and library for launching Apache Spark clusters.
+    A command-line tool for launching Apache Spark clusters.
     """
     cli_context.obj['provider'] = provider
 
