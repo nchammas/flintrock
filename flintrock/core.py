@@ -229,6 +229,10 @@ class FlintrockCluster:
 
         _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
+        # A short wait here seems to reduce the recurrence of this issue:
+        # https://github.com/nchammas/flintrock/issues/129
+        time.sleep(5)
+
         master_ssh_client = get_ssh_client(
             user=user,
             host=self.master_ip,
