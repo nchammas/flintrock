@@ -2,7 +2,7 @@ import compileall
 import os
 
 # External modules
-import pep8
+import pycodestyle
 import yaml
 
 FLINTROCK_ROOT_DIR = (
@@ -31,8 +31,8 @@ def test_code_compiles():
         assert result == 1
 
 
-def test_pep8_compliance():
-    style = pep8.StyleGuide(
+def test_style():
+    style = pycodestyle.StyleGuide(
         config_file=os.path.join(FLINTROCK_ROOT_DIR, 'tox.ini'))
     result = style.check_files(TEST_PATHS)
     assert result.total_errors == 0
