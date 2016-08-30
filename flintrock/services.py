@@ -184,6 +184,12 @@ class HDFS(FlintrockService):
                 ./hadoop/sbin/start-dfs.sh
             """)
 
+    def configure_slave(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster: FlintrockCluster):
+        pass
+
     def health_check(self, master_host: str):
         # This info is not helpful as a detailed health check, but it gives us
         # an up / not up signal.
@@ -332,6 +338,12 @@ class Spark(FlintrockService):
             """.format(
                 m=shlex.quote(cluster.master_host)))
 
+    def configure_slave(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster: FlintrockCluster):
+        pass
+
     def health_check(self, master_host: str):
         spark_master_ui = 'http://{m}:8080/json/'.format(m=master_host)
 
@@ -358,3 +370,64 @@ class Spark(FlintrockService):
                 workers=len(spark_ui_info['workers']),
                 cores=spark_ui_info['cores'],
                 memory=spark_ui_info['memory'] / 1024)))
+
+
+class UserScript(FlintrockService):
+    def __init__(self, master_scripts, slave_scripts):
+        self.master_scripts = master_scripts
+        self.slave_scripts = slave_scripts
+        # TODO(sybaek): Implement manifest
+        self.manifest = {"master_scripts": master_scripts, "slave_scripts": slave_scripts}
+
+    def _copy_and_run_scripts(self, ssh_client, scripts):
+        for script in scripts:
+            host = ssh_client.get_transport().getpeername()[0]
+            print("[{h}] Running script '{s}'...".format(h=host, s=script))
+            remotepath = os.path.join('/tmp/', os.path.basename(script))
+            with ssh_client.open_sftp() as sftp:
+                sftp.put(
+                    localpath=script,
+                    remotepath=remotepath)
+                sftp.chmod(path=remotepath, mode=0o755)
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    set -e
+                    {remotepath}
+                    rm -f {remotepath}
+                """.format(remotepath=remotepath))
+
+    def install(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster: FlintrockCluster):
+        pass
+
+    def configure(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster: FlintrockCluster):
+        pass
+
+    def configure_master(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster: FlintrockCluster):
+        if self.master_scripts:
+            host = ssh_client.get_transport().getpeername()[0]
+            print("[{h}] Running scripts on master...".format(h=host))
+
+            self._copy_and_run_scripts(ssh_client, self.master_scripts)
+
+    def configure_slave(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster: FlintrockCluster):
+        if self.slave_scripts:
+            host = ssh_client.get_transport().getpeername()[0]
+            print("[{h}] Running scripts on slave...".format(h=host))
+
+            self._copy_and_run_scripts(ssh_client, self.slave_scripts)
+
+    def health_check(self, master_host: str):
+        pass

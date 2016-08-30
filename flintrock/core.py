@@ -450,7 +450,7 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
 
     This function assumes that partial_func accepts `host` as a keyword argument.
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     executor = concurrent.futures.ThreadPoolExecutor(len(hosts))
 
     tasks = []
@@ -601,6 +601,14 @@ def provision_cluster(
                 ssh_client=master_ssh_client,
                 cluster=cluster)
 
+    partial_func = functools.partial(
+        configure_slave,
+        services=services,
+        user=user,
+        identity_file=identity_file,
+        cluster=cluster)
+    _run_asynchronously(partial_func=partial_func, hosts=cluster.slave_ips)
+
     # NOTE: We sleep here so that the slave services have time to come up.
     #       If we refactor stuff to have a start_slave() that blocks until
     #       the slave is fully up, then we won't need this sleep anymore.
@@ -638,6 +646,29 @@ def provision_node(
             cluster=cluster)
         for service in services:
             service.configure(
+                ssh_client=client,
+                cluster=cluster)
+
+
+def configure_slave(
+        *,
+        services: list,
+        user: str,
+        host: str,
+        identity_file: str,
+        cluster: FlintrockCluster):
+    """
+    This method is meant to be called asynchronously.
+    """
+    client = get_ssh_client(
+        user=user,
+        host=host,
+        identity_file=identity_file,
+        wait=True)
+
+    with client:
+        for service in services:
+            service.configure_slave(
                 ssh_client=client,
                 cluster=cluster)
 
@@ -807,4 +838,4 @@ def copy_file_node(
 # core.py and services.py. I've thought about how to remove this circular dependency,
 # but for now this seems like what we need to go with.
 # Flintrock modules
-from .services import HDFS, Spark  # Used by start_cluster()
+from .services import HDFS, Spark, UserScript  # Used by start_cluster()
