@@ -227,7 +227,7 @@ flintrock launch test-cluster \
 
 ### Fast Launches
 
-Flintrock is really fast. This is how quickly it can launch fully operational clusters on EC2 compared to [spark-ec2](https://spark.apache.org/docs/latest/ec2-scripts.html).
+Flintrock is really fast. This is how quickly it can launch fully operational clusters on EC2 compared to [spark-ec2](https://github.com/amplab/spark-ec2).
 
 #### Setup
 
@@ -280,13 +280,13 @@ We here at project Flintrock are much more modest in our abilities. We are best 
 
 ## Motivation
 
-*Note: The explanation here is provided from the perspective of Flintrock's original author, Nicholas Chammas.*
+*Note: The explanation here is provided from the perspective of Flintrock's original author, Nicholas Chammas. spark-ec2 is still an active project, so the problems described below may no longer exist. However, they were all present at the time Flintrock was created.*
 
-I got started with Spark by using [spark-ec2](http://spark.apache.org/docs/latest/ec2-scripts.html). It's one of the biggest reasons I found Spark so accessible. I didn't need to spend time upfront working through some setup guide before I could work on a "real" problem. Instead, with a simple spark-ec2 command I was able to launch a large, working cluster and get straight to business.
+I got started with Spark by using [spark-ec2](https://github.com/amplab/spark-ec2). It's one of the biggest reasons I found Spark so accessible. I didn't need to spend time upfront working through some setup guide before I could work on a "real" problem. Instead, with a simple spark-ec2 command I was able to launch a large, working cluster and get straight to business.
 
 As I became a heavy user of spark-ec2, several limitations stood out and became an increasing pain. They provided me with the motivation for this project.
 
-Among those limitations are:
+Among those limitations were:
 
 * **Slow launches**: spark-ec2 cluster launch times increase linearly with the number of slaves being created. For example, it takes spark-ec2 **[over an hour](https://issues.apache.org/jira/browse/SPARK-5189)** to launch a cluster with 100 slaves. ([SPARK-4325](https://issues.apache.org/jira/browse/SPARK-4325), [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189))
 * **No support for configuration files**: spark-ec2 does not support reading options from a config file, so users are always forced to type them in at the command line. ([SPARK-925](https://issues.apache.org/jira/browse/SPARK-925))
@@ -296,7 +296,16 @@ Among those limitations are:
 * **Poor support for programmatic use cases**: spark-ec2 was not built with programmatic use in mind, so many flows are difficult or impossible to automate. ([SPARK-5627](https://issues.apache.org/jira/browse/SPARK-5627), [SPARK-5629](https://issues.apache.org/jira/browse/SPARK-5629))
 * **No standalone distribution**: spark-ec2 comes bundled with Spark and has no independent releases or distribution. Instead of being a nimble tool that can progress independently and be installed separately, it is tied to Spark's release cycle and distributed with Spark, which clocks in at a few hundred megabytes.
 
-Flintrock addresses, or will address, all of these shortcomings.
+Flintrock addresses all of these shortcomings.
+
+### Why didn't you build Flintrock on top of an orchestration tool?
+
+People have asked me whether I considered building Flintrock on top of Ansible, Terraform, Docker, or something else. I looked into some of these things back when Flintrock was just an idea in my head and decided against using any of them for two basic reasons:
+
+1. **Fun**: I didn't have any experience with these tools, and it looked both simple enough and more fun to build something "from scratch".
+2. **Focus**: I wanted a single-purpose tool with a very limited focus, not a module or set of scripts that were part of a sprawling framework that did a lot of different things.
+
+These are not necessarily the right reasons to build "from scratch", but they were my reasons. If you are already comfortable with any of the popular orchestration tools out there, you may find it more attractive to use them rather than add a new standalone tool to your toolchain.
 
 
 ## About the Flintrock Logo
