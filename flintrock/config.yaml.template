@@ -39,6 +39,7 @@ providers:
     tenancy: default  # default | dedicated
     ebs-optimized: no  # yes | no
     instance-initiated-shutdown-behavior: terminate  # terminate | stop
+    # user-data: /path/to/userdata/script
 
 launch:
   num-slaves: 1
