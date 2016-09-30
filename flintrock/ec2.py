@@ -665,6 +665,7 @@ def _create_instances(
 
     cluster_instances = []
     spot_requests = []
+    user_data = user_data.read()
 
     try:
         if spot_price:
@@ -877,9 +878,6 @@ def launch(
 
     num_instances = num_slaves + 1
 
-    if user_data != '':
-        user_data = _get_user_data(user_data)
-
     cluster_instances = _create_instances(
         num_instances=num_instances,
         region=region,
@@ -1050,14 +1048,3 @@ def _compose_cluster(*, name: str, region: str, vpc_id: str, instances: list) ->
         slave_instances=slave_instances)
 
     return cluster
-
-
-def _get_user_data(user_data: str) -> str:
-    """
-    Get the contents of the userdata script from the given path.
-    """
-    if os.path.exists(user_data):
-        contents = open(user_data).read()
-        return contents
-    else:
-        raise Exception("Could not find the userdata script")

@@ -226,8 +226,9 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-ebs-optimized/--no-ec2-ebs-optimized', default=False)
 @click.option('--ec2-instance-initiated-shutdown-behavior', default='stop',
               type=click.Choice(['stop', 'terminate']))
-@click.option('--ec2-user-data', default='',
-              help="Path to userdata script file for accessing nodes.")
+@click.option('--ec2-user-data',
+              type=click.File(mode='r', encoding='utf-8'),
+              help="Path to EC2 user data script that will run on instance launch.")
 @click.pass_context
 def launch(
         cli_context,
