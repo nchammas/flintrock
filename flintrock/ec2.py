@@ -668,6 +668,7 @@ def _create_instances(
 
     try:
         if spot_price:
+            user_data = base64.b64encode(user_data.encode('utf-8')).decode()
             print("Requesting {c} spot instances at a max price of ${p}...".format(
                 c=num_instances, p=spot_price))
             client = ec2.meta.client
