@@ -149,7 +149,7 @@ Flintrock is not for managing long-lived clusters, or any infrastructure that se
 
   For starters, Flintrock provides no guarantee that clusters launched with one version of Flintrock can be managed by another version of Flintrock, and no considerations are made for any long-term use cases.
 
-  If you are looking for ways to manage permanent infrastructure, look at tools like [Terraform](https://www.terraform.io/), [Ansible](http://www.ansible.com/), [SaltStack](http://saltstack.com/), or [Ubuntu Juju](http://www.ubuntu.com/cloud/tools/juju). You might also find a service like [Databricks](https://databricks.com/product/databricks) useful if you're looking for someone else to host and manage Spark for you. Amazon also offers [Spark on EMR](https://aws.amazon.com/elasticmapreduce/details/spark/).
+  If you are looking for ways to manage permanent infrastructure, look at tools like [Terraform](https://www.terraform.io/), [Ansible](http://www.ansible.com/), [SaltStack](http://saltstack.com/), or [Ubuntu Juju](http://www.ubuntu.com/cloud/tools/juju). You might also find a service like [Databricks](https://databricks.com/product/databricks) or [Qubole] (https://www.qubole.com/apache-spark-as-a-service) useful if you're looking for someone else to host and manage Spark for you. Amazon also offers [Spark on EMR](https://aws.amazon.com/elasticmapreduce/details/spark/).
 
 ### Launching non-Spark-related services
 
