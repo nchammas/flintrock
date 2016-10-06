@@ -229,7 +229,8 @@ class EC2Cluster(FlintrockCluster):
             user: str,
             identity_file: str,
             num_slaves: int,
-            spot_price: float):
+            spot_price: float,
+            assume_yes: bool):
         security_group_ids = [
             group['GroupId']
             for group in self.master_instance.security_groups]
@@ -258,6 +259,7 @@ class EC2Cluster(FlintrockCluster):
             region=self.region,
             spot_price=spot_price,
             ami=self.master_instance.image_id,
+            assume_yes=assume_yes,
             key_name=self.master_instance.key_name,
             instance_type=self.master_instance.instance_type,
             block_device_mappings=block_device_mappings,
@@ -637,6 +639,7 @@ def _create_instances(
         region,
         spot_price,
         ami,
+        assume_yes,
         key_name,
         instance_type,
         block_device_mappings,
@@ -865,6 +868,7 @@ def launch(
         region=region,
         spot_price=spot_price,
         ami=ami,
+        assume_yes=assume_yes,
         key_name=key_name,
         instance_type=instance_type,
         block_device_mappings=block_device_mappings,
