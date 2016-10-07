@@ -665,7 +665,6 @@ def _create_instances(
 
     cluster_instances = []
     spot_requests = []
-    user_data = user_data.read()
 
     try:
         if spot_price:
@@ -877,6 +876,10 @@ def launch(
         instance_profile_arn = ''
 
     num_instances = num_slaves + 1
+    if user_data is not None:
+        user_data = user_data.read()
+    else:
+        user_data = ''
 
     cluster_instances = _create_instances(
         num_instances=num_instances,
