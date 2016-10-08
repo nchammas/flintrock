@@ -4,7 +4,16 @@
 
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v0.6.0...master
 
-Nothing notable yet.
+### Added
+
+* [#146]: Flintrock now ensures that launched clusters have Java 8 or
+  higher installed.
+* [#149]: You can now specify an [EC2 user data] script to use on launch
+  with the new `--ec2-user-data` option.
+
+[#146]: https://github.com/nchammas/flintrock/pull/146
+[#149]: https://github.com/nchammas/flintrock/pull/149
+[EC2 user data]: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
 
 ## [0.6.0] - 2016-08-28
 
