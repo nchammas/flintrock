@@ -226,6 +226,9 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-ebs-optimized/--no-ec2-ebs-optimized', default=False)
 @click.option('--ec2-instance-initiated-shutdown-behavior', default='stop',
               type=click.Choice(['stop', 'terminate']))
+@click.option('--ec2-user-data',
+              type=click.File(mode='r', encoding='utf-8'),
+              help="Path to EC2 user data script that will run on instance launch.")
 @click.pass_context
 def launch(
         cli_context,
@@ -255,7 +258,8 @@ def launch(
         ec2_placement_group,
         ec2_tenancy,
         ec2_ebs_optimized,
-        ec2_instance_initiated_shutdown_behavior):
+        ec2_instance_initiated_shutdown_behavior,
+        ec2_user_data):
     """
     Launch a new cluster.
     """
@@ -336,7 +340,8 @@ def launch(
             placement_group=ec2_placement_group,
             tenancy=ec2_tenancy,
             ebs_optimized=ec2_ebs_optimized,
-            instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior)
+            instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior,
+            user_data=ec2_user_data)
     else:
         raise UnsupportedProviderError(provider)
 

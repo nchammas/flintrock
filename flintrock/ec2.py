@@ -3,6 +3,8 @@ import string
 import sys
 import time
 import urllib.request
+import base64
+import os
 from collections import namedtuple
 from datetime import datetime
 
@@ -248,6 +250,15 @@ class EC2Cluster(FlintrockCluster):
         )
         instance_initiated_shutdown_behavior = response['InstanceInitiatedShutdownBehavior']['Value']
 
+        response = client.describe_instance_attribute(
+            InstanceId=self.master_instance.id,
+            Attribute='userData'
+        )
+        if not response['UserData']:
+            user_data = ''
+        else:
+            user_data = response['UserData']['Value']
+
         if not self.master_instance.iam_instance_profile:
             instance_profile_arn = ''
         else:
@@ -270,7 +281,8 @@ class EC2Cluster(FlintrockCluster):
             subnet_id=self.master_instance.subnet_id,
             instance_profile_arn=instance_profile_arn,
             ebs_optimized=self.master_instance.ebs_optimized,
-            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
+            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
+            user_data=user_data)
 
         (ec2.instances
             .filter(
@@ -650,7 +662,8 @@ def _create_instances(
         subnet_id,
         instance_profile_arn,
         ebs_optimized,
-        instance_initiated_shutdown_behavior) -> 'List[boto3.resources.factory.ec2.Instance]':
+        instance_initiated_shutdown_behavior,
+        user_data) -> 'List[boto3.resources.factory.ec2.Instance]':
     ec2 = boto3.resource(service_name='ec2', region_name=region)
 
     cluster_instances = []
@@ -658,6 +671,7 @@ def _create_instances(
 
     try:
         if spot_price:
+            user_data = base64.b64encode(user_data.encode('utf-8')).decode()
             print("Requesting {c} spot instances at a max price of ${p}...".format(
                 c=num_instances, p=spot_price))
             client = ec2.meta.client
@@ -676,7 +690,8 @@ def _create_instances(
                     'SubnetId': subnet_id,
                     'IamInstanceProfile': {
                         'Arn': instance_profile_arn},
-                    'EbsOptimized': ebs_optimized})['SpotInstanceRequests']
+                    'EbsOptimized': ebs_optimized,
+                    'UserData': user_data})['SpotInstanceRequests']
 
             request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
             pending_request_ids = request_ids
@@ -731,7 +746,8 @@ def _create_instances(
                 IamInstanceProfile={
                     'Arn': instance_profile_arn},
                 EbsOptimized=ebs_optimized,
-                InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior)
+                InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior,
+                UserData=user_data)
 
         time.sleep(10)  # AWS metadata eventual consistency tax.
         return cluster_instances
@@ -800,7 +816,8 @@ def launch(
         placement_group,
         tenancy='default',
         ebs_optimized=False,
-        instance_initiated_shutdown_behavior='stop'):
+        instance_initiated_shutdown_behavior='stop',
+        user_data):
     """
     Launch a cluster.
     """
@@ -862,6 +879,10 @@ def launch(
         instance_profile_arn = ''
 
     num_instances = num_slaves + 1
+    if user_data is not None:
+        user_data = user_data.read()
+    else:
+        user_data = ''
 
     cluster_instances = _create_instances(
         num_instances=num_instances,
@@ -879,7 +900,8 @@ def launch(
         subnet_id=subnet_id,
         instance_profile_arn=instance_profile_arn,
         ebs_optimized=ebs_optimized,
-        instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior)
+        instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
+        user_data=user_data)
 
     master_instance = cluster_instances[0]
     slave_instances = cluster_instances[1:]
