@@ -611,13 +611,17 @@ def get_ec2_block_device_mappings(
     block_device_mappings = []
     min_root_device_size_gb = 30
 
-    # An IndexError here is probably a sign of this problem:
-    # https://github.com/boto/boto3/issues/496
-    image = list(
-        ec2.images.filter(
-            Filters=[
-                {'Name': 'image-id', 'Values': [ami]}
-            ]))[0]
+    try:
+        image = list(
+            ec2.images.filter(
+                Filters=[
+                    {'Name': 'image-id', 'Values': [ami]}
+                ]))[0]
+    except IndexError as e:
+        raise Error(
+            "Error: Could not find {ami} in region {region}.".format(
+                ami=ami,
+                region=region))
 
     if image.root_device_type == 'ebs':
         root_device = [
@@ -845,27 +849,18 @@ def launch(
                 r=region,
                 v=vpc_id))
 
-    try:
-        flintrock_security_groups = get_or_create_flintrock_security_groups(
-            cluster_name=cluster_name,
-            vpc_id=vpc_id,
-            region=region)
-        user_security_groups = get_security_groups(
-            vpc_id=vpc_id,
-            region=region,
-            security_group_names=security_groups)
-        security_group_ids = [sg.id for sg in user_security_groups + flintrock_security_groups]
-        block_device_mappings = get_ec2_block_device_mappings(
-            ami=ami,
-            region=region)
-    except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == 'InvalidAMIID.NotFound':
-            raise Error(
-                "Error: Could not find {ami} in region {region}.".format(
-                    ami=ami,
-                    region=region))
-        else:
-            raise
+    flintrock_security_groups = get_or_create_flintrock_security_groups(
+        cluster_name=cluster_name,
+        vpc_id=vpc_id,
+        region=region)
+    user_security_groups = get_security_groups(
+        vpc_id=vpc_id,
+        region=region,
+        security_group_names=security_groups)
+    security_group_ids = [sg.id for sg in user_security_groups + flintrock_security_groups]
+    block_device_mappings = get_ec2_block_device_mappings(
+        ami=ami,
+        region=region)
 
     ec2 = boto3.resource(service_name='ec2', region_name=region)
     iam = boto3.resource(service_name='iam', region_name=region)
