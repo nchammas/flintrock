@@ -301,6 +301,8 @@ def launch(
         requires_all=['--ec2-subnet-id'],
         scope=locals())
 
+    check_external_dependency('ssh-keygen')
+
     if install_hdfs:
         hdfs = HDFS(version=hdfs_version, download_source=hdfs_download_source)
         services += [hdfs]
@@ -496,6 +498,8 @@ def login(cli_context, cluster_name, ec2_region, ec2_vpc_id, ec2_identity_file, 
             '--ec2-identity-file',
             '--ec2-user'],
         scope=locals())
+
+    check_external_dependency('ssh')
 
     if provider == 'ec2':
         cluster = ec2.get_cluster(
@@ -1037,6 +1041,18 @@ def set_open_files_limit(desired_limit):
         resource.setrlimit(
             resource.RLIMIT_NOFILE,
             (min(desired_limit, hard_limit), hard_limit))
+
+
+def check_external_dependency(executable_name: str):
+    if shutil.which(executable_name) is None:
+        raise Error(
+            "Error: Flintrock could not find '{executable}' on your PATH. "
+            "Flintrock needs this executable to carry out the operation you "
+            "requested. Please install it and try again."
+            .format(
+                executable=executable_name
+            )
+        )
 
 
 def main() -> int:
