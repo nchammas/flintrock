@@ -979,7 +979,18 @@ def configure(cli_context, locate):
             dst=config_file)
         os.chmod(config_file, mode=0o644)
 
-    click.launch(config_file, locate=locate)
+    ret = click.launch(config_file, locate=locate)
+
+    if ret != 0:
+        raise Error(
+            "Flintrock could not launch an application to {action} "
+            "the config file at '{location}'. You may want to manually "
+            "find and edit this file."
+            .format(
+                action="locate" if locate else "edit",
+                location=config_file
+            )
+        )
 
 
 def flintrock_is_in_development_mode() -> bool:
