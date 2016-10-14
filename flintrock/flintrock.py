@@ -925,14 +925,6 @@ def config_to_click(config: dict) -> dict:
     """
     service_configs = {}
 
-    if 'modules' in config:
-        print(
-            "WARNING: The name `modules` is deprecated and will be removed "
-            "in the next version of Flintrock.\n"
-            "Please update your config file to use `services` instead of `modules`.\n"
-            "You can do this by calling `flintrock configure`.")
-        config['services'] = config['modules']
-
     if 'services' in config:
         for service in config['services']:
             if config['services'][service]:
