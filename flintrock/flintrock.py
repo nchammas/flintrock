@@ -13,6 +13,12 @@ import warnings
 # External modules
 import click
 import yaml
+# We import botocore here so we can catch when the user tries to
+# access AWS without having their credentials configured and provide
+# a friendly error message. Apart from that, flintrock.py should
+# not really know anything about EC2 or boto since that is delegated
+# to ec2.py.
+import botocore
 
 # Flintrock modules
 from . import ec2
@@ -1055,10 +1061,21 @@ def main() -> int:
     set_open_files_limit(4096)
 
     try:
-        # We pass in obj so we can add attributes to it, like provider, which
-        # get shared by all commands.
-        # See: http://click.pocoo.org/6/api/#click.Context
-        cli(obj={})
+        try:
+            # We pass in obj so we can add attributes to it, like provider, which
+            # get shared by all commands.
+            # See: http://click.pocoo.org/6/api/#click.Context
+            cli(obj={})
+        except botocore.exceptions.NoCredentialsError:
+            raise Error(
+                "Flintrock could not find your AWS credentials. "
+                "You can fix this is by providing your credentials "
+                "via environment variables or by creating a shared "
+                "credentials file.\n"
+                "For more information see:\n"
+                "  * https://boto3.readthedocs.io/en/latest/guide/configuration.html#environment-variables\n"
+                "  * https://boto3.readthedocs.io/en/latest/guide/configuration.html#shared-credentials-file"
+            )
     except NothingToDo as e:
         print(e)
         return 0
