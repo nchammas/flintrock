@@ -15,6 +15,15 @@
 [#149]: https://github.com/nchammas/flintrock/pull/149
 [EC2 user data]: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
 
+### Changed
+
+* [#154], [#155], [#156]: Flintrock now provides friendly error messages
+  when it encounters common configuration or setup problems.
+
+[#154]: https://github.com/nchammas/flintrock/pull/154
+[#155]: https://github.com/nchammas/flintrock/pull/155
+[#156]: https://github.com/nchammas/flintrock/pull/156
+
 ## [0.6.0] - 2016-08-28
 
 [0.6.0]: https://github.com/nchammas/flintrock/compare/v0.5.0...v0.6.0
