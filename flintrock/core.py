@@ -230,9 +230,13 @@ class FlintrockCluster:
 
         _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
-        # A short wait here seems to reduce the recurrence of this issue:
-        # https://github.com/nchammas/flintrock/issues/129
-        time.sleep(5)
+        # EC2 seems to require a good wait here so that certain parts
+        # of the network stack are up and configured. Otherwise, we
+        # hit these issues:
+        #  * https://github.com/nchammas/flintrock/issues/129
+        #  * https://github.com/nchammas/flintrock/issues/157
+        if self.services:
+            time.sleep(30)
 
         master_ssh_client = get_ssh_client(
             user=user,
@@ -249,7 +253,7 @@ class FlintrockCluster:
         #       If we refactor stuff to have a start_slave() that blocks until
         #       the slave is fully up, then we won't need this sleep anymore.
         if self.services:
-            time.sleep(30)
+            time.sleep(15)
 
         for service in self.services:
             service.health_check(master_host=self.master_ip)
@@ -608,6 +612,10 @@ def provision_cluster(
 
     _run_asynchronously(partial_func=partial_func, hosts=hosts)
 
+    # For: https://github.com/nchammas/flintrock/issues/129
+    if services:
+        time.sleep(20)
+
     master_ssh_client = get_ssh_client(
         user=user,
         host=cluster.master_host,
@@ -638,7 +646,7 @@ def provision_cluster(
     #       If we refactor stuff to have a start_slave() that blocks until
     #       the slave is fully up, then we won't need this sleep anymore.
     if services:
-        time.sleep(30)
+        time.sleep(20)
 
     for service in services:
         service.health_check(master_host=cluster.master_host)
