@@ -76,8 +76,8 @@ def get_ssh_client(
             break
         except socket.timeout as e:
             time.sleep(5)
-        except socket.error as e:
-            if e.errno != errno.ECONNREFUSED:
+        except paramiko.ssh_exception.NoValidConnectionsError as e:
+            if any(error.errno != errno.ECONNREFUSED for error in e.errors.values()):
                 raise
             time.sleep(5)
         # We get this exception during startup with CentOS but not Amazon Linux,
