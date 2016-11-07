@@ -544,7 +544,7 @@ def get_or_create_flintrock_security_groups(
         SecurityGroupRule(
             ip_protocol='tcp',
             from_port=4040,
-            to_port=4040,
+            to_port=4050,
             cidr_ip=flintrock_client_cidr,
             src_group=None),
         SecurityGroupRule(
