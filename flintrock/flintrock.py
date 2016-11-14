@@ -1027,13 +1027,13 @@ def set_open_files_limit(desired_limit):
     if soft_limit < desired_limit:
         if desired_limit > hard_limit:
             warnings.warn(
-                "Flintrock cannot set the open files limit to {l} "
-                "because the OS hard limit is {h}. Going with {h}. "
+                "Flintrock cannot set the open files limit to {desired} "
+                "because the OS hard limit is {hard}. Going with {hard}. "
                 "You may have problems launching or interacting with "
                 "really large clusters."
                 .format(
-                    l=desired_limit,
-                    h=hard_limit),
+                    desired=desired_limit,
+                    hard=hard_limit),
                 category=RuntimeWarning,
                 stacklevel=2)
         resource.setrlimit(
