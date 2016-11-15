@@ -9,7 +9,7 @@ import pytest
 
 HADOOP_VERSION = '2.7.3'
 SPARK_VERSION = '2.0.2'
-SPARK_GIT_COMMIT = '4062cda3087ae42c6c3cb24508fc1d3a931accdf'  # 1.6.0
+SPARK_GIT_COMMIT = '584354eaac02531c9584188b143367ba694b0c34'  # 2.0.2
 
 
 def random_string():
