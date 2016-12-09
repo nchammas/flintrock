@@ -213,6 +213,7 @@ def cli(cli_context, config, provider):
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-instance-type', default='m3.medium', show_default=True)
+@click.option('--ec2-master-instance-type', default=None)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 # We set some of these defaults to empty strings because of boto3's parameter validation.
 # See: https://github.com/boto/boto3/issues/400
@@ -252,6 +253,7 @@ def launch(
         ec2_key_name,
         ec2_identity_file,
         ec2_instance_type,
+        ec2_master_instance_type,
         ec2_region,
         ec2_availability_zone,
         ec2_ami,
@@ -336,6 +338,7 @@ def launch(
             key_name=ec2_key_name,
             identity_file=ec2_identity_file,
             instance_type=ec2_instance_type,
+            master_instance_type=ec2_master_instance_type,
             region=ec2_region,
             availability_zone=ec2_availability_zone,
             ami=ec2_ami,
@@ -609,6 +612,7 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
+@click.option('--ec2-instance-type', default='m3.medium', show_default=True)
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
 @click.option('--assume-yes/--no-assume-yes', default=False)
@@ -620,6 +624,7 @@ def add_slaves(
         ec2_region,
         ec2_vpc_id,
         ec2_identity_file,
+        ec2_instance_type,
         ec2_user,
         ec2_spot_price,
         assume_yes):
@@ -669,6 +674,7 @@ def add_slaves(
         cluster.add_slaves(
             user=user,
             identity_file=identity_file,
+            instance_type=ec2_instance_type,
             num_slaves=num_slaves,
             assume_yes=assume_yes,
             **provider_options)

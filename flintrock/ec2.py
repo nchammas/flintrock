@@ -230,6 +230,7 @@ class EC2Cluster(FlintrockCluster):
             *,
             user: str,
             identity_file: str,
+            instance_type: str,
             num_slaves: int,
             spot_price: float,
             assume_yes: bool):
@@ -272,7 +273,7 @@ class EC2Cluster(FlintrockCluster):
             ami=self.master_instance.image_id,
             assume_yes=assume_yes,
             key_name=self.master_instance.key_name,
-            instance_type=self.master_instance.instance_type,
+            instance_type=instance_type,
             block_device_mappings=block_device_mappings,
             availability_zone=availability_zone,
             placement_group=self.master_instance.placement['GroupName'],
@@ -808,6 +809,7 @@ def launch(
         key_name,
         identity_file,
         instance_type,
+        master_instance_type=None,
         region,
         availability_zone,
         ami,
@@ -873,33 +875,75 @@ def launch(
     else:
         instance_profile_arn = ''
 
-    num_instances = num_slaves + 1
     if user_data is not None:
         user_data = user_data.read()
     else:
         user_data = ''
 
-    cluster_instances = _create_instances(
-        num_instances=num_instances,
-        region=region,
-        spot_price=spot_price,
-        ami=ami,
-        assume_yes=assume_yes,
-        key_name=key_name,
-        instance_type=instance_type,
-        block_device_mappings=block_device_mappings,
-        availability_zone=availability_zone,
-        placement_group=placement_group,
-        tenancy=tenancy,
-        security_group_ids=security_group_ids,
-        subnet_id=subnet_id,
-        instance_profile_arn=instance_profile_arn,
-        ebs_optimized=ebs_optimized,
-        instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
-        user_data=user_data)
+    master_instance = None
+    slave_instances = None
 
-    master_instance = cluster_instances[0]
-    slave_instances = cluster_instances[1:]
+    if master_instance_type is None or instance_type == master_instance_type:
+        num_instances = num_slaves + 1
+
+        cluster_instances = _create_instances(
+            num_instances=num_instances,
+            region=region,
+            spot_price=spot_price,
+            ami=ami,
+            assume_yes=assume_yes,
+            key_name=key_name,
+            instance_type=instance_type,
+            block_device_mappings=block_device_mappings,
+            availability_zone=availability_zone,
+            placement_group=placement_group,
+            tenancy=tenancy,
+            security_group_ids=security_group_ids,
+            subnet_id=subnet_id,
+            instance_profile_arn=instance_profile_arn,
+            ebs_optimized=ebs_optimized,
+            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
+            user_data=user_data)
+
+        master_instance = cluster_instances[0]
+        slave_instances = cluster_instances[1:]
+    else:
+        master_instance = _create_instances(
+            num_instances=1,
+            region=region,
+            spot_price=spot_price,
+            ami=ami,
+            assume_yes=assume_yes,
+            key_name=key_name,
+            instance_type=master_instance_type,
+            block_device_mappings=block_device_mappings,
+            availability_zone=availability_zone,
+            placement_group=placement_group,
+            tenancy=tenancy,
+            security_group_ids=security_group_ids,
+            subnet_id=subnet_id,
+            instance_profile_arn=instance_profile_arn,
+            ebs_optimized=ebs_optimized,
+            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
+            user_data=user_data)[0]
+        slave_instances = _create_instances(
+            num_instances=num_slaves,
+            region=region,
+            spot_price=spot_price,
+            ami=ami,
+            assume_yes=assume_yes,
+            key_name=key_name,
+            instance_type=instance_type,
+            block_device_mappings=block_device_mappings,
+            availability_zone=availability_zone,
+            placement_group=placement_group,
+            tenancy=tenancy,
+            security_group_ids=security_group_ids,
+            subnet_id=subnet_id,
+            instance_profile_arn=instance_profile_arn,
+            ebs_optimized=ebs_optimized,
+            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
+            user_data=user_data)
 
     (ec2.instances
         .filter(
