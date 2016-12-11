@@ -1,4 +1,3 @@
-import asyncio
 import concurrent.futures
 import functools
 import json
@@ -455,36 +454,14 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
 
     This function assumes that partial_func accepts `host` as a keyword argument.
     """
-    loop = asyncio.get_event_loop()
-    executor = concurrent.futures.ThreadPoolExecutor(len(hosts))
-
-    tasks = []
-    for host in hosts:
-        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
-        #       Until then, we leave them out to maintain compatibility across Python 3.4
-        #       and 3.5.
-        # See: http://stackoverflow.com/q/32873974/
-        task = loop.run_in_executor(
-            executor,
-            functools.partial(partial_func, host=host))
-        tasks.append(task)
-
-    try:
-        loop.run_until_complete(asyncio.gather(*tasks))
-        # done, _ = loop.run_until_complete(asyncio.wait(tasks))
-        # # Is this the right way to make sure no coroutine failed?
-        # for future in done:
-        #     future.result()
-    finally:
-        # TODO: Let KeyboardInterrupt cleanly cancel hung commands.
-        #       Currently, we can't do this without dumping a large stack trace or
-        #       waiting until the executor threads yield control.
-        #       See: http://stackoverflow.com/q/29177490/
-        # We shutdown explcitly to make sure threads are cleaned up before shutting
-        # the loop down.
-        # See: http://stackoverflow.com/a/32615276/
-        executor.shutdown(wait=True)
-        loop.close()
+    with concurrent.futures.ThreadPoolExecutor(len(hosts)) as executor:
+        futures = {
+            executor.submit(functools.partial(partial_func, host=host))
+            for host in hosts
+        }
+        concurrent.futures.wait(futures)
+        for future in futures:
+            future.result()
 
 
 def get_java_major_version(client: paramiko.client.SSHClient):
