@@ -1066,7 +1066,7 @@ def _cleanup_instances(*, instances: list, assume_yes: bool, region: str):
         if not assume_yes:
             yes = click.confirm(
                 text="Do you want to terminate the {c} instances created by this operation?"
-                    .format(c=len(instances)),
+                     .format(c=len(instances)),
                 err=True,
                 default=True)
 
