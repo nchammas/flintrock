@@ -228,7 +228,7 @@ class FlintrockCluster:
             cluster=self)
         hosts = [self.master_ip] + self.slave_ips
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
         # EC2 seems to require a good wait here so that certain parts
         # of the network stack are up and configured. Otherwise, we
@@ -298,7 +298,7 @@ class FlintrockCluster:
             identity_file=identity_file,
             cluster=self,
             new_hosts=new_hosts)
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
         master_ssh_client = get_ssh_client(
             user=user,
@@ -335,7 +335,7 @@ class FlintrockCluster:
             cluster=self)
         hosts = [self.master_ip] + self.slave_ips
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     def run_command_check(self):
         """
@@ -370,7 +370,7 @@ class FlintrockCluster:
             command=command)
         hosts = target_hosts
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     def copy_file_check(self):
         """
@@ -408,7 +408,7 @@ class FlintrockCluster:
             remote_path=remote_path)
         hosts = target_hosts
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     def login(
             self,
@@ -449,7 +449,7 @@ class FlintrockCluster:
         return template_mapping
 
 
-def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
+def run_against_hosts(*, partial_func: functools.partial, hosts: list):
     """
     Run a function asynchronously against each of the provided hosts.
 
@@ -588,7 +588,7 @@ def provision_cluster(
         cluster=cluster)
     hosts = [cluster.master_ip] + cluster.slave_ips
 
-    _run_asynchronously(partial_func=partial_func, hosts=hosts)
+    run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     # For: https://github.com/nchammas/flintrock/issues/129
     if services:
