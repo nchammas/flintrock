@@ -6,6 +6,7 @@ import posixpath
 import shlex
 import sys
 import time
+from concurrent.futures import FIRST_EXCEPTION
 
 # External modules
 import paramiko
@@ -459,7 +460,7 @@ def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
             executor.submit(functools.partial(partial_func, host=host))
             for host in hosts
         }
-        concurrent.futures.wait(futures)
+        concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
         for future in futures:
             future.result()
 
