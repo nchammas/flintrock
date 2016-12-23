@@ -21,7 +21,9 @@ from .exceptions import (
     ClusterNotFound,
     ClusterAlreadyExists,
     ClusterInvalidState,
-    NothingToDo)
+    InterruptedEC2Operation,
+    NothingToDo,
+)
 from .ssh import generate_ssh_key_pair
 
 
@@ -265,46 +267,58 @@ class EC2Cluster(FlintrockCluster):
             instance_profile_arn = self.master_instance.iam_instance_profile['Arn']
 
         self.add_slaves_check()
-        new_slave_instances = _create_instances(
-            num_instances=num_slaves,
-            region=self.region,
-            spot_price=spot_price,
-            ami=self.master_instance.image_id,
-            assume_yes=assume_yes,
-            key_name=self.master_instance.key_name,
-            instance_type=self.master_instance.instance_type,
-            block_device_mappings=block_device_mappings,
-            availability_zone=availability_zone,
-            placement_group=self.master_instance.placement['GroupName'],
-            tenancy=self.master_instance.placement['Tenancy'],
-            security_group_ids=security_group_ids,
-            subnet_id=self.master_instance.subnet_id,
-            instance_profile_arn=instance_profile_arn,
-            ebs_optimized=self.master_instance.ebs_optimized,
-            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
-            user_data=user_data)
+        try:
+            new_slave_instances = _create_instances(
+                num_instances=num_slaves,
+                region=self.region,
+                spot_price=spot_price,
+                ami=self.master_instance.image_id,
+                assume_yes=assume_yes,
+                key_name=self.master_instance.key_name,
+                instance_type=self.master_instance.instance_type,
+                block_device_mappings=block_device_mappings,
+                availability_zone=availability_zone,
+                placement_group=self.master_instance.placement['GroupName'],
+                tenancy=self.master_instance.placement['Tenancy'],
+                security_group_ids=security_group_ids,
+                subnet_id=self.master_instance.subnet_id,
+                instance_profile_arn=instance_profile_arn,
+                ebs_optimized=self.master_instance.ebs_optimized,
+                instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
+                user_data=user_data)
 
-        (ec2.instances
-            .filter(
-                Filters=[
-                    {'Name': 'instance-id', 'Values': [i.id for i in new_slave_instances]}
-                ])
-            .create_tags(
-                Tags=[
-                    {'Key': 'flintrock-role', 'Value': 'slave'},
-                    {'Key': 'Name', 'Value': '{c}-slave'.format(c=self.name)}]))
+            (ec2.instances
+                .filter(
+                    Filters=[
+                        {'Name': 'instance-id', 'Values': [i.id for i in new_slave_instances]}
+                    ])
+                .create_tags(
+                    Tags=[
+                        {'Key': 'flintrock-role', 'Value': 'slave'},
+                        {'Key': 'Name', 'Value': '{c}-slave'.format(c=self.name)}]))
 
-        existing_slaves = {i.public_ip_address for i in self.slave_instances}
+            existing_slaves = {i.public_ip_address for i in self.slave_instances}
 
-        self.slave_instances += new_slave_instances
-        self.wait_for_state('running')
+            self.slave_instances += new_slave_instances
+            self.wait_for_state('running')
 
-        new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
+            new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
 
-        super().add_slaves(
-            user=user,
-            identity_file=identity_file,
-            new_hosts=new_slaves)
+            super().add_slaves(
+                user=user,
+                identity_file=identity_file,
+                new_hosts=new_slaves)
+        except (Exception, KeyboardInterrupt) as e:
+            if isinstance(e, InterruptedEC2Operation):
+                cleanup_instances = e.instances
+            else:
+                cleanup_instances = new_slave_instances
+            _cleanup_instances(
+                instances=cleanup_instances,
+                assume_yes=assume_yes,
+                region=self.region,
+            )
+            raise
 
     @timeit
     def remove_slaves(self, *, user: str, identity_file: str, num_slaves: int):
@@ -734,6 +748,8 @@ def _create_instances(
                 c=num_instances,
                 s='' if num_instances == 1 else 's'))
 
+            # TODO: If an exception is raised in here, some instances may be
+            #       left stranded.
             cluster_instances = ec2.create_instances(
                 MinCount=num_instances,
                 MaxCount=num_instances,
@@ -752,13 +768,11 @@ def _create_instances(
                 EbsOptimized=ebs_optimized,
                 InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior,
                 UserData=user_data)
-
         time.sleep(10)  # AWS metadata eventual consistency tax.
         return cluster_instances
     except (Exception, KeyboardInterrupt) as e:
-        # TODO: Cleanup cluster security group here.
-        print("There was a problem with the launch. Cleaning up...", file=sys.stderr)
-
+        if not isinstance(e, KeyboardInterrupt):
+            print(e, file=sys.stderr)
         if spot_requests:
             request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
             if any([r['State'] != 'active' for r in spot_requests]):
@@ -777,25 +791,7 @@ def _create_instances(
                         Filters=[
                             {'Name': 'instance-id', 'Values': instance_ids}
                         ]))
-
-        if cluster_instances:
-            if not assume_yes:
-                yes = click.confirm(
-                    text="Do you want to terminate the {c} instances created by this operation?"
-                         .format(c=len(cluster_instances)),
-                    err=True,
-                    default=True)
-
-            if assume_yes or yes:
-                print("Terminating instances...", file=sys.stderr)
-                (ec2.instances
-                    .filter(
-                        Filters=[
-                            {'Name': 'instance-id', 'Values': [i.id for i in cluster_instances]}
-                        ])
-                    .terminate())
-
-        raise
+        raise InterruptedEC2Operation(instances=cluster_instances) from e
 
 
 @timeit
@@ -879,62 +875,74 @@ def launch(
     else:
         user_data = ''
 
-    cluster_instances = _create_instances(
-        num_instances=num_instances,
-        region=region,
-        spot_price=spot_price,
-        ami=ami,
-        assume_yes=assume_yes,
-        key_name=key_name,
-        instance_type=instance_type,
-        block_device_mappings=block_device_mappings,
-        availability_zone=availability_zone,
-        placement_group=placement_group,
-        tenancy=tenancy,
-        security_group_ids=security_group_ids,
-        subnet_id=subnet_id,
-        instance_profile_arn=instance_profile_arn,
-        ebs_optimized=ebs_optimized,
-        instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
-        user_data=user_data)
+    try:
+        cluster_instances = _create_instances(
+            num_instances=num_instances,
+            region=region,
+            spot_price=spot_price,
+            ami=ami,
+            assume_yes=assume_yes,
+            key_name=key_name,
+            instance_type=instance_type,
+            block_device_mappings=block_device_mappings,
+            availability_zone=availability_zone,
+            placement_group=placement_group,
+            tenancy=tenancy,
+            security_group_ids=security_group_ids,
+            subnet_id=subnet_id,
+            instance_profile_arn=instance_profile_arn,
+            ebs_optimized=ebs_optimized,
+            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
+            user_data=user_data)
 
-    master_instance = cluster_instances[0]
-    slave_instances = cluster_instances[1:]
+        master_instance = cluster_instances[0]
+        slave_instances = cluster_instances[1:]
 
-    (ec2.instances
-        .filter(
-            Filters=[
-                {'Name': 'instance-id', 'Values': [master_instance.id]}
-            ])
-        .create_tags(
-            Tags=[
-                {'Key': 'flintrock-role', 'Value': 'master'},
-                {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]))
-    (ec2.instances
-        .filter(
-            Filters=[
-                {'Name': 'instance-id', 'Values': [i.id for i in slave_instances]}
-            ])
-        .create_tags(
-            Tags=[
-                {'Key': 'flintrock-role', 'Value': 'slave'},
-                {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]))
+        (ec2.instances
+            .filter(
+                Filters=[
+                    {'Name': 'instance-id', 'Values': [master_instance.id]}
+                ])
+            .create_tags(
+                Tags=[
+                    {'Key': 'flintrock-role', 'Value': 'master'},
+                    {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]))
+        (ec2.instances
+            .filter(
+                Filters=[
+                    {'Name': 'instance-id', 'Values': [i.id for i in slave_instances]}
+                ])
+            .create_tags(
+                Tags=[
+                    {'Key': 'flintrock-role', 'Value': 'slave'},
+                    {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]))
 
-    cluster = EC2Cluster(
-        name=cluster_name,
-        region=region,
-        vpc_id=vpc_id,
-        ssh_key_pair=generate_ssh_key_pair(),
-        master_instance=master_instance,
-        slave_instances=slave_instances)
+        cluster = EC2Cluster(
+            name=cluster_name,
+            region=region,
+            vpc_id=vpc_id,
+            ssh_key_pair=generate_ssh_key_pair(),
+            master_instance=master_instance,
+            slave_instances=slave_instances)
 
-    cluster.wait_for_state('running')
+        cluster.wait_for_state('running')
 
-    provision_cluster(
-        cluster=cluster,
-        services=services,
-        user=user,
-        identity_file=identity_file)
+        provision_cluster(
+            cluster=cluster,
+            services=services,
+            user=user,
+            identity_file=identity_file)
+    except (Exception, KeyboardInterrupt) as e:
+        if isinstance(e, InterruptedEC2Operation):
+            cleanup_instances = e.instances
+        else:
+            cleanup_instances = cluster_instances
+        _cleanup_instances(
+            instances=cleanup_instances,
+            assume_yes=assume_yes,
+            region=region,
+        )
+        raise
 
 
 def get_cluster(*, cluster_name: str, region: str, vpc_id: str) -> EC2Cluster:
@@ -1050,3 +1058,23 @@ def _compose_cluster(*, name: str, region: str, vpc_id: str, instances: list) ->
         slave_instances=slave_instances)
 
     return cluster
+
+
+def _cleanup_instances(*, instances: list, assume_yes: bool, region: str):
+    ec2 = boto3.resource(service_name='ec2', region_name=region)
+    if instances:
+        if not assume_yes:
+            yes = click.confirm(
+                text="Do you want to terminate the {c} instances created by this operation?"
+                     .format(c=len(instances)),
+                err=True,
+                default=True)
+
+        if assume_yes or yes:
+            print("Terminating instances...", file=sys.stderr)
+            (ec2.instances
+                .filter(
+                    Filters=[
+                        {'Name': 'instance-id', 'Values': [i.id for i in instances]}
+                    ])
+                .terminate())

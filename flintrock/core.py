@@ -1,4 +1,3 @@
-import asyncio
 import concurrent.futures
 import functools
 import json
@@ -7,6 +6,7 @@ import posixpath
 import shlex
 import sys
 import time
+from concurrent.futures import FIRST_EXCEPTION
 
 # External modules
 import paramiko
@@ -228,7 +228,7 @@ class FlintrockCluster:
             cluster=self)
         hosts = [self.master_ip] + self.slave_ips
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
         # EC2 seems to require a good wait here so that certain parts
         # of the network stack are up and configured. Otherwise, we
@@ -298,7 +298,7 @@ class FlintrockCluster:
             identity_file=identity_file,
             cluster=self,
             new_hosts=new_hosts)
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
         master_ssh_client = get_ssh_client(
             user=user,
@@ -335,7 +335,7 @@ class FlintrockCluster:
             cluster=self)
         hosts = [self.master_ip] + self.slave_ips
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     def run_command_check(self):
         """
@@ -370,7 +370,7 @@ class FlintrockCluster:
             command=command)
         hosts = target_hosts
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     def copy_file_check(self):
         """
@@ -408,7 +408,7 @@ class FlintrockCluster:
             remote_path=remote_path)
         hosts = target_hosts
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     def login(
             self,
@@ -449,42 +449,20 @@ class FlintrockCluster:
         return template_mapping
 
 
-def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
+def run_against_hosts(*, partial_func: functools.partial, hosts: list):
     """
     Run a function asynchronously against each of the provided hosts.
 
     This function assumes that partial_func accepts `host` as a keyword argument.
     """
-    loop = asyncio.get_event_loop()
-    executor = concurrent.futures.ThreadPoolExecutor(len(hosts))
-
-    tasks = []
-    for host in hosts:
-        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
-        #       Until then, we leave them out to maintain compatibility across Python 3.4
-        #       and 3.5.
-        # See: http://stackoverflow.com/q/32873974/
-        task = loop.run_in_executor(
-            executor,
-            functools.partial(partial_func, host=host))
-        tasks.append(task)
-
-    try:
-        loop.run_until_complete(asyncio.gather(*tasks))
-        # done, _ = loop.run_until_complete(asyncio.wait(tasks))
-        # # Is this the right way to make sure no coroutine failed?
-        # for future in done:
-        #     future.result()
-    finally:
-        # TODO: Let KeyboardInterrupt cleanly cancel hung commands.
-        #       Currently, we can't do this without dumping a large stack trace or
-        #       waiting until the executor threads yield control.
-        #       See: http://stackoverflow.com/q/29177490/
-        # We shutdown explcitly to make sure threads are cleaned up before shutting
-        # the loop down.
-        # See: http://stackoverflow.com/a/32615276/
-        executor.shutdown(wait=True)
-        loop.close()
+    with concurrent.futures.ThreadPoolExecutor(len(hosts)) as executor:
+        futures = {
+            executor.submit(functools.partial(partial_func, host=host))
+            for host in hosts
+        }
+        concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
+        for future in futures:
+            future.result()
 
 
 def get_java_major_version(client: paramiko.client.SSHClient):
@@ -610,7 +588,7 @@ def provision_cluster(
         cluster=cluster)
     hosts = [cluster.master_ip] + cluster.slave_ips
 
-    _run_asynchronously(partial_func=partial_func, hosts=hosts)
+    run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     # For: https://github.com/nchammas/flintrock/issues/129
     if services:
