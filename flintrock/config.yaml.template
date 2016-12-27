@@ -43,5 +43,5 @@ providers:
 
 launch:
   num-slaves: 1
-  # install-hdfs: True
-  # install-spark: False
+  # install-spark: True
+  # install-hdfs: False
