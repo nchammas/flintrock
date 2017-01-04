@@ -10,6 +10,7 @@ from collections import namedtuple
 import paramiko
 
 # Flintrock modules
+from .util import get_subprocess_env
 from .exceptions import SSHError
 
 SSHKeyPair = namedtuple('KeyPair', ['public', 'private'])
@@ -21,13 +22,17 @@ def generate_ssh_key_pair() -> SSHKeyPair:
     communication.
     """
     with tempfile.TemporaryDirectory() as tempdir:
-        subprocess.check_call([
-            'ssh-keygen',
-            '-q',
-            '-t', 'rsa',
-            '-N', '',
-            '-f', os.path.join(tempdir, 'flintrock_rsa'),
-            '-C', 'flintrock'])
+        subprocess.check_call(
+            [
+                'ssh-keygen',
+                '-q',
+                '-t', 'rsa',
+                '-N', '',
+                '-f', os.path.join(tempdir, 'flintrock_rsa'),
+                '-C', 'flintrock',
+            ],
+            env=get_subprocess_env(),
+        )
 
         with open(file=os.path.join(tempdir, 'flintrock_rsa')) as private_key_file:
             private_key = private_key_file.read()
@@ -124,8 +129,12 @@ def ssh(*, user: str, host: str, identity_file: str):
     """
     SSH into a host for interactive use.
     """
-    ret = subprocess.call([
-        'ssh',
-        '-o', 'StrictHostKeyChecking=no',
-        '-i', identity_file,
-        '{u}@{h}'.format(u=user, h=host)])
+    ret = subprocess.call(
+        [
+            'ssh',
+            '-o', 'StrictHostKeyChecking=no',
+            '-i', identity_file,
+            '{u}@{h}'.format(u=user, h=host),
+        ],
+        env=get_subprocess_env(),
+    )
