@@ -13,6 +13,6 @@ def get_subprocess_env() -> dict:
     For more information see: https://github.com/pyinstaller/pyinstaller/blob/develop/doc/runtime-information.rst#ld_library_path--libpath-considerations
     """
     env = dict(os.environ)
-    if FROZEN and env.get('LD_LIBRARY_PATH_ORIG') is not None:
-        env['LD_LIBRARY_PATH'] = env['LD_LIBRARY_PATH_ORIG']
+    if FROZEN:
+        env['LD_LIBRARY_PATH'] = env.get('LD_LIBRARY_PATH_ORIG', '')
     return env
