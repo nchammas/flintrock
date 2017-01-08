@@ -59,6 +59,11 @@ setuptools.setup(
         # dateutil 2.5.0.
         # See: https://github.com/pyinstaller/pyinstaller/issues/1848
         'python-dateutil >= 2.5.3',
+        # This is to address reports that PyInstaller-packaged versions
+        # of Flintrock intermittently fail due to an out-of-date version
+        # of Cryptography being used.
+        # See: https://github.com/nchammas/flintrock/issues/169
+        'cryptography >= 1.7.1',
     ],
 
     entry_points={
