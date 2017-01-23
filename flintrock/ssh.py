@@ -4,6 +4,7 @@ import socket
 import subprocess
 import tempfile
 import time
+import logging
 from collections import namedtuple
 
 # External modules
@@ -14,6 +15,9 @@ from .util import get_subprocess_env
 from .exceptions import SSHError
 
 SSHKeyPair = namedtuple('KeyPair', ['public', 'private'])
+
+
+logger = logging.getLogger('flintrock.ssh')
 
 
 def generate_ssh_key_pair() -> SSHKeyPair:
@@ -77,17 +81,20 @@ def get_ssh_client(
                 look_for_keys=False,
                 timeout=3)
             if print_status:
-                print("[{h}] SSH online.".format(h=host))
+                logger.info("[{h}] SSH online.".format(h=host))
             break
         except socket.timeout as e:
+            logger.debug("[{h}] SSH got a timeout...".format(h=host))
             time.sleep(5)
         except paramiko.ssh_exception.NoValidConnectionsError as e:
             if any(error.errno != errno.ECONNREFUSED for error in e.errors.values()):
                 raise
+            logger.debug("[{h}] SSH got an exception: {e}".format(h=host, e=e))
             time.sleep(5)
         # We get this exception during startup with CentOS but not Amazon Linux,
         # for some reason.
         except paramiko.ssh_exception.AuthenticationException as e:
+            logger.debug("[{h}] SSH got an AuthenticationException".format(h=host))
             time.sleep(5)
     else:
         raise SSHError(

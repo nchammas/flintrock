@@ -5,6 +5,7 @@ import time
 import urllib.request
 import base64
 import os
+import logging
 from collections import namedtuple
 from datetime import datetime
 
@@ -25,6 +26,9 @@ from .exceptions import (
     NothingToDo,
 )
 from .ssh import generate_ssh_key_pair
+
+
+logger = logging.getLogger('flintrock.ec2')
 
 
 class NoDefaultVPC(Error):
@@ -49,7 +53,7 @@ def timeit(func):
         start = datetime.now().replace(microsecond=0)
         res = func(*args, **kwargs)
         end = datetime.now().replace(microsecond=0)
-        print("{f} finished in {t}.".format(f=func.__name__, t=(end - start)))
+        logger.info("{f} finished in {t}.".format(f=func.__name__, t=(end - start)))
         return res
     return wrapper
 
@@ -121,6 +125,12 @@ class EC2Cluster(FlintrockCluster):
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
 
         while any([i.state['Name'] != state for i in self.instances]):
+            if logger.isEnabledFor(logging.DEBUG):
+                waiting_instances = [i for i in self.instances if i.state['Name'] != state]
+                sample_size = 3
+                sample = [i.id for i in waiting_instances][:sample_size]
+                logger.debug('{size} instances not in state {state}, like: {sample} ...'.format(size=len(waiting_instances), state=state, sample=sample))
+            time.sleep(3)
             # Update metadata for all instances in one shot. We don't want
             # to make a call to AWS for each of potentially hundreds of
             # instances.
@@ -132,7 +142,6 @@ class EC2Cluster(FlintrockCluster):
                         {'Name': 'instance-id', 'Values': [i.id for i in self.instances]}
                     ]))
             (self.master_instance, self.slave_instances) = _get_cluster_master_slaves(instances)
-            time.sleep(3)
 
     def destroy(self):
         self.destroy_check()
@@ -690,7 +699,7 @@ def _create_instances(
     try:
         if spot_price:
             user_data = base64.b64encode(user_data.encode('utf-8')).decode()
-            print("Requesting {c} spot instances at a max price of ${p}...".format(
+            logger.info("Requesting {c} spot instances at a max price of ${p}...".format(
                 c=num_instances, p=spot_price))
             client = ec2.meta.client
             spot_requests = client.request_spot_instances(
@@ -715,7 +724,7 @@ def _create_instances(
             pending_request_ids = request_ids
 
             while pending_request_ids:
-                print("{grant} of {req} instances granted. Waiting...".format(
+                logger.info("{grant} of {req} instances granted. Waiting...".format(
                     grant=num_instances - len(pending_request_ids),
                     req=num_instances))
                 time.sleep(30)
@@ -735,7 +744,7 @@ def _create_instances(
                     r['SpotInstanceRequestId'] for r in spot_requests
                     if r['State'] == 'open']
 
-            print("All {c} instances granted.".format(c=num_instances))
+            logger.info("All {c} instances granted.".format(c=num_instances))
 
             cluster_instances = list(
                 ec2.instances.filter(
@@ -744,7 +753,7 @@ def _create_instances(
                     ]))
         else:
             # Move this to flintrock.py?
-            print("Launching {c} instance{s}...".format(
+            logger.info("Launching {c} instance{s}...".format(
                 c=num_instances,
                 s='' if num_instances == 1 else 's'))
 
@@ -776,7 +785,7 @@ def _create_instances(
         if spot_requests:
             request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
             if any([r['State'] != 'active' for r in spot_requests]):
-                print("Canceling spot instance requests...", file=sys.stderr)
+                logger.info("Canceling spot instance requests...", file=sys.stderr)
                 client.cancel_spot_instance_requests(
                     SpotInstanceRequestIds=request_ids)
             # Make sure we have the latest information on any launched spot instances.
