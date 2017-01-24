@@ -785,7 +785,7 @@ def _create_instances(
         if spot_requests:
             request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
             if any([r['State'] != 'active' for r in spot_requests]):
-                logger.info("Canceling spot instance requests...", file=sys.stderr)
+                print("Canceling spot instance requests...", file=sys.stderr)
                 client.cancel_spot_instance_requests(
                     SpotInstanceRequestIds=request_ids)
             # Make sure we have the latest information on any launched spot instances.
