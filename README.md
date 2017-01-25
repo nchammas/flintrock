@@ -60,17 +60,21 @@ That's not all. Flintrock has a few more [features](#features) that you may find
 ### Accessing data on S3
 
 We recommend you access data on S3 from your Flintrock cluster by following
-these two steps:
+these steps:
 
 1. Setup an [IAM Role](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html)
    that grants access to S3 as desired. Reference this role when you launch
    your cluster using the `--ec2-instance-profile-name` option (or its
    equivalent in your `config.yaml` file).
-2. In your Spark code reference paths using the `s3a://` prefix. `s3a://` is
+2. Reference S3 paths in your Spark code using the `s3a://` prefix. `s3a://` is
    backwards compatible with `s3n://` and replaces both `s3n://` and `s3://`.
    The Hadoop project [recommends using `s3a://`](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html#S3A)
    since it is actively developed, supports larger files, and offers
    better performance.
+3. Make sure Flintrock is configured to use Hadoop/HDFS 2.7+. Earlier
+   versions of Hadoop do not have solid implementations of `s3a://`.
+   Flintrock's default is Hadoop 2.7.3, so you don't need to do anything
+   here if you're using a vanilla configuration.
 
 With this approach you don't need to copy around your AWS credentials
 or pass them into your Spark programs. As long as the assigned IAM role
