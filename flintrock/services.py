@@ -9,7 +9,11 @@ import urllib.request
 import paramiko
 
 # Flintrock modules
-from .core import FlintrockCluster
+from .core import (
+    FlintrockCluster,
+    generate_template_mapping,
+    get_formatted_template,
+)
 from .ssh import ssh_check_output
 
 FROZEN = getattr(sys, 'frozen', False)
@@ -20,15 +24,6 @@ else:
     THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
-
-
-# TODO: Cache these files. (?) They are being read potentially tens or
-#       hundreds of times. Maybe it doesn't matter because the files
-#       are so small.
-def get_formatted_template(path: str, mapping: dict) -> str:
-    with open(path) as f:
-        formatted = f.read().format(**mapping)
-    return formatted
 
 
 class FlintrockService:
@@ -108,7 +103,7 @@ class FlintrockService:
 
 
 class HDFS(FlintrockService):
-    def __init__(self, version, download_source):
+    def __init__(self, *, version, download_source):
         self.version = version
         self.download_source = download_source
         self.manifest = {'version': version, 'download_source': download_source}
@@ -154,7 +149,8 @@ class HDFS(FlintrockService):
             'hadoop/conf/slaves',
             'hadoop/conf/hadoop-env.sh',
             'hadoop/conf/core-site.xml',
-            'hadoop/conf/hdfs-site.xml']
+            'hadoop/conf/hdfs-site.xml',
+        ]
 
         for template_path in template_paths:
             ssh_check_output(
@@ -165,7 +161,13 @@ class HDFS(FlintrockService):
                     f=shlex.quote(
                         get_formatted_template(
                             path=os.path.join(THIS_DIR, "templates", template_path),
-                            mapping=cluster.generate_template_mapping(service='hdfs'))),
+                            mapping=generate_template_mapping(
+                                cluster=cluster,
+                                hadoop_version=self.version,
+                                # Hadoop doesn't need to know what
+                                # Spark version we're using.
+                                spark_version='',
+                            ))),
                     p=shlex.quote(template_path)))
 
     # TODO: Convert this into start_master() and split master- or slave-specific
@@ -203,8 +205,15 @@ class HDFS(FlintrockService):
 
 
 class Spark(FlintrockService):
-    def __init__(self, version: str=None, download_source: str=None,
-                 git_commit: str=None, git_repository: str=None):
+    def __init__(
+        self,
+        *,
+        version: str=None,
+        hadoop_version: str,
+        download_source: str=None,
+        git_commit: str=None,
+        git_repository: str=None
+    ):
         # TODO: Convert these checks into something that throws a proper exception.
         #       Perhaps reuse logic from CLI.
         assert bool(version) ^ bool(git_commit)
@@ -212,12 +221,14 @@ class Spark(FlintrockService):
             assert git_repository
 
         self.version = version
+        self.hadoop_version = hadoop_version
         self.download_source = download_source
         self.git_commit = git_commit
         self.git_repository = git_repository
 
         self.manifest = {
             'version': version,
+            'hadoop_version': hadoop_version,
             'download_source': download_source,
             'git_commit': git_commit,
             'git_repository': git_repository}
@@ -261,13 +272,15 @@ class Spark(FlintrockService):
                         cd spark
                         git reset --hard {commit}
                         if [ -e "make-distribution.sh" ]; then
-                            ./make-distribution.sh -Phadoop-2.6
+                            ./make-distribution.sh -Phadoop-{hadoop_short_version}
                         else
-                            ./dev/make-distribution.sh -Phadoop-2.6
+                            ./dev/make-distribution.sh -Phadoop-{hadoop_short_version}
                         fi
                     """.format(
                         repo=shlex.quote(self.git_repository),
-                        commit=shlex.quote(self.git_commit)))
+                        commit=shlex.quote(self.git_commit),
+                        hadoop_short_version='.'.join(self.hadoop_version.split('.')[:2]),
+                    ))
             ssh_check_output(
                 client=ssh_client,
                 command="""
@@ -289,7 +302,9 @@ class Spark(FlintrockService):
             cluster: FlintrockCluster):
         template_paths = [
             'spark/conf/spark-env.sh',
-            'spark/conf/slaves']
+            'spark/conf/slaves',
+            'spark/conf/spark-defaults.conf',
+        ]
         for template_path in template_paths:
             ssh_check_output(
                 client=ssh_client,
@@ -299,7 +314,11 @@ class Spark(FlintrockService):
                     f=shlex.quote(
                         get_formatted_template(
                             path=os.path.join(THIS_DIR, "templates", template_path),
-                            mapping=cluster.generate_template_mapping(service='spark'))),
+                            mapping=generate_template_mapping(
+                                cluster=cluster,
+                                hadoop_version=self.hadoop_version,
+                                spark_version=self.version,
+                            ))),
                     p=shlex.quote(template_path)))
 
     # TODO: Convert this into start_master() and split master- or slave-specific

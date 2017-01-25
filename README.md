@@ -18,10 +18,10 @@ Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
-    --spark-version 2.0.2 \
+    --spark-version 2.1.0 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
-    --ec2-ami ami-b73b63a0 \
+    --ec2-ami ami-9be6f38c \
     --ec2-user ec2-user
 ```
 
@@ -56,6 +56,26 @@ flintrock <subcommand> --help
 ```
 
 That's not all. Flintrock has a few more [features](#features) that you may find interesting.
+
+### Accessing data on S3
+
+We recommend you access data on S3 from your Flintrock cluster by following
+these two steps:
+
+1. Setup an [IAM Role](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html)
+   that grants access to S3 as desired. Reference this role when you launch
+   your cluster using the `--ec2-instance-profile-name` option (or its
+   equivalent in your `config.yaml` file).
+2. In your Spark code reference paths using the `s3a://` prefix. `s3a://` is
+   backwards compatible with `s3n://` and replaces both `s3n://` and `s3://`.
+   The Hadoop project [recommends using `s3a://`](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html#S3A)
+   since it is actively developed, supports larger files, and offers
+   better performance.
+
+With this approach you don't need to copy around your AWS credentials
+or pass them into your Spark programs. As long as the assigned IAM role
+allows it, Spark will be able to read and write data to S3 simply by
+referencing the appropriate path (e.g. `s3a://bucket/path/to/file`).
 
 
 ## Installation
@@ -196,7 +216,7 @@ provider: ec2
 
 services:
   spark:
-    version: 2.0.2
+    version: 2.1.0
 
 launch:
   num-slaves: 1
@@ -207,7 +227,7 @@ providers:
     identity-file: /path/to/.ssh/key.pem
     instance-type: m3.medium
     region: us-east-1
-    ami: ami-b73b63a0
+    ami: ami-9be6f38c
     user: ec2-user
 ```
 

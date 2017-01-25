@@ -187,13 +187,14 @@ def cli(cli_context, config, provider):
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
-@click.option('--hdfs-version')
+@click.option('--hdfs-version', default='2.7.3')
 @click.option('--hdfs-download-source',
               help="URL to download Hadoop from.",
               default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
               show_default=True)
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-version',
+              default='2.1.0',
               help="Spark release version to install.")
 @click.option('--spark-download-source',
               help="URL to download a release of Spark from.",
@@ -314,7 +315,11 @@ def launch(
         services += [hdfs]
     if install_spark:
         if spark_version:
-            spark = Spark(version=spark_version, download_source=spark_download_source)
+            spark = Spark(
+                version=spark_version,
+                hadoop_version=hdfs_version,
+                download_source=spark_download_source,
+            )
         elif spark_git_commit:
             print(
                 "Warning: Building Spark takes a long time. "
@@ -324,7 +329,9 @@ def launch(
                 print("Building Spark at latest commit: {c}".format(c=spark_git_commit))
             spark = Spark(
                 git_commit=spark_git_commit,
-                git_repository=spark_git_repository)
+                git_repository=spark_git_repository,
+                hadoop_version=hdfs_version,
+            )
         services += [spark]
 
     if provider == 'ec2':

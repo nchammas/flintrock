@@ -4,7 +4,7 @@
 <configuration>
   <property>
     <name>hadoop.tmp.dir</name>
-    <value>{root_ephemeral_dirs}</value>
+    <value>{hadoop_root_ephemeral_dirs}</value>
   </property>
 
   <property>
