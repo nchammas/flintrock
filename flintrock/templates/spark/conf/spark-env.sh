@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export SPARK_LOCAL_DIRS="{root_ephemeral_dirs}"
+export SPARK_LOCAL_DIRS="{spark_root_ephemeral_dirs}"
 
 # Standalone cluster options
 export SPARK_EXECUTOR_INSTANCES="1"
