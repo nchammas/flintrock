@@ -936,6 +936,7 @@ def launch(
         if isinstance(e, InterruptedEC2Operation):
             cleanup_instances = e.instances
         else:
+            # FIXME: there is no guarantee that cluster_instances is defined
             cleanup_instances = cluster_instances
         _cleanup_instances(
             instances=cleanup_instances,
@@ -1024,7 +1025,8 @@ def _get_cluster_master_slaves(
     slave_instances = []
 
     for instance in instances:
-        for tag in instance.tags:
+        # FIXME: we should try a better strategy to handle inconsistent clusters
+        for tag in (instance.tags or []):
             if tag['Key'] == 'flintrock-role':
                 if tag['Value'] == 'master':
                     if master_instance is not None:
