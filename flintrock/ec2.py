@@ -936,7 +936,9 @@ def launch(
         if isinstance(e, InterruptedEC2Operation):
             cleanup_instances = e.instances
         else:
-            # FIXME: there is no guarantee that cluster_instances is defined
+            # TODO: There is no guarantee that cluster_instances is
+            #       defined.
+            # See: https://github.com/nchammas/flintrock/issues/183
             cleanup_instances = cluster_instances
         _cleanup_instances(
             instances=cleanup_instances,
@@ -1025,8 +1027,11 @@ def _get_cluster_master_slaves(
     slave_instances = []
 
     for instance in instances:
-        # FIXME: we should try a better strategy to handle inconsistent clusters
-        for tag in (instance.tags or []):
+        if not instance.tags:
+            # TODO: Better handle malformed clusters with missing tags.
+            # See: https://github.com/nchammas/flintrock/issues/183
+            continue
+        for tag in instance.tags:
             if tag['Key'] == 'flintrock-role':
                 if tag['Value'] == 'master':
                     if master_instance is not None:
