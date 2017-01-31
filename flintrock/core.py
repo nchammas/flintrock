@@ -140,7 +140,7 @@ class FlintrockCluster:
             manifest_raw = ssh_check_output(
                 client=master_ssh_client,
                 command="""
-                    cat /home/{u}/.flintrock-manifest.json
+                    cat ~{u}/.flintrock-manifest.json
                 """.format(u=shlex.quote(user)))
             # TODO: Would it be better if storage (ephemeral and otherwise) was
             #       implemented as a Flintrock service and tracked in the manifest?
@@ -644,8 +644,8 @@ def provision_cluster(
         ssh_check_output(
             client=master_ssh_client,
             command="""
-                echo {m} > /home/{u}/.flintrock-manifest.json
-                chmod go-rw /home/{u}/.flintrock-manifest.json
+                echo {m} > ~{u}/.flintrock-manifest.json
+                chmod go-rw ~{u}/.flintrock-manifest.json
             """.format(
                 m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
                 u=shlex.quote(user)))
