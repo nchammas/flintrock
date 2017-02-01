@@ -12,6 +12,7 @@ The resulting structure we create is as follows:
         /root: The instance's root volume.
         /ephemeral[0-N]: Instance store volumes.
         /persistent[0-N]: EBS volumes.
+        /tmp: A temporary directory with lots of space (either /ephemeral* or /persistent*)
 
 WARNING: Be conscious about what this script prints to stdout, as that
          output is parsed by Flintrock.
@@ -159,6 +160,23 @@ def create_root_dir():
     return path
 
 
+def create_tmp_dir(devices):
+    """
+    Create a folder that any services can use as temporary directory for big files
+    """
+    path = '/media/tmp'
+    if devices:
+        target = devices[0].mount_point
+    else:
+        target = '/tmp'
+    subprocess.check_output([
+        'sudo', 'ln', '-s', target, path])
+    subprocess.check_output(
+        'sudo chown "$(logname):$(logname)" {p}'.format(p=path),
+        shell=True)
+    return path
+
+
 if __name__ == '__main__':
     if sys.version_info < (2, 7) or ((3, 0) <= sys.version_info < (3, 4)):
         raise Exception(
@@ -182,6 +200,7 @@ if __name__ == '__main__':
     mount_devices(ephemeral_devices)
 
     root_dir = create_root_dir()
+    create_tmp_dir(ephemeral_devices)
 
     print(json.dumps(
         {
