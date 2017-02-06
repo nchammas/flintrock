@@ -36,6 +36,9 @@ providers:
     #   - group-name1
     #   - group-name2
     # instance-profile-name:
+    # tags:
+    #   - key1,value1
+    #   - key2,value2
     tenancy: default  # default | dedicated
     ebs-optimized: no  # yes | no
     instance-initiated-shutdown-behavior: terminate  # terminate | stop

@@ -234,6 +234,7 @@ class EC2Cluster(FlintrockCluster):
             identity_file: str,
             num_slaves: int,
             spot_price: float,
+            tags: list,
             assume_yes: bool):
         security_group_ids = [
             group['GroupId']
@@ -287,15 +288,17 @@ class EC2Cluster(FlintrockCluster):
                 instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
                 user_data=user_data)
 
+            slave_tags = [
+                {'Key': 'flintrock-role', 'Value': 'slave'},
+                {'Key': 'Name', 'Value': '{c}-slave'.format(c=self.name)}]
+            slave_tags += tags
+
             (ec2.instances
                 .filter(
                     Filters=[
                         {'Name': 'instance-id', 'Values': [i.id for i in new_slave_instances]}
                     ])
-                .create_tags(
-                    Tags=[
-                        {'Key': 'flintrock-role', 'Value': 'slave'},
-                        {'Key': 'Name', 'Value': '{c}-slave'.format(c=self.name)}]))
+                .create_tags(Tags=slave_tags))
 
             existing_slaves = {i.public_ip_address for i in self.slave_instances}
 
@@ -817,7 +820,8 @@ def launch(
         tenancy='default',
         ebs_optimized=False,
         instance_initiated_shutdown_behavior='stop',
-        user_data):
+        user_data,
+        tags):
     """
     Launch a cluster.
     """
@@ -898,24 +902,29 @@ def launch(
         master_instance = cluster_instances[0]
         slave_instances = cluster_instances[1:]
 
+        master_tags = [
+            {'Key': 'flintrock-role', 'Value': 'master'},
+            {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]
+        master_tags += tags
+
         (ec2.instances
             .filter(
                 Filters=[
                     {'Name': 'instance-id', 'Values': [master_instance.id]}
                 ])
-            .create_tags(
-                Tags=[
-                    {'Key': 'flintrock-role', 'Value': 'master'},
-                    {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]))
+            .create_tags(Tags=master_tags))
+
+        slave_tags = [
+            {'Key': 'flintrock-role', 'Value': 'slave'},
+            {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]
+        slave_tags += tags
+
         (ec2.instances
             .filter(
                 Filters=[
                     {'Name': 'instance-id', 'Values': [i.id for i in slave_instances]}
                 ])
-            .create_tags(
-                Tags=[
-                    {'Key': 'flintrock-role', 'Value': 'slave'},
-                    {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]))
+            .create_tags(Tags=slave_tags))
 
         cluster = EC2Cluster(
             name=cluster_name,
