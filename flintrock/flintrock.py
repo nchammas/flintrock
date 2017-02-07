@@ -240,7 +240,6 @@ def cli(cli_context, config, provider):
               multiple=True,
               help="Additional tags (Key,Value pairs) to assign to the instances. "
                    "You can specify this option multiple times.")
-
 @click.pass_context
 def launch(
         cli_context,
@@ -716,7 +715,6 @@ def add_slaves(
         user=user,
         identity_file=identity_file)
     cluster.add_slaves_check()
-
 
     if provider == 'ec2':
         cluster.add_slaves(
