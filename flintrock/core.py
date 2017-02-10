@@ -140,8 +140,8 @@ class FlintrockCluster:
             manifest_raw = ssh_check_output(
                 client=master_ssh_client,
                 command="""
-                    cat ~{u}/.flintrock-manifest.json
-                """.format(u=shlex.quote(user)))
+                    cat "$HOME/.flintrock-manifest.json"
+                """)
             # TODO: Would it be better if storage (ephemeral and otherwise) was
             #       implemented as a Flintrock service and tracked in the manifest?
             ephemeral_dirs_raw = ssh_check_output(
@@ -570,10 +570,10 @@ def setup_node(
         command="""
             set -e
 
-            echo {private_key} > ~/.ssh/id_rsa
-            echo {public_key} >> ~/.ssh/authorized_keys
+            echo {private_key} > "$HOME/.ssh/id_rsa"
+            echo {public_key} >> "$HOME/.ssh/authorized_keys"
 
-            chmod 400 ~/.ssh/id_rsa
+            chmod 400 "$HOME/.ssh/id_rsa"
         """.format(
             private_key=shlex.quote(cluster.ssh_key_pair.private),
             public_key=shlex.quote(cluster.ssh_key_pair.public)))
@@ -644,11 +644,11 @@ def provision_cluster(
         ssh_check_output(
             client=master_ssh_client,
             command="""
-                echo {m} > ~{u}/.flintrock-manifest.json
-                chmod go-rw ~{u}/.flintrock-manifest.json
+                echo {m} > "$HOME/.flintrock-manifest.json"
+                chmod go-rw "$HOME/.flintrock-manifest.json"
             """.format(
-                m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
-                u=shlex.quote(user)))
+                m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True))
+            ))
 
         for service in services:
             service.configure_master(
