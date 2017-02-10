@@ -192,7 +192,7 @@ class HDFS(FlintrockService):
         hdfs_master_ui = 'http://{m}:50070/webhdfs/v1/?op=GETCONTENTSUMMARY'.format(m=master_host)
 
         try:
-            hdfs_ui_info = json.loads(
+            hdfs_ui_info = json.loads(  # noqa
                 urllib.request.urlopen(hdfs_master_ui).read().decode('utf-8'))
         except Exception as e:
             # TODO: Catch a more specific problem.

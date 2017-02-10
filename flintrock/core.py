@@ -861,4 +861,4 @@ def copy_file_node(
 # core.py and services.py. I've thought about how to remove this circular dependency,
 # but for now this seems like what we need to go with.
 # Flintrock modules
-from .services import HDFS, Spark  # Used by start_cluster()
+from .services import HDFS, Spark  # Used by start_cluster() # noqa

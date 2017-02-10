@@ -5,7 +5,7 @@ import uuid
 from collections import OrderedDict
 
 # Flintrock
-from flintrock.core import FlintrockCluster, StorageDirs
+from flintrock.core import StorageDirs
 
 # External
 import pytest

@@ -13,7 +13,8 @@ if __name__ == '__main__':
         operating_system = 'OSX'
     machine_type = platform.machine()
 
-    subprocess.run([
+    subprocess.run(
+        [
             'pyinstaller',
             '--noconfirm',
             '--clean',
@@ -23,7 +24,8 @@ if __name__ == '__main__':
             # We won't need this when this issue is resolved:
             # https://github.com/pyinstaller/pyinstaller/issues/1844
             '--hidden-import', 'html.parser',
-            'standalone.py'],
+            'standalone.py'
+        ],
         check=True)
 
     shutil.make_archive(
