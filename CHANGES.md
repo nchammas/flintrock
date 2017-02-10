@@ -4,7 +4,34 @@
 
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v0.7.0...master
 
-Nothing notable yet.
+### Added
+
+* [#180]: Accessing data on S3 from your Flintrock cluster is now much
+  easier! Just configure Flintrock to use Hadoop 2.7+ (which is the
+  default) and an appropriate IAM role, and you'll be able to access
+  paths on S3 using the new `s3a://` prefix. Check the README for
+  more information.
+* [#176], [#187]: Flintrock now supports users with non-standard home
+  directories.
+
+[#180]: https://github.com/nchammas/flintrock/pull/180
+[#176]: https://github.com/nchammas/flintrock/pull/176
+[#187]: https://github.com/nchammas/flintrock/pull/187
+
+### Changed
+
+* [#168]: Flintrock now does a better job of cleaning up after
+  interrupted operations.
+* [#179], [#184]: Flintrock can now clean up malformed Flintrock
+  clusters.
+* [`6b426ae`]: We fixed an issue affecting some users of Flintrock's
+  standalone package that caused Flintrock to intermittently throw
+  `ImportError`s.
+
+[#168]: https://github.com/nchammas/flintrock/pull/168
+[#179]: https://github.com/nchammas/flintrock/pull/179
+[#184]: https://github.com/nchammas/flintrock/pull/184
+[`6b426ae`]: https://github.com/nchammas/flintrock/commit/6b426aedc7e92b434021cc09c6e7eb181fca7eef
 
 ## [0.7.0] - 2016-11-15
 
