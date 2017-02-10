@@ -4,7 +4,6 @@ import sys
 import time
 import urllib.request
 import base64
-import os
 from collections import namedtuple
 from datetime import datetime
 

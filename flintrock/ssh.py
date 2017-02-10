@@ -129,7 +129,7 @@ def ssh(*, user: str, host: str, identity_file: str):
     """
     SSH into a host for interactive use.
     """
-    ret = subprocess.call(
+    subprocess.call(
         [
             'ssh',
             '-o', 'StrictHostKeyChecking=no',

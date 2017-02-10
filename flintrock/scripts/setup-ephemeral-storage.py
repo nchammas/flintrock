@@ -97,7 +97,7 @@ def format_devices(devices):
 
     for p in format_processes:
         stdout_raw, stderr_raw = p.communicate()
-        stdout, stderr = stdout_raw.decode('utf-8'), stderr_raw.decode('utf-8')
+        stdout, stderr = stdout_raw.decode('utf-8'), stderr_raw.decode('utf-8')  # noqa
         return_code = p.returncode
         if return_code != 0:
             raise Exception(
