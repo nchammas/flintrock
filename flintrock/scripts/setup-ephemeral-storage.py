@@ -131,7 +131,7 @@ def mount_devices(devices):
                 device.name,
                 device.mount_point,
                 'ext4',
-                'defaults,users,noatime,nodiratime',
+                'defaults,users,noatime',
                 '0',
                 '0'])),
             shell=True)
