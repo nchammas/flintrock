@@ -21,7 +21,7 @@ flintrock launch test-cluster \
     --spark-version 2.1.0 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
-    --ec2-ami ami-9be6f38c \
+    --ec2-ami ami-0b33d91d \
     --ec2-user ec2-user
 ```
 
@@ -125,7 +125,7 @@ unzip it to a location of your choice, and run the `flintrock` executable inside
 For example:
 
 ```sh
-flintrock_version="0.7.0"
+flintrock_version="0.8.0"
 
 curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
 unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
@@ -231,7 +231,7 @@ providers:
     identity-file: /path/to/.ssh/key.pem
     instance-type: m3.medium
     region: us-east-1
-    ami: ami-9be6f38c
+    ami: ami-0b33d91d
     user: ec2-user
 ```
 
