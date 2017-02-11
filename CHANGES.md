@@ -2,14 +2,20 @@
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/nchammas/flintrock/compare/v0.7.0...master
+[Unreleased]: https://github.com/nchammas/flintrock/compare/v0.8.0...master
+
+Nothing notable yet.
+
+## [0.8.0] - 2016-02-11
+
+[0.8.0]: https://github.com/nchammas/flintrock/compare/v0.7.0...v0.8.0
 
 ### Added
 
 * [#180]: Accessing data on S3 from your Flintrock cluster is now much
   easier! Just configure Flintrock to use Hadoop 2.7+ (which is the
   default) and an appropriate IAM role, and you'll be able to access
-  paths on S3 using the new `s3a://` prefix. Check the README for
+  paths on S3 using the new `s3a://` prefix. [Check the README] for
   more information.
 * [#176], [#187]: Flintrock now supports users with non-standard home
   directories.
@@ -17,6 +23,7 @@
 [#180]: https://github.com/nchammas/flintrock/pull/180
 [#176]: https://github.com/nchammas/flintrock/pull/176
 [#187]: https://github.com/nchammas/flintrock/pull/187
+[Check the README]: https://github.com/nchammas/flintrock/tree/v0.8.0#accessing-data-on-s3
 
 ### Changed
 
