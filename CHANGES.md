@@ -6,7 +6,7 @@
 
 Nothing notable yet.
 
-## [0.8.0] - 2016-02-11
+## [0.8.0] - 2017-02-11
 
 [0.8.0]: https://github.com/nchammas/flintrock/compare/v0.7.0...v0.8.0
 
