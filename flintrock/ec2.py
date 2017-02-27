@@ -1016,20 +1016,20 @@ def get_clusters(*, cluster_names: list=[], region: str, vpc_id: str) -> list:
 
 def validate_tags(ctx, param, value):
     """
-    Validate and parse optional ec2 tags as supplied on command line.
+    Validate and parse optional EC2 tags.
     """
-    ec2_tags = value
-    for ec2_tag in ec2_tags:
-        if ec2_tag.count(',') != 1 or not ec2_tag.split(',')[0]:
+    tags = value
+    result = []
+    for tag in tags:
+        key, value = [word.strip() for word in tag.split(',', maxsplit=1)]
+        if not key or ',' in value:
             raise click.BadParameter(
-                "tags need to be specified as 'Key,Value' pairs "
-                "separated by a single comma. Key cannot be empty.")
+                "Tags need to be specified as 'Key,Value' pairs "
+                "separated by a single comma. Key cannot be empty "
+                "or be made up entirely of whitespace.")
+        result.append({'Key': key, 'Value': value})
 
-    ec2_tags = [{'Key': tag.split(',')[0].strip(),
-                 'Value': tag.split(',')[1].strip()}
-                for tag in ec2_tags]
-
-    return ec2_tags
+    return result
 
 
 def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:

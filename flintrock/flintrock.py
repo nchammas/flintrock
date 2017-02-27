@@ -239,7 +239,8 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-tag', 'ec2_tags',
               callback=ec2.validate_tags,
               multiple=True,
-              help="Additional tags (e.g. 'Key,Value') to assign to the instances.")
+              help="Additional tags (e.g. 'Key,Value') to assign to the instances. "
+                   "You can specify this option multiple times.")
 @click.pass_context
 def launch(
         cli_context,
@@ -628,7 +629,8 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 @click.option('--ec2-tag', 'ec2_tags',
               callback=ec2.validate_tags,
               multiple=True,
-              help="Additional tags (e.g. 'Key,Value') to assign to the instances.")
+              help="Additional tags (e.g. 'Key,Value') to assign to the instances. "
+                   "You can specify this option multiple times.")
 @click.pass_context
 def add_slaves(
         cli_context,
