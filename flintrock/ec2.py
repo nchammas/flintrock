@@ -1024,10 +1024,10 @@ def validate_tags(ctx, param, value):
     tags = value
     result = []
     for tag in tags:
-        if ',' not in tag:
+        if tag.count(',') != 1:
             raise click.BadParameter(err_msg)
         key, value = [word.strip() for word in tag.split(',', maxsplit=1)]
-        if not key or ',' in value:
+        if not key:
             raise click.BadParameter(err_msg)
         result.append({'Key': key, 'Value': value})
 
