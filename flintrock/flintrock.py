@@ -237,9 +237,9 @@ def cli(cli_context, config, provider):
               type=click.File(mode='r', encoding='utf-8'),
               help="Path to EC2 user data script that will run on instance launch.")
 @click.option('--ec2-tag', 'ec2_tags',
+              callback=ec2.validate_tags,
               multiple=True,
-              help="Additional tags (Key,Value pairs) to assign to the instances. "
-                   "You can specify this option multiple times.")
+              help="Additional tags (e.g. 'Key,Value') to assign to the instances.")
 @click.pass_context
 def launch(
         cli_context,
@@ -338,22 +338,6 @@ def launch(
                 hadoop_version=hdfs_version,
             )
         services += [spark]
-
-    # Format ec2 tags
-    if ec2_tags:
-        for ec2_tag in ec2_tags:
-            if ec2_tag.count(',') != 1:
-                raise UsageError(
-                    "Error: EC2 tags need to be specified as Key,Value pairs "
-                    "separated by a single comma")
-            k, v = ec2_tag.split(',')
-            if not len(k) or not len(v):
-                raise UsageError(
-                    "Error: An EC2 tag seems to have a missing key or value")
-
-        ec2_tags = [{'Key': tag.split(',')[0],
-                     'Value': tag.split(',')[1]}
-                    for tag in ec2_tags]
 
     if provider == 'ec2':
         return ec2.launch(
@@ -642,9 +626,9 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 @click.option('--ec2-spot-price', type=float)
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-tag', 'ec2_tags',
+              callback=ec2.validate_tags,
               multiple=True,
-              help="Additional tags (Key,Value pairs) to assign to the instances. "
-                   "You can specify this option multiple times.")
+              help="Additional tags (e.g. 'Key,Value') to assign to the instances.")
 @click.pass_context
 def add_slaves(
         cli_context,
@@ -673,22 +657,6 @@ def add_slaves(
             '--ec2-identity-file',
             '--ec2-user'],
         scope=locals())
-
-    # Format ec2 tags
-    if ec2_tags:
-        for ec2_tag in ec2_tags:
-            if ec2_tag.count(',') != 1:
-                raise UsageError(
-                    "Error: EC2 tags need to be specified as Key,Value pairs "
-                    "separated by a single comma")
-            k, v = ec2_tag.split(',')
-            if not len(k) or not len(v):
-                raise UsageError(
-                    "Error: An EC2 tag seems to have a missing key or value")
-
-        ec2_tags = [{'Key': tag.split(',')[0],
-                     'Value': tag.split(',')[1]}
-                    for tag in ec2_tags]
 
     if provider == 'ec2':
         cluster = ec2.get_cluster(

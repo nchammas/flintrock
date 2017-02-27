@@ -37,8 +37,8 @@ providers:
     #   - group-name2
     # instance-profile-name:
     # tags:
-    #   - key1,value1
-    #   - key2,value2
+    #   - key1,value1 (or 'key1, value1' or 'key1,')
+    #   - key2,value2 (or 'key2, value2' or 'key2,')
     tenancy: default  # default | dedicated
     ebs-optimized: no  # yes | no
     instance-initiated-shutdown-behavior: terminate  # terminate | stop

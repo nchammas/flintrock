@@ -1014,6 +1014,24 @@ def get_clusters(*, cluster_names: list=[], region: str, vpc_id: str) -> list:
     return clusters
 
 
+def validate_tags(ctx, param, value):
+    """
+    Validate and parse optional ec2 tags as supplied on command line.
+    """
+    ec2_tags = value
+    for ec2_tag in ec2_tags:
+        if ec2_tag.count(',') != 1 or not ec2_tag.split(',')[0]:
+            raise click.BadParameter(
+                "tags need to be specified as 'Key,Value' pairs "
+                "separated by a single comma. Key cannot be empty.")
+
+    ec2_tags = [{'Key': tag.split(',')[0].strip(),
+                 'Value': tag.split(',')[1].strip()}
+                for tag in ec2_tags]
+
+    return ec2_tags
+
+
 def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:
     """
     Given an EC2 instance, get the name of the Flintrock cluster it belongs to.
