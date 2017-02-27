@@ -1018,15 +1018,17 @@ def validate_tags(ctx, param, value):
     """
     Validate and parse optional EC2 tags.
     """
+    err_msg = ("Tags need to be specified as 'Key,Value' pairs "
+               "separated by a single comma. Key cannot be empty "
+               "or be made up entirely of whitespace.")
     tags = value
     result = []
     for tag in tags:
+        if ',' not in tag:
+            raise click.BadParameter(err_msg)
         key, value = [word.strip() for word in tag.split(',', maxsplit=1)]
         if not key or ',' in value:
-            raise click.BadParameter(
-                "Tags need to be specified as 'Key,Value' pairs "
-                "separated by a single comma. Key cannot be empty "
-                "or be made up entirely of whitespace.")
+            raise click.BadParameter(err_msg)
         result.append({'Key': key, 'Value': value})
 
     return result
