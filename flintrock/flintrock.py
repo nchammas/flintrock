@@ -237,7 +237,7 @@ def cli(cli_context, config, provider):
               type=click.File(mode='r', encoding='utf-8'),
               help="Path to EC2 user data script that will run on instance launch.")
 @click.option('--ec2-tag', 'ec2_tags',
-              callback=ec2.validate_tags,
+              callback=ec2.cli_validate_tags,
               multiple=True,
               help="Additional tags (e.g. 'Key,Value') to assign to the instances. "
                    "You can specify this option multiple times.")
@@ -627,7 +627,7 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 @click.option('--ec2-spot-price', type=float)
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-tag', 'ec2_tags',
-              callback=ec2.validate_tags,
+              callback=ec2.cli_validate_tags,
               multiple=True,
               help="Additional tags (e.g. 'Key,Value') to assign to the instances. "
                    "You can specify this option multiple times.")

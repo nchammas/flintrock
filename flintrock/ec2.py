@@ -1014,7 +1014,11 @@ def get_clusters(*, cluster_names: list=[], region: str, vpc_id: str) -> list:
     return clusters
 
 
-def validate_tags(ctx, param, value):
+def cli_validate_tags(ctx, param, value):
+    return validate_tags(value)
+
+
+def validate_tags(value):
     """
     Validate and parse optional EC2 tags.
     """

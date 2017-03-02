@@ -18,7 +18,7 @@ def test_validate_tags():
          [{'Key': 'k4', 'Value': 'v4'}, {'Key': 'k5', 'Value': 'v5'}])]
 
     for test_case in positive_test_cases:
-        ec2_tags = cli_validate_tags(test_case[0])
+        ec2_tags = validate_tags(test_case[0])
         assert(isinstance(ec2_tags, list))
         for i, ec2_tag in enumerate(ec2_tags):
             expected_dict = test_case[1][i]
@@ -29,8 +29,4 @@ def test_validate_tags():
     negative_test_cases = [["k1"], ["k2,v2,"], ["k3,,v3"], [",v4"]]
     for test_case in negative_test_cases:
         with pytest.raises(click.BadParameter):
-            cli_validate_tags(test_case)
-
-
-def cli_validate_tags(args):
-    return validate_tags(None, None, args)
+            validate_tags(test_case)
