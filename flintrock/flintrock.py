@@ -206,13 +206,14 @@ def cli(cli_context, config, provider, debug):
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
-@click.option('--hdfs-version')
+@click.option('--hdfs-version', default='2.7.3')
 @click.option('--hdfs-download-source',
               help="URL to download Hadoop from.",
               default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
               show_default=True)
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-version',
+              default='2.1.0',
               help="Spark release version to install.")
 @click.option('--spark-download-source',
               help="URL to download a release of Spark from.",
@@ -254,6 +255,11 @@ def cli(cli_context, config, provider, debug):
 @click.option('--ec2-user-data',
               type=click.File(mode='r', encoding='utf-8'),
               help="Path to EC2 user data script that will run on instance launch.")
+@click.option('--ec2-tag', 'ec2_tags',
+              callback=ec2.cli_validate_tags,
+              multiple=True,
+              help="Additional tags (e.g. 'Key,Value') to assign to the instances. "
+                   "You can specify this option multiple times.")
 @click.pass_context
 def launch(
         cli_context,
@@ -284,7 +290,8 @@ def launch(
         ec2_tenancy,
         ec2_ebs_optimized,
         ec2_instance_initiated_shutdown_behavior,
-        ec2_user_data):
+        ec2_user_data,
+        ec2_tags):
     """
     Launch a new cluster.
     """
@@ -333,7 +340,11 @@ def launch(
         services += [hdfs]
     if install_spark:
         if spark_version:
-            spark = Spark(version=spark_version, download_source=spark_download_source)
+            spark = Spark(
+                version=spark_version,
+                hadoop_version=hdfs_version,
+                download_source=spark_download_source,
+            )
         elif spark_git_commit:
             logger.warning(
                 "Warning: Building Spark takes a long time. "
@@ -343,7 +354,9 @@ def launch(
                 logger.info("Building Spark at latest commit: {c}".format(c=spark_git_commit))
             spark = Spark(
                 git_commit=spark_git_commit,
-                git_repository=spark_git_repository)
+                git_repository=spark_git_repository,
+                hadoop_version=hdfs_version,
+            )
         services += [spark]
 
     if provider == 'ec2':
@@ -368,7 +381,8 @@ def launch(
             tenancy=ec2_tenancy,
             ebs_optimized=ec2_ebs_optimized,
             instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior,
-            user_data=ec2_user_data)
+            user_data=ec2_user_data,
+            tags=ec2_tags)
     else:
         raise UnsupportedProviderError(provider)
 
@@ -631,6 +645,11 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
 @click.option('--assume-yes/--no-assume-yes', default=False)
+@click.option('--ec2-tag', 'ec2_tags',
+              callback=ec2.cli_validate_tags,
+              multiple=True,
+              help="Additional tags (e.g. 'Key,Value') to assign to the instances. "
+                   "You can specify this option multiple times.")
 @click.pass_context
 def add_slaves(
         cli_context,
@@ -641,6 +660,7 @@ def add_slaves(
         ec2_identity_file,
         ec2_user,
         ec2_spot_price,
+        ec2_tags,
         assume_yes):
     """
     Add slaves to an existing cluster.
@@ -668,6 +688,7 @@ def add_slaves(
         identity_file = ec2_identity_file
         provider_options = {
             'spot_price': ec2_spot_price,
+            'tags': ec2_tags
         }
     else:
         raise UnsupportedProviderError(provider)

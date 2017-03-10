@@ -4,12 +4,38 @@ import tempfile
 import uuid
 from collections import OrderedDict
 
-# External modules
+# Flintrock
+from flintrock.core import StorageDirs
+
+# External
 import pytest
 
 HADOOP_VERSION = '2.7.3'
-SPARK_VERSION = '2.0.2'
+SPARK_VERSION = '2.1.0'
 SPARK_GIT_COMMIT = '584354eaac02531c9584188b143367ba694b0c34'  # 2.0.2
+
+
+class Dummy():
+    pass
+
+
+@pytest.fixture(scope='session')
+def dummy_cluster():
+    storage_dirs = StorageDirs(
+        root='/media/root',
+        ephemeral=['/media/eph1', '/media/eph2'],
+        persistent=None,
+    )
+
+    cluster = Dummy()
+    cluster.name = 'test'
+    cluster.storage_dirs = storage_dirs
+    cluster.master_ip = '10.0.0.1'
+    cluster.master_host = 'master.hostname'
+    cluster.slave_ips = ['10.0.0.2']
+    cluster.slave_hosts = ['slave1.hostname']
+
+    return cluster
 
 
 def random_string():

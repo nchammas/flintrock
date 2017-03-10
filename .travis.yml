@@ -8,6 +8,7 @@ install:
 script:
   - "py.test ./tests/test_static.py"
   - "py.test ./tests/test_flintrock.py"
+  - "py.test ./tests/test_core.py"
   - "pip install -r requirements/maintainer.pip"
   - "py.test ./tests/test_pyinstaller_packaging.py"
 addons:

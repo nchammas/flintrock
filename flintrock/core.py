@@ -144,8 +144,8 @@ class FlintrockCluster:
             manifest_raw = ssh_check_output(
                 client=master_ssh_client,
                 command="""
-                    cat /home/{u}/.flintrock-manifest.json
-                """.format(u=shlex.quote(user)))
+                    cat "$HOME/.flintrock-manifest.json"
+                """)
             # TODO: Would it be better if storage (ephemeral and otherwise) was
             #       implemented as a Flintrock service and tracked in the manifest?
             ephemeral_dirs_raw = ssh_check_output(
@@ -427,30 +427,65 @@ class FlintrockCluster:
             user=user,
             identity_file=identity_file)
 
-    def generate_template_mapping(self, *, service: str) -> dict:
-        """
-        Generate a template mapping from a FlintrockCluster instance that we can use
-        to fill in template parameters.
-        """
-        root_dir = posixpath.join(self.storage_dirs.root, service)
-        ephemeral_dirs = ','.join(posixpath.join(path, service) for path in self.storage_dirs.ephemeral)
 
-        template_mapping = {
-            'master_ip': self.master_ip,
-            'master_host': self.master_host,
-            'slave_ips': '\n'.join(self.slave_ips),
-            'slave_hosts': '\n'.join(self.slave_hosts),
-            'root_dir': root_dir,
-            'ephemeral_dirs': ephemeral_dirs,
+def generate_template_mapping(
+    *,
+    cluster: FlintrockCluster,
+    # If we add additional services later on we may want to refactor
+    # this to take a list of services and dynamically pull the service
+    # name.
+    hadoop_version: str,
+    spark_version: str
+) -> dict:
+    """
+    Generate a template mapping from a FlintrockCluster instance that we can use
+    to fill in template parameters.
+    """
+    hadoop_root_dir = posixpath.join(cluster.storage_dirs.root, 'hadoop')
+    hadoop_ephemeral_dirs = ','.join(
+        posixpath.join(path, 'hadoop')
+        for path in cluster.storage_dirs.ephemeral
+    )
+    spark_root_dir = posixpath.join(cluster.storage_dirs.root, 'spark')
+    spark_ephemeral_dirs = ','.join(
+        posixpath.join(path, 'spark')
+        for path in cluster.storage_dirs.ephemeral
+    )
 
-            # If ephemeral storage is available, it replaces the root volume, which is
-            # typically persistent. We don't want to mix persistent and ephemeral
-            # storage since that causes problems after cluster stop/start; some volumes
-            # have leftover data, whereas others start fresh.
-            'root_ephemeral_dirs': ephemeral_dirs if ephemeral_dirs else root_dir,
-        }
+    template_mapping = {
+        'master_ip': cluster.master_ip,
+        'master_host': cluster.master_host,
+        'slave_ips': '\n'.join(cluster.slave_ips),
+        'slave_hosts': '\n'.join(cluster.slave_hosts),
 
-        return template_mapping
+        'hadoop_version': hadoop_version,
+        'hadoop_short_version': '.'.join(hadoop_version.split('.')[:2]),
+        'spark_version': spark_version,
+        'spark_short_version': '.'.join(spark_version.split('.')[:2]),
+
+        'hadoop_root_dir': hadoop_root_dir,
+        'hadoop_ephemeral_dirs': hadoop_ephemeral_dirs,
+        'spark_root_dir': spark_root_dir,
+        'spark_ephemeral_dirs': spark_ephemeral_dirs,
+
+        # If ephemeral storage is available, it replaces the root volume, which is
+        # typically persistent. We don't want to mix persistent and ephemeral
+        # storage since that causes problems after cluster stop/start; some volumes
+        # have leftover data, whereas others start fresh.
+        'hadoop_root_ephemeral_dirs': hadoop_ephemeral_dirs if hadoop_ephemeral_dirs else hadoop_root_dir,
+        'spark_root_ephemeral_dirs': spark_ephemeral_dirs if spark_ephemeral_dirs else spark_root_dir,
+    }
+
+    return template_mapping
+
+
+# TODO: Cache these files. (?) They are being read potentially tens or
+#       hundreds of times. Maybe it doesn't matter because the files
+#       are so small.
+def get_formatted_template(*, path: str, mapping: dict) -> str:
+    with open(path) as f:
+        formatted = f.read().format(**mapping)
+    return formatted
 
 
 def run_against_hosts(*, partial_func: functools.partial, hosts: list):
@@ -539,10 +574,10 @@ def setup_node(
         command="""
             set -e
 
-            echo {private_key} > ~/.ssh/id_rsa
-            echo {public_key} >> ~/.ssh/authorized_keys
+            echo {private_key} > "$HOME/.ssh/id_rsa"
+            echo {public_key} >> "$HOME/.ssh/authorized_keys"
 
-            chmod 400 ~/.ssh/id_rsa
+            chmod 400 "$HOME/.ssh/id_rsa"
         """.format(
             private_key=shlex.quote(cluster.ssh_key_pair.private),
             public_key=shlex.quote(cluster.ssh_key_pair.public)))
@@ -613,11 +648,11 @@ def provision_cluster(
         ssh_check_output(
             client=master_ssh_client,
             command="""
-                echo {m} > /home/{u}/.flintrock-manifest.json
-                chmod go-rw /home/{u}/.flintrock-manifest.json
+                echo {m} > "$HOME/.flintrock-manifest.json"
+                chmod go-rw "$HOME/.flintrock-manifest.json"
             """.format(
-                m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
-                u=shlex.quote(user)))
+                m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True))
+            ))
 
         for service in services:
             service.configure_master(
@@ -830,4 +865,4 @@ def copy_file_node(
 # core.py and services.py. I've thought about how to remove this circular dependency,
 # but for now this seems like what we need to go with.
 # Flintrock modules
-from .services import HDFS, Spark  # Used by start_cluster()
+from .services import HDFS, Spark  # Used by start_cluster() # noqa

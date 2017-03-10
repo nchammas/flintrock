@@ -1,5 +1,5 @@
 -r user.pip
-pycodestyle == 2.2.0
-pytest >= 3.0.4
+pytest >= 3.0.6
 pytest-cov >= 2.4.0
+flake8 == 3.3.0
 # PyYAML  # requirement already covered by setup.py
