@@ -167,6 +167,7 @@ class HDFS(FlintrockService):
                                 # Hadoop doesn't need to know what
                                 # Spark version we're using.
                                 spark_version='',
+                                spark_executor_instances=0,
                             ))),
                     p=shlex.quote(template_path)))
 
@@ -208,6 +209,7 @@ class Spark(FlintrockService):
     def __init__(
         self,
         *,
+        spark_executor_instances: int,
         version: str=None,
         hadoop_version: str,
         download_source: str=None,
@@ -220,6 +222,7 @@ class Spark(FlintrockService):
         if git_commit:
             assert git_repository
 
+        self.spark_executor_instances = spark_executor_instances
         self.version = version
         self.hadoop_version = hadoop_version
         self.download_source = download_source
@@ -228,6 +231,7 @@ class Spark(FlintrockService):
 
         self.manifest = {
             'version': version,
+            'spark_executor_instances': spark_executor_instances,
             'hadoop_version': hadoop_version,
             'download_source': download_source,
             'git_commit': git_commit,
@@ -300,6 +304,14 @@ class Spark(FlintrockService):
             self,
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
+
+        mapping = generate_template_mapping(
+            cluster=cluster,
+            spark_executor_instances=self.spark_executor_instances,
+            hadoop_version=self.hadoop_version,
+            spark_version=self.version,
+        )
+
         template_paths = [
             'spark/conf/spark-env.sh',
             'spark/conf/slaves',
@@ -314,11 +326,7 @@ class Spark(FlintrockService):
                     f=shlex.quote(
                         get_formatted_template(
                             path=os.path.join(THIS_DIR, "templates", template_path),
-                            mapping=generate_template_mapping(
-                                cluster=cluster,
-                                hadoop_version=self.hadoop_version,
-                                spark_version=self.version,
-                            ))),
+                            mapping=mapping)),
                     p=shlex.quote(template_path)))
 
     # TODO: Convert this into start_master() and split master- or slave-specific

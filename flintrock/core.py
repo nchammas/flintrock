@@ -430,6 +430,7 @@ def generate_template_mapping(
     # If we add additional services later on we may want to refactor
     # this to take a list of services and dynamically pull the service
     # name.
+    spark_executor_instances: int,
     hadoop_version: str,
     spark_version: str
 ) -> dict:
@@ -458,6 +459,8 @@ def generate_template_mapping(
         'hadoop_short_version': '.'.join(hadoop_version.split('.')[:2]),
         'spark_version': spark_version,
         'spark_short_version': '.'.join(spark_version.split('.')[:2]),
+
+        'spark_executor_instances': spark_executor_instances,
 
         'hadoop_root_dir': hadoop_root_dir,
         'hadoop_ephemeral_dirs': hadoop_ephemeral_dirs,
