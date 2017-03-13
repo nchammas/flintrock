@@ -39,7 +39,7 @@ else:
     THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
-logger = logging.getLogger('flintrock')
+logger = logging.getLogger('flintrock.flintrock')
 
 
 def format_message(*, message: str, indent: int=4, wrap: int=70):
@@ -161,15 +161,17 @@ def get_config_file() -> str:
 
 
 def configure_log(debug: bool):
-    handler = logging.StreamHandler()
+    root_logger = logging.getLogger('flintrock')
+    import sys
+    handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.DEBUG)
     if debug:
-        logger.setLevel(logging.DEBUG)
-        handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+        root_logger.setLevel(logging.DEBUG)
+        handler.setFormatter(logging.Formatter('%(asctime)s - flintrock.%(module)-9s - %(levelname)-5s - %(message)s'))
     else:
-        logger.setLevel(logging.INFO)
+        root_logger.setLevel(logging.INFO)
         handler.setFormatter(logging.Formatter('%(message)s'))
-    logger.addHandler(handler)
+    root_logger.addHandler(handler)
 
 
 @click.group()
@@ -180,7 +182,7 @@ def configure_log(debug: bool):
 @click.option('--provider', default='ec2', type=click.Choice(['ec2']))
 @click.version_option(version=__version__)
 # TODO: implement some solution like in https://github.com/pallets/click/issues/108
-@click.option('--debug/--no-debug', default=False, help="Whether to show debug messages")
+@click.option('--debug/--no-debug', default=False, help="Show debug information.")
 @click.pass_context
 def cli(cli_context, config, provider, debug):
     """

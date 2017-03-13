@@ -84,17 +84,17 @@ def get_ssh_client(
                 logger.info("[{h}] SSH online.".format(h=host))
             break
         except socket.timeout as e:
-            logger.debug("[{h}] SSH got a timeout...".format(h=host))
+            logger.debug("[{h}] SSH timeout.".format(h=host))
             time.sleep(5)
         except paramiko.ssh_exception.NoValidConnectionsError as e:
             if any(error.errno != errno.ECONNREFUSED for error in e.errors.values()):
                 raise
-            logger.debug("[{h}] SSH got an exception: {e}".format(h=host, e=e))
+            logger.debug("[{h}] SSH exception: {e}".format(h=host, e=e))
             time.sleep(5)
         # We get this exception during startup with CentOS but not Amazon Linux,
         # for some reason.
         except paramiko.ssh_exception.AuthenticationException as e:
-            logger.debug("[{h}] SSH got an AuthenticationException".format(h=host))
+            logger.debug("[{h}] SSH AuthenticationException.".format(h=host))
             time.sleep(5)
     else:
         raise SSHError(

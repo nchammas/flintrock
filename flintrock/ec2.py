@@ -4,7 +4,6 @@ import sys
 import time
 import urllib.request
 import base64
-import os
 import logging
 from collections import namedtuple
 from datetime import datetime
@@ -127,9 +126,8 @@ class EC2Cluster(FlintrockCluster):
         while any([i.state['Name'] != state for i in self.instances]):
             if logger.isEnabledFor(logging.DEBUG):
                 waiting_instances = [i for i in self.instances if i.state['Name'] != state]
-                sample_size = 3
-                sample = [i.id for i in waiting_instances][:sample_size]
-                logger.debug('{size} instances not in state {state}, like: {sample} ...'.format(size=len(waiting_instances), state=state, sample=sample))
+                sample = ', '.join(["'{}'".format(i.id) for i in waiting_instances][:3])
+                logger.debug("{size} instances not in state '{state}': {sample}, ...".format(size=len(waiting_instances), state=state, sample=sample))
             time.sleep(3)
             # Update metadata for all instances in one shot. We don't want
             # to make a call to AWS for each of potentially hundreds of
