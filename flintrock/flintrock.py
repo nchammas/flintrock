@@ -162,7 +162,6 @@ def get_config_file() -> str:
 
 def configure_log(debug: bool):
     root_logger = logging.getLogger('flintrock')
-    import sys
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.DEBUG)
     if debug:
@@ -190,18 +189,19 @@ def cli(cli_context, config, provider, debug):
 
     A command-line tool for launching Apache Spark clusters.
     """
-    configure_log(debug=debug)
     cli_context.obj['provider'] = provider
 
     if os.path.isfile(config):
         with open(config) as f:
             config_raw = yaml.safe_load(f)
+            debug = config_raw.get('debug') or debug
             config_map = config_to_click(normalize_keys(config_raw))
 
         cli_context.default_map = config_map
     else:
         if config != get_config_file():
             raise FileNotFoundError(errno.ENOENT, 'No such file', config)
+    configure_log(debug=debug)
 
 
 @cli.command()

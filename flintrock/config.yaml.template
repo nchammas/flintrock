@@ -49,3 +49,5 @@ launch:
   num-slaves: 1
   # install-hdfs: True
   # install-spark: False
+
+debug: false
