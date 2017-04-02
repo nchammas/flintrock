@@ -4,6 +4,7 @@ import shlex
 import sys
 import textwrap
 import urllib.request
+import logging
 
 # External modules
 import paramiko
@@ -24,6 +25,9 @@ else:
     THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
+
+
+logger = logging.getLogger('flintrock.services')
 
 
 class FlintrockService:
@@ -112,7 +116,7 @@ class HDFS(FlintrockService):
             self,
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
-        print("[{h}] Installing HDFS...".format(
+        logger.info("[{h}] Installing HDFS...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
         with ssh_client.open_sftp() as sftp:
@@ -177,7 +181,7 @@ class HDFS(FlintrockService):
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
         host = ssh_client.get_transport().getpeername()[0]
-        print("[{h}] Configuring HDFS master...".format(h=host))
+        logger.info("[{h}] Configuring HDFS master...".format(h=host))
 
         ssh_check_output(
             client=ssh_client,
@@ -201,7 +205,7 @@ class HDFS(FlintrockService):
             print("HDFS health check failed.", file=sys.stderr)
             raise
 
-        print("HDFS online.")
+        logger.info("HDFS online.")
 
 
 class Spark(FlintrockService):
@@ -238,7 +242,7 @@ class Spark(FlintrockService):
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
 
-        print("[{h}] Installing Spark...".format(
+        logger.info("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
         try:
@@ -330,7 +334,7 @@ class Spark(FlintrockService):
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
         host = ssh_client.get_transport().getpeername()[0]
-        print("[{h}] Configuring Spark master...".format(h=host))
+        logger.info("[{h}] Configuring Spark master...".format(h=host))
 
         # TODO: Maybe move this shell script out to some separate file/folder
         #       for the Spark service.
@@ -365,7 +369,7 @@ class Spark(FlintrockService):
             raise
 
         # TODO: Don't print here. Return this and let the caller print.
-        print(textwrap.dedent(
+        logger.info(textwrap.dedent(
             """\
             Spark Health Report:
               * Master: {status}

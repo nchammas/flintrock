@@ -6,6 +6,7 @@ import posixpath
 import shlex
 import sys
 import time
+import logging
 from concurrent.futures import FIRST_EXCEPTION
 
 # External modules
@@ -23,6 +24,9 @@ else:
     THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
+
+
+logger = logging.getLogger('flintrock.core')
 
 
 class StorageDirs:
@@ -530,7 +534,7 @@ def ensure_java8(client: paramiko.client.SSHClient):
     java_major_version = get_java_major_version(client)
 
     if not java_major_version or java_major_version < (1, 8):
-        print("[{h}] Installing Java 1.8...".format(h=host))
+        logger.info("[{h}] Installing Java 1.8...".format(h=host))
 
         ssh_check_output(
             client=client,
@@ -583,7 +587,7 @@ def setup_node(
             localpath=os.path.join(SCRIPTS_DIR, 'setup-ephemeral-storage.py'),
             remotepath='/tmp/setup-ephemeral-storage.py')
 
-    print("[{h}] Configuring ephemeral storage...".format(h=host))
+    logger.info("[{h}] Configuring ephemeral storage...".format(h=host))
     # TODO: Print some kind of warning if storage is large, since formatting
     #       will take several minutes (~4 minutes for 2TB).
     storage_dirs_raw = ssh_check_output(
@@ -806,7 +810,7 @@ def run_command_node(*, user: str, host: str, identity_file: str, command: tuple
         host=host,
         identity_file=identity_file)
 
-    print("[{h}] Running command...".format(h=host))
+    logger.info("[{h}] Running command...".format(h=host))
 
     command_str = ' '.join(command)
 
@@ -815,7 +819,7 @@ def run_command_node(*, user: str, host: str, identity_file: str, command: tuple
             client=ssh_client,
             command=command_str)
 
-    print("[{h}] Command complete.".format(h=host))
+    logger.info("[{h}] Command complete.".format(h=host))
 
 
 def copy_file_node(
@@ -850,11 +854,11 @@ def copy_file_node(
             raise Exception("Remote directory does not exist: {d}".format(d=remote_dir))
 
         with ssh_client.open_sftp() as sftp:
-            print("[{h}] Copying file...".format(h=host))
+            logger.info("[{h}] Copying file...".format(h=host))
 
             sftp.put(localpath=local_path, remotepath=remote_path)
 
-            print("[{h}] Copy complete.".format(h=host))
+            logger.info("[{h}] Copy complete.".format(h=host))
 
 
 # This is necessary down here since we have a circular import dependency between
