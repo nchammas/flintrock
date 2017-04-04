@@ -214,6 +214,8 @@ def cli(cli_context, config, provider, debug):
               default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
               show_default=True)
 @click.option('--install-spark/--no-install-spark', default=True)
+@click.option('--spark-executor-instances', default=1,
+              help="How many executor instances per worker.")
 @click.option('--spark-version',
               default='2.1.0',
               help="Spark release version to install.")
@@ -272,6 +274,7 @@ def launch(
         hdfs_version,
         hdfs_download_source,
         install_spark,
+        spark_executor_instances,
         spark_version,
         spark_git_commit,
         spark_git_repository,
@@ -345,6 +348,7 @@ def launch(
     if install_spark:
         if spark_version:
             spark = Spark(
+                spark_executor_instances=spark_executor_instances,
                 version=spark_version,
                 hadoop_version=hdfs_version,
                 download_source=spark_download_source,
@@ -357,6 +361,7 @@ def launch(
                 spark_git_commit = get_latest_commit(spark_git_repository)
                 logger.info("Building Spark at latest commit: {c}".format(c=spark_git_commit))
             spark = Spark(
+                spark_executor_instances=spark_executor_instances,
                 git_commit=spark_git_commit,
                 git_repository=spark_git_repository,
                 hadoop_version=hdfs_version,

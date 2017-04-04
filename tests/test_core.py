@@ -22,6 +22,7 @@ def test_templates(dummy_cluster):
                     cluster=dummy_cluster,
                     hadoop_version='',
                     spark_version='',
+                    spark_executor_instances=0,
                 )
                 get_formatted_template(
                     path=template_path,
