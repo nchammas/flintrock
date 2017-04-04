@@ -3,7 +3,8 @@
 export SPARK_LOCAL_DIRS="{spark_root_ephemeral_dirs}"
 
 # Standalone cluster options
-export SPARK_EXECUTOR_INSTANCES="1"
+export SPARK_EXECUTOR_INSTANCES="{spark_executor_instances}"
+export SPARK_EXECUTOR_CORES="$(($(nproc) / {spark_executor_instances}))"
 export SPARK_WORKER_CORES="$(nproc)"
 
 export SPARK_MASTER_HOST="{master_host}"

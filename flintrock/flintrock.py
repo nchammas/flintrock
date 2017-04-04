@@ -214,6 +214,8 @@ def cli(cli_context, config, provider, debug):
               default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
               show_default=True)
 @click.option('--install-spark/--no-install-spark', default=True)
+@click.option('--spark-executor-instances', default=1,
+              help="How many executor instances per worker.")
 @click.option('--spark-version',
               default='2.1.0',
               help="Spark release version to install.")
@@ -246,6 +248,7 @@ def cli(cli_context, config, provider, debug):
               help="Additional security groups names to assign to the instances. "
                    "You can specify this option multiple times.")
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-subnet-id', default='')
 @click.option('--ec2-instance-profile-name', default='')
@@ -271,6 +274,7 @@ def launch(
         hdfs_version,
         hdfs_download_source,
         install_spark,
+        spark_executor_instances,
         spark_version,
         spark_git_commit,
         spark_git_repository,
@@ -285,6 +289,7 @@ def launch(
         ec2_user,
         ec2_security_groups,
         ec2_spot_price,
+        ec2_min_root_ebs_size_gb,
         ec2_vpc_id,
         ec2_subnet_id,
         ec2_instance_profile_name,
@@ -343,6 +348,7 @@ def launch(
     if install_spark:
         if spark_version:
             spark = Spark(
+                spark_executor_instances=spark_executor_instances,
                 version=spark_version,
                 hadoop_version=hdfs_version,
                 download_source=spark_download_source,
@@ -355,6 +361,7 @@ def launch(
                 spark_git_commit = get_latest_commit(spark_git_repository)
                 logger.info("Building Spark at latest commit: {c}".format(c=spark_git_commit))
             spark = Spark(
+                spark_executor_instances=spark_executor_instances,
                 git_commit=spark_git_commit,
                 git_repository=spark_git_repository,
                 hadoop_version=hdfs_version,
@@ -376,6 +383,7 @@ def launch(
             user=ec2_user,
             security_groups=ec2_security_groups,
             spot_price=ec2_spot_price,
+            min_root_ebs_size_gb=ec2_min_root_ebs_size_gb,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
             instance_profile_name=ec2_instance_profile_name,
@@ -646,6 +654,7 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-tag', 'ec2_tags',
               callback=ec2.cli_validate_tags,
@@ -662,6 +671,7 @@ def add_slaves(
         ec2_identity_file,
         ec2_user,
         ec2_spot_price,
+        ec2_min_root_ebs_size_gb,
         ec2_tags,
         assume_yes):
     """
@@ -689,6 +699,7 @@ def add_slaves(
         user = ec2_user
         identity_file = ec2_identity_file
         provider_options = {
+            'min_root_ebs_size_gb': ec2_min_root_ebs_size_gb,
             'spot_price': ec2_spot_price,
             'tags': ec2_tags
         }
