@@ -362,7 +362,7 @@ def launch(
         services += [spark]
 
     if provider == 'ec2':
-        return ec2.launch(
+        cluster = ec2.launch(
             cluster_name=cluster_name,
             num_slaves=num_slaves,
             services=services,
@@ -387,6 +387,9 @@ def launch(
             tags=ec2_tags)
     else:
         raise UnsupportedProviderError(provider)
+
+    print("Cluster master: {}".format(cluster.master_host))
+    print("Login with: flintrock login {}".format(cluster.name))
 
 
 def get_latest_commit(github_repository: str):
