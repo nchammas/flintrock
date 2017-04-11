@@ -209,21 +209,21 @@ def cli(cli_context, config, provider, debug):
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version',
-            # Don't set a default here because it may conflict with
-            # the config file.
-            # See: https://github.com/nchammas/flintrock/issues/190
-            #   default=
-)
+              # Don't set a default here because it may conflict with
+              # the config file.
+              # See: https://github.com/nchammas/flintrock/issues/190
+              # default=
+              )
 @click.option('--hdfs-download-source',
               help="URL to download Hadoop from.",
               default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
               show_default=True)
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-version',
-            # Don't set a default here because it may conflict with
-            # the config file.
-            # See: https://github.com/nchammas/flintrock/issues/190
-            #   default=,
+              # Don't set a default here because it may conflict with
+              # the config file.
+              # See: https://github.com/nchammas/flintrock/issues/190
+              # default=,
               help="Spark release version to install.")
 @click.option('--spark-download-source',
               help="URL to download a release of Spark from.",
