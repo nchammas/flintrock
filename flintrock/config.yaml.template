@@ -40,6 +40,7 @@ providers:
     #   - key1,value1
     #   - key2, value2  # leading/trailing spaces are trimmed
     #   - key3,  # value will be empty
+    # min-root-ebs-size-gb: <size-gb>
     tenancy: default  # default | dedicated
     ebs-optimized: no  # yes | no
     instance-initiated-shutdown-behavior: terminate  # terminate | stop
