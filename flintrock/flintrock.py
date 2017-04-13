@@ -254,6 +254,7 @@ def cli(cli_context, config, provider, debug):
               help="Additional security groups names to assign to the instances. "
                    "You can specify this option multiple times.")
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-subnet-id', default='')
 @click.option('--ec2-instance-profile-name', default='')
@@ -293,6 +294,7 @@ def launch(
         ec2_user,
         ec2_security_groups,
         ec2_spot_price,
+        ec2_min_root_ebs_size_gb,
         ec2_vpc_id,
         ec2_subnet_id,
         ec2_instance_profile_name,
@@ -384,6 +386,7 @@ def launch(
             user=ec2_user,
             security_groups=ec2_security_groups,
             spot_price=ec2_spot_price,
+            min_root_ebs_size_gb=ec2_min_root_ebs_size_gb,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
             instance_profile_name=ec2_instance_profile_name,
@@ -657,6 +660,7 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-tag', 'ec2_tags',
               callback=ec2.cli_validate_tags,
@@ -673,6 +677,7 @@ def add_slaves(
         ec2_identity_file,
         ec2_user,
         ec2_spot_price,
+        ec2_min_root_ebs_size_gb,
         ec2_tags,
         assume_yes):
     """
@@ -700,6 +705,7 @@ def add_slaves(
         user = ec2_user
         identity_file = ec2_identity_file
         provider_options = {
+            'min_root_ebs_size_gb': ec2_min_root_ebs_size_gb,
             'spot_price': ec2_spot_price,
             'tags': ec2_tags
         }
