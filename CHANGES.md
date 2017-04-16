@@ -4,7 +4,32 @@
 
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v0.8.0...master
 
-Nothing notable yet.
+### Added
+
+* [#178]: You can now see additional output during launch and other
+  operations with the new `--debug` option.
+* [#185]: Added a new mount point under `/media/tmp` that can be used
+  when `/tmp` is not big enough.
+* [#186]: You can now tag your clusters with arbitrary tags on launch
+  using the new `--ec2-tag` option. (Remember: As with all options,
+  you can also set this via `flintrock configure`.)
+* [#191]: You can now specify the size of the root EBS volume with the
+  new `--ec2-min-root-ebs-size-gb` option.
+
+[#178]: https://github.com/nchammas/flintrock/pull/178
+[#185]: https://github.com/nchammas/flintrock/pull/185
+[#186]: https://github.com/nchammas/flintrock/pull/186
+[#191]: https://github.com/nchammas/flintrock/pull/191
+
+### Changed
+
+* [#195]: After launching a new cluster, Flintrock now shows the
+  master address and login command.
+* [#196]: Fixed a bug that was preventing Flintrock from launching
+  Spark clusters at a specific commit.
+
+[#195]: https://github.com/nchammas/flintrock/pull/195
+[#196]: https://github.com/nchammas/flintrock/pull/196
 
 ## [0.8.0] - 2017-02-11
 
