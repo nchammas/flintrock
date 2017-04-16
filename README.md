@@ -13,6 +13,8 @@ Flintrock is a command-line tool for launching [Apache Spark](http://spark.apach
 
 ## Usage
 
+[![Join the chat at https://gitter.im/nchammas/flintrock](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/nchammas/flintrock?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS account set up](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/get-set-up-for-amazon-ec2.html).
 
 ```sh
