@@ -321,7 +321,7 @@ class Spark(FlintrockService):
                             mapping=generate_template_mapping(
                                 cluster=cluster,
                                 hadoop_version=self.hadoop_version,
-                                spark_version=self.version,
+                                spark_version=self.version or self.git_commit,
                             ))),
                     p=shlex.quote(template_path)))
 
