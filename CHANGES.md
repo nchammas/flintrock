@@ -25,11 +25,12 @@
 
 * [#195]: After launching a new cluster, Flintrock now shows the
   master address and login command.
-* [#196]: Fixed a bug that was preventing Flintrock from launching
-  Spark clusters at a specific commit.
+* [#196], [#197]: Fixed some bugs that were preventing Flintrock from
+  launching Spark clusters at a specific commit.
 
 [#195]: https://github.com/nchammas/flintrock/pull/195
 [#196]: https://github.com/nchammas/flintrock/pull/196
+[#197]: https://github.com/nchammas/flintrock/pull/197
 
 ## [0.8.0] - 2017-02-11
 

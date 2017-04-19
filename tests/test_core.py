@@ -1,4 +1,5 @@
 import os
+import pytest
 
 # Flintrock
 from flintrock.core import (
@@ -12,7 +13,13 @@ FLINTROCK_ROOT_DIR = (
             os.path.realpath(__file__))))
 
 
-def test_templates(dummy_cluster):
+@pytest.mark.parametrize(
+    'spark_version', [
+        (''),
+        ('2.1.1'),
+        ('0626b11147133b67b26a04b4819f61a33dd958d3'),
+    ])
+def test_templates(dummy_cluster, spark_version):
     template_dir = os.path.join(FLINTROCK_ROOT_DIR, 'flintrock', 'templates')
     for (dirpath, dirnames, filenames) in os.walk(template_dir):
         if filenames:
@@ -21,7 +28,7 @@ def test_templates(dummy_cluster):
                 mapping = generate_template_mapping(
                     cluster=dummy_cluster,
                     hadoop_version='',
-                    spark_version='',
+                    spark_version=spark_version,
                 )
                 get_formatted_template(
                     path=template_path,
