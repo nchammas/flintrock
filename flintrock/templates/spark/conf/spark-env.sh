@@ -8,6 +8,9 @@ export SPARK_WORKER_CORES="$(nproc)"
 
 export SPARK_MASTER_HOST="{master_host}"
 
+# Needed for spark 1.6.x
+export SPARK_MASTER_IP="{master_ip}"
+
 # TODO: Make this dependent on HDFS install.
 export HADOOP_CONF_DIR="$HOME/hadoop/conf"
 
