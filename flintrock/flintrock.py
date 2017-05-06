@@ -9,6 +9,7 @@ import textwrap
 import urllib.parse
 import urllib.request
 import warnings
+import logging
 
 # External modules
 import click
@@ -36,6 +37,9 @@ if FROZEN:
     THIS_DIR = sys._MEIPASS
 else:
     THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+
+
+logger = logging.getLogger('flintrock.flintrock')
 
 
 def format_message(*, message: str, indent: int=4, wrap: int=70):
@@ -156,6 +160,19 @@ def get_config_file() -> str:
     return config_file
 
 
+def configure_log(debug: bool):
+    root_logger = logging.getLogger('flintrock')
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    if debug:
+        root_logger.setLevel(logging.DEBUG)
+        handler.setFormatter(logging.Formatter('%(asctime)s - flintrock.%(module)-9s - %(levelname)-5s - %(message)s'))
+    else:
+        root_logger.setLevel(logging.INFO)
+        handler.setFormatter(logging.Formatter('%(message)s'))
+    root_logger.addHandler(handler)
+
+
 @click.group()
 @click.option(
     '--config',
@@ -163,8 +180,10 @@ def get_config_file() -> str:
     default=get_config_file())
 @click.option('--provider', default='ec2', type=click.Choice(['ec2']))
 @click.version_option(version=__version__)
+# TODO: implement some solution like in https://github.com/pallets/click/issues/108
+@click.option('--debug/--no-debug', default=False, help="Show debug information.")
 @click.pass_context
-def cli(cli_context, config, provider):
+def cli(cli_context, config, provider, debug):
     """
     Flintrock
 
@@ -175,19 +194,26 @@ def cli(cli_context, config, provider):
     if os.path.isfile(config):
         with open(config) as f:
             config_raw = yaml.safe_load(f)
+            debug = config_raw.get('debug') or debug
             config_map = config_to_click(normalize_keys(config_raw))
 
         cli_context.default_map = config_map
     else:
         if config != get_config_file():
             raise FileNotFoundError(errno.ENOENT, 'No such file', config)
+    configure_log(debug=debug)
 
 
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
-@click.option('--hdfs-version', default='2.7.3')
+@click.option('--hdfs-version',
+              # Don't set a default here because it may conflict with
+              # the config file.
+              # See: https://github.com/nchammas/flintrock/issues/190
+              # default=
+              )
 @click.option('--hdfs-download-source',
               help="URL to download Hadoop from.",
               default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
@@ -196,7 +222,10 @@ def cli(cli_context, config, provider):
 @click.option('--spark-executor-instances', default=1,
               help="How many executor instances per worker.")
 @click.option('--spark-version',
-              default='2.1.0',
+              # Don't set a default here because it may conflict with
+              # the config file.
+              # See: https://github.com/nchammas/flintrock/issues/190
+              # default=,
               help="Spark release version to install.")
 @click.option('--spark-download-source',
               help="URL to download a release of Spark from.",
@@ -227,6 +256,7 @@ def cli(cli_context, config, provider):
               help="Additional security groups names to assign to the instances. "
                    "You can specify this option multiple times.")
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-subnet-id', default='')
 @click.option('--ec2-instance-profile-name', default='')
@@ -238,6 +268,11 @@ def cli(cli_context, config, provider):
 @click.option('--ec2-user-data',
               type=click.File(mode='r', encoding='utf-8'),
               help="Path to EC2 user data script that will run on instance launch.")
+@click.option('--ec2-tag', 'ec2_tags',
+              callback=ec2.cli_validate_tags,
+              multiple=True,
+              help="Additional tags (e.g. 'Key,Value') to assign to the instances. "
+                   "You can specify this option multiple times.")
 @click.pass_context
 def launch(
         cli_context,
@@ -262,6 +297,7 @@ def launch(
         ec2_user,
         ec2_security_groups,
         ec2_spot_price,
+        ec2_min_root_ebs_size_gb,
         ec2_vpc_id,
         ec2_subnet_id,
         ec2_instance_profile_name,
@@ -269,7 +305,8 @@ def launch(
         ec2_tenancy,
         ec2_ebs_optimized,
         ec2_instance_initiated_shutdown_behavior,
-        ec2_user_data):
+        ec2_user_data,
+        ec2_tags):
     """
     Launch a new cluster.
     """
@@ -325,12 +362,12 @@ def launch(
                 download_source=spark_download_source,
             )
         elif spark_git_commit:
-            print(
+            logger.warning(
                 "Warning: Building Spark takes a long time. "
                 "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
             if spark_git_commit == 'latest':
                 spark_git_commit = get_latest_commit(spark_git_repository)
-                print("Building Spark at latest commit: {c}".format(c=spark_git_commit))
+                logger.info("Building Spark at latest commit: {c}".format(c=spark_git_commit))
             spark = Spark(
                 spark_executor_instances=spark_executor_instances,
                 git_commit=spark_git_commit,
@@ -340,7 +377,7 @@ def launch(
         services += [spark]
 
     if provider == 'ec2':
-        return ec2.launch(
+        cluster = ec2.launch(
             cluster_name=cluster_name,
             num_slaves=num_slaves,
             services=services,
@@ -354,6 +391,7 @@ def launch(
             user=ec2_user,
             security_groups=ec2_security_groups,
             spot_price=ec2_spot_price,
+            min_root_ebs_size_gb=ec2_min_root_ebs_size_gb,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
             instance_profile_name=ec2_instance_profile_name,
@@ -361,9 +399,13 @@ def launch(
             tenancy=ec2_tenancy,
             ebs_optimized=ec2_ebs_optimized,
             instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior,
-            user_data=ec2_user_data)
+            user_data=ec2_user_data,
+            tags=ec2_tags)
     else:
         raise UnsupportedProviderError(provider)
+
+    print("Cluster master: {}".format(cluster.master_host))
+    print("Login with: flintrock login {}".format(cluster.name))
 
 
 def get_latest_commit(github_repository: str):
@@ -422,7 +464,7 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region, ec2_vpc_id):
             text="Are you sure you want to destroy this cluster?",
             abort=True)
 
-    print("Destroying {c}...".format(c=cluster.name))
+    logger.info("Destroying {c}...".format(c=cluster.name))
     cluster.destroy()
 
 
@@ -472,21 +514,21 @@ def describe(
     if cluster_name:
         cluster = clusters[0]
         if master_hostname_only:
-            print(cluster.master_host)
+            logger.info(cluster.master_host)
         else:
             cluster.print()
     else:
         if master_hostname_only:
             for cluster in sorted(clusters, key=lambda x: x.name):
-                print(cluster.name + ':', cluster.master_host)
+                logger.info(cluster.name + ':', cluster.master_host)
         else:
-            print("Found {n} cluster{s}{space}{search_area}.".format(
+            logger.info("Found {n} cluster{s}{space}{search_area}.".format(
                 n=len(clusters),
                 s='' if len(clusters) == 1 else 's',
                 space=' ' if search_area else '',
                 search_area=search_area))
             if clusters:
-                print('---')
+                logger.info('---')
                 for cluster in sorted(clusters, key=lambda x: x.name):
                     cluster.print()
 
@@ -570,7 +612,7 @@ def start(cli_context, cluster_name, ec2_region, ec2_vpc_id, ec2_identity_file, 
         raise UnsupportedProviderError(provider)
 
     cluster.start_check()
-    print("Starting {c}...".format(c=cluster_name))
+    logger.info("Starting {c}...".format(c=cluster_name))
     cluster.start(user=user, identity_file=identity_file)
 
 
@@ -608,9 +650,9 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
             text="Are you sure you want to stop this cluster?",
             abort=True)
 
-    print("Stopping {c}...".format(c=cluster_name))
+    logger.info("Stopping {c}...".format(c=cluster_name))
     cluster.stop()
-    print("{c} is now stopped.".format(c=cluster_name))
+    logger.info("{c} is now stopped.".format(c=cluster_name))
 
 
 @cli.command(name='add-slaves')
@@ -623,7 +665,13 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--assume-yes/--no-assume-yes', default=False)
+@click.option('--ec2-tag', 'ec2_tags',
+              callback=ec2.cli_validate_tags,
+              multiple=True,
+              help="Additional tags (e.g. 'Key,Value') to assign to the instances. "
+                   "You can specify this option multiple times.")
 @click.pass_context
 def add_slaves(
         cli_context,
@@ -634,6 +682,8 @@ def add_slaves(
         ec2_identity_file,
         ec2_user,
         ec2_spot_price,
+        ec2_min_root_ebs_size_gb,
+        ec2_tags,
         assume_yes):
     """
     Add slaves to an existing cluster.
@@ -660,7 +710,9 @@ def add_slaves(
         user = ec2_user
         identity_file = ec2_identity_file
         provider_options = {
+            'min_root_ebs_size_gb': ec2_min_root_ebs_size_gb,
             'spot_price': ec2_spot_price,
+            'tags': ec2_tags
         }
     else:
         raise UnsupportedProviderError(provider)
@@ -731,7 +783,7 @@ def remove_slaves(
         raise UnsupportedProviderError(provider)
 
     if num_slaves > cluster.num_slaves:
-        print(
+        logger.warning(
             "Warning: Cluster has {c} slave{cs}. "
             "You asked to remove {n} slave{ns}."
             .format(
@@ -750,10 +802,10 @@ def remove_slaves(
                       s='' if num_slaves == 1 else 's')),
             abort=True)
 
-    print("Removing {n} slave{s}..."
-          .format(
-              n=num_slaves,
-              s='' if num_slaves == 1 else 's'))
+    logger.info("Removing {n} slave{s}..."
+                .format(
+                    n=num_slaves,
+                    s='' if num_slaves == 1 else 's'))
     cluster.remove_slaves(
         user=user,
         identity_file=identity_file,
@@ -814,7 +866,7 @@ def run_command(
 
     cluster.run_command_check()
 
-    print("Running command on {target}...".format(
+    logger.info("Running command on {target}...".format(
         target="master only" if master_only else "cluster"))
 
     cluster.run_command(
@@ -894,8 +946,8 @@ def copy_file(
         total_size_bytes = file_size_bytes * num_nodes
 
         if total_size_bytes > 10 ** 6:
-            print("WARNING:")
-            print(
+            logger.warning("WARNING:")
+            logger.warning(
                 format_message(
                     message="""\
                         You are trying to upload {total_size} bytes ({size} bytes x {count}
@@ -915,7 +967,7 @@ def copy_file(
                 default=True,
                 abort=True)
 
-    print("Copying file to {target}...".format(
+    logger.info("Copying file to {target}...".format(
         target="master only" if master_only else "cluster"))
 
     cluster.copy_file(
@@ -986,7 +1038,7 @@ def configure(cli_context, locate):
     config_file = get_config_file()
 
     if not os.path.isfile(config_file):
-        print("Initializing config file from template...")
+        logger.info("Initializing config file from template...")
         os.makedirs(os.path.dirname(config_file), exist_ok=True)
         shutil.copyfile(
             src=os.path.join(THIS_DIR, 'config.yaml.template'),
