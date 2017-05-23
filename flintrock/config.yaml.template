@@ -8,6 +8,7 @@ services:
     #   - Spark must be pre-built
     #   - must be a tar.gz file
     # download-source: "https://www.example.com/files/spark/{v}/spark-{v}.tar.gz"
+    # executor-instances: 1
   hdfs:
     version: 2.7.3
     # optional; defaults to download from a dynamically selected Apache mirror
