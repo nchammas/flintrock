@@ -15,11 +15,14 @@
   you can also set this via `flintrock configure`.)
 * [#191]: You can now specify the size of the root EBS volume with the
   new `--ec2-min-root-ebs-size-gb` option.
+* [#181]: You can now set the number of executors per worker with
+  `--spark-executor-instances`.
 
 [#178]: https://github.com/nchammas/flintrock/pull/178
 [#185]: https://github.com/nchammas/flintrock/pull/185
 [#186]: https://github.com/nchammas/flintrock/pull/186
 [#191]: https://github.com/nchammas/flintrock/pull/191
+[#181]: https://github.com/nchammas/flintrock/pull/181
 
 ### Changed
 
