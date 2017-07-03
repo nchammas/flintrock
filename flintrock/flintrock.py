@@ -218,6 +218,7 @@ def cli(cli_context, config, provider, debug):
               help="URL to download Hadoop from.",
               default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
               show_default=True)
+@click.option('--hdfs-config-path')
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-executor-instances', default=1,
               help="How many executor instances per worker.")
@@ -239,6 +240,7 @@ def cli(cli_context, config, provider, debug):
               help="Git repository to clone Spark from.",
               default='https://github.com/apache/spark',
               show_default=True)
+@click.option('--spark-config-path')
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-key-name')
 @click.option('--ec2-identity-file',
@@ -281,12 +283,14 @@ def launch(
         install_hdfs,
         hdfs_version,
         hdfs_download_source,
+        hdfs_config_path,
         install_spark,
         spark_executor_instances,
         spark_version,
         spark_git_commit,
         spark_git_repository,
         spark_download_source,
+        spark_config_path,
         assume_yes,
         ec2_key_name,
         ec2_identity_file,
@@ -351,7 +355,9 @@ def launch(
     check_external_dependency('ssh-keygen')
 
     if install_hdfs:
-        hdfs = HDFS(version=hdfs_version, download_source=hdfs_download_source)
+        hdfs = HDFS(version=hdfs_version,
+                    download_source=hdfs_download_source,
+                    config_path=hdfs_config_path)
         services += [hdfs]
     if install_spark:
         if spark_version:
@@ -360,6 +366,7 @@ def launch(
                 version=spark_version,
                 hadoop_version=hdfs_version,
                 download_source=spark_download_source,
+                config_path=spark_config_path
             )
         elif spark_git_commit:
             logger.warning(
@@ -373,6 +380,7 @@ def launch(
                 git_commit=spark_git_commit,
                 git_repository=spark_git_repository,
                 hadoop_version=hdfs_version,
+                config_path=spark_config_path
             )
         services += [spark]
 
