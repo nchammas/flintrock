@@ -355,9 +355,11 @@ def launch(
     check_external_dependency('ssh-keygen')
 
     if install_hdfs:
-        hdfs = HDFS(version=hdfs_version,
-                    download_source=hdfs_download_source,
-                    template_dir=hdfs_template_dir)
+        hdfs = HDFS(
+            version=hdfs_version,
+            download_source=hdfs_download_source,
+            template_dir=hdfs_template_dir
+        )
         services += [hdfs]
     if install_spark:
         if spark_version:
