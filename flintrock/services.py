@@ -111,7 +111,10 @@ class HDFS(FlintrockService):
         self.version = version
         self.download_source = download_source
         self.template_dir = template_dir
-        self.manifest = {'version': version, 'download_source': download_source}
+        self.manifest = {
+            'version': version,
+            'download_source': download_source,
+            'template_dir': template_dir}
 
     def install(
             self,
@@ -246,6 +249,7 @@ class Spark(FlintrockService):
             'spark_executor_instances': spark_executor_instances,
             'hadoop_version': hadoop_version,
             'download_source': download_source,
+            'template_dir': template_dir,
             'git_commit': git_commit,
             'git_repository': git_repository}
 
