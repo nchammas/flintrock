@@ -179,7 +179,7 @@ class HDFS(FlintrockService):
                                 spark_version='',
                                 spark_executor_instances=0,
                             ))),
-                    p=shlex.quote(os.path.join("hadoop/conf/",template_path))))
+                    p=shlex.quote(os.path.join("hadoop/conf/", template_path))))
 
     # TODO: Convert this into start_master() and split master- or slave-specific
     #       stuff out of configure() into configure_master() and configure_slave().
