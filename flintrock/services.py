@@ -107,9 +107,10 @@ class FlintrockService:
 
 
 class HDFS(FlintrockService):
-    def __init__(self, *, version, download_source):
+    def __init__(self, *, version, download_source, config_path):
         self.version = version
         self.download_source = download_source
+        self.config_path = config_path
         self.manifest = {'version': version, 'download_source': download_source}
 
     def install(
@@ -149,12 +150,17 @@ class HDFS(FlintrockService):
             cluster: FlintrockCluster):
         # TODO: os.walk() through these files.
         template_paths = [
-            'hadoop/conf/masters',
-            'hadoop/conf/slaves',
-            'hadoop/conf/hadoop-env.sh',
-            'hadoop/conf/core-site.xml',
-            'hadoop/conf/hdfs-site.xml',
+            'masters',
+            'slaves',
+            'hadoop-env.sh',
+            'core-site.xml',
+            'hdfs-site.xml',
         ]
+
+        # TODO: throw error if config folder / file can't be found
+        config_dir = self.config_path
+        if config_dir is None:
+            config_dir = os.path.join(THIS_DIR, "templates/hadoop/conf")
 
         for template_path in template_paths:
             ssh_check_output(
@@ -164,7 +170,7 @@ class HDFS(FlintrockService):
                 """.format(
                     f=shlex.quote(
                         get_formatted_template(
-                            path=os.path.join(THIS_DIR, "templates", template_path),
+                            path=os.path.join(config_dir, template_path),
                             mapping=generate_template_mapping(
                                 cluster=cluster,
                                 hadoop_version=self.version,
@@ -217,6 +223,7 @@ class Spark(FlintrockService):
         version: str=None,
         hadoop_version: str,
         download_source: str=None,
+        config_path: str=None,
         git_commit: str=None,
         git_repository: str=None
     ):
@@ -230,6 +237,7 @@ class Spark(FlintrockService):
         self.version = version
         self.hadoop_version = hadoop_version
         self.download_source = download_source
+        self.config_path = config_path
         self.git_commit = git_commit
         self.git_repository = git_repository
 
@@ -310,10 +318,15 @@ class Spark(FlintrockService):
             cluster: FlintrockCluster):
 
         template_paths = [
-            'spark/conf/spark-env.sh',
-            'spark/conf/slaves',
-            'spark/conf/spark-defaults.conf',
+            'spark-env.sh',
+            'slaves',
+            'spark-defaults.conf',
         ]
+
+        config_dir = self.config_path
+        if config_dir is None:
+            config_dir = os.path.join(THIS_DIR, "templates/spark/conf")
+
         for template_path in template_paths:
             ssh_check_output(
                 client=ssh_client,
@@ -322,7 +335,7 @@ class Spark(FlintrockService):
                 """.format(
                     f=shlex.quote(
                         get_formatted_template(
-                            path=os.path.join(THIS_DIR, "templates", template_path),
+                            path=os.path.join(config_dir, template_path),
                             mapping=generate_template_mapping(
                                 cluster=cluster,
                                 spark_executor_instances=self.spark_executor_instances,
