@@ -9,12 +9,22 @@ services:
     #   - must be a tar.gz file
     # download-source: "https://www.example.com/files/spark/{v}/spark-{v}.tar.gz"
     # executor-instances: 1
+    # template-dir: # folder containing spark configuration files:
+    #   - slaves
+    #   - spark-env.sh
+    #   - spark-defaults.conf
   hdfs:
     version: 2.7.3
     # optional; defaults to download from a dynamically selected Apache mirror
     #   - must contain a {v} template corresponding to the version
     #   - must be a .tar.gz file
     # download-source: "https://www.example.com/files/hadoop/{v}/hadoop-{v}.tar.gz"
+    # template-dir: # path to the folder containing the hadoop configuration files
+    #   - masters
+    #   - slaves
+    #   - hadoop-env.sh
+    #   - hdfs-site.xml
+    #   - core-site.xml
 
 provider: ec2
 
