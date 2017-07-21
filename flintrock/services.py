@@ -1,6 +1,7 @@
 import json
 import os
 import shlex
+import socket
 import sys
 import textwrap
 import urllib.request
@@ -342,24 +343,37 @@ class Spark(FlintrockService):
         host = ssh_client.get_transport().getpeername()[0]
         logger.info("[{h}] Configuring Spark master...".format(h=host))
 
-        # TODO: Maybe move this shell script out to some separate file/folder
-        #       for the Spark service.
-        # TODO: Add some timeout for waiting on master UI to come up.
-        ssh_check_output(
-            client=ssh_client,
-            command="""
-                spark/sbin/start-all.sh
+        # This loop is a band-aid for: https://github.com/nchammas/flintrock/issues/129
+        attempt_limit = 3
+        for attempt in range(attempt_limit):
+            try:
+                ssh_check_output(
+                    client=ssh_client,
+                    # Maybe move this shell script out to some separate
+                    # file/folder for the Spark service.
+                    command="""
+                        spark/sbin/start-all.sh
 
-                master_ui_response_code=0
-                while [ "$master_ui_response_code" -ne 200 ]; do
-                    sleep 1
-                    master_ui_response_code="$(
-                        curl --head --silent --output /dev/null \
-                             --write-out "%{{http_code}}" {m}:8080
-                    )"
-                done
-            """.format(
-                m=shlex.quote(cluster.master_host)))
+                        master_ui_response_code=0
+                        while [ "$master_ui_response_code" -ne 200 ]; do
+                            sleep 1
+                            master_ui_response_code="$(
+                                curl --head --silent --output /dev/null \
+                                    --write-out "%{{http_code}}" {m}:8080
+                            )"
+                        done
+                    """.format(
+                        m=shlex.quote(cluster.master_host)),
+                    timeout_seconds=90
+                )
+                break
+            except socket.timeout as e:
+                logger.warning(
+                    "Timed out waiting for master to come up.{}"
+                    .format(" Trying again..." if attempt < attempt_limit - 1 else "")
+                )
+        else:
+            raise Exception("Timed out waiting for master to come up.")
 
     def health_check(self, master_host: str):
         spark_master_ui = 'http://{m}:8080/json/'.format(m=master_host)

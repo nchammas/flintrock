@@ -104,14 +104,21 @@ def get_ssh_client(
     return client
 
 
-def ssh_check_output(client: paramiko.client.SSHClient, command: str):
+def ssh_check_output(
+        client: paramiko.client.SSHClient,
+        command: str,
+        timeout_seconds: int=None,
+    ):
     """
     Run a command via the provided SSH client and return the output captured
     on stdout.
 
     Raise an exception if the command returns a non-zero code.
     """
-    stdin, stdout, stderr = client.exec_command(command, get_pty=True)
+    stdin, stdout, stderr = client.exec_command(
+        command,
+        get_pty=True,
+        timeout=timeout_seconds)
 
     # NOTE: Paramiko doesn't clearly document this, but we must read() before
     #       calling recv_exit_status().
