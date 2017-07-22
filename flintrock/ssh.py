@@ -108,7 +108,7 @@ def ssh_check_output(
         client: paramiko.client.SSHClient,
         command: str,
         timeout_seconds: int=None,
-    ):
+):
     """
     Run a command via the provided SSH client and return the output captured
     on stdout.

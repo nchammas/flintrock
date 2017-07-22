@@ -4,6 +4,8 @@ import shlex
 import socket
 import sys
 import textwrap
+import time
+import urllib.error
 import urllib.request
 import logging
 
@@ -197,15 +199,32 @@ class HDFS(FlintrockService):
         # an up / not up signal.
         hdfs_master_ui = 'http://{m}:50070/webhdfs/v1/?op=GETCONTENTSUMMARY'.format(m=master_host)
 
-        try:
-            hdfs_ui_info = json.loads(  # noqa
-                urllib.request.urlopen(hdfs_master_ui).read().decode('utf-8'))
-        except Exception as e:
-            # TODO: Catch a more specific problem.
-            # TODO: Don't print to screen here. Raise the exception and let the
-            #       catcher decide on whether to print.
-            print("HDFS health check failed.", file=sys.stderr)
-            raise
+        attempt_limit = 3
+        for attempt in range(attempt_limit):
+            try:
+                json.loads(
+                    urllib.request
+                    .urlopen(hdfs_master_ui)
+                    .read()
+                    .decode('utf-8'))
+                break
+            except urllib.error.HTTPError as e:
+                if e.errno == 61:
+                    if attempt < attempt_limit - 1:
+                        waiting = " Waiting..."
+                        sleep_for = 120
+                    else:
+                        waiting = ""
+                        sleep_for = 0
+                    logger.warning(
+                        "HDFS master is not available.{}"
+                        .format(waiting)
+                    )
+                    time.sleep(sleep_for)
+                else:
+                    raise Exception("HDFS health check failed.") from e
+        else:
+            raise Exception("HDFS health check failed.")
 
         logger.info("HDFS online.")
 
