@@ -1,4 +1,5 @@
 import json
+import errno
 import os
 import shlex
 import socket
@@ -208,11 +209,11 @@ class HDFS(FlintrockService):
                     .read()
                     .decode('utf-8'))
                 break
-            except urllib.error.HTTPError as e:
-                if e.errno == 61:
+            except urllib.error.URLError as e:
+                if e.errno == errno.ECONNREFUSED:
                     if attempt < attempt_limit - 1:
                         waiting = " Waiting..."
-                        sleep_for = 120
+                        sleep_for = 30
                     else:
                         waiting = ""
                         sleep_for = 0
