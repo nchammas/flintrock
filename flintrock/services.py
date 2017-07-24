@@ -1,11 +1,9 @@
 import json
-import errno
 import os
 import shlex
 import socket
 import sys
 import textwrap
-import time
 import urllib.error
 import urllib.request
 import logging
@@ -191,41 +189,50 @@ class HDFS(FlintrockService):
         ssh_check_output(
             client=ssh_client,
             command="""
-                ./hadoop/bin/hdfs namenode -format -nonInteractive
-                ./hadoop/sbin/start-dfs.sh
+                ./hadoop/bin/hdfs namenode -format -nonInteractive || true
             """)
+
+        attempt_limit = 3
+        for attempt in range(attempt_limit):
+            try:
+                ssh_check_output(
+                    client=ssh_client,
+                    command="""
+                        ./hadoop/sbin/start-dfs.sh
+
+                        master_ui_response_code=0
+                        while [ "$master_ui_response_code" -ne 200 ]; do
+                            sleep 1
+                            master_ui_response_code="$(
+                                curl --head --silent --output /dev/null \
+                                    --write-out "%{{http_code}}" {m}:50070
+                            )"
+                        done
+                    """.format(m=shlex.quote(cluster.master_host)),
+                    timeout_seconds=90
+                )
+                break
+            except socket.timeout as e:
+                logger.warning(
+                    "Timed out waiting for HDFS master to come up.{}"
+                    .format(" Trying again..." if attempt < attempt_limit - 1 else "")
+                )
+        else:
+            raise Exception("Time out waiting for HDFS master to come up.")
 
     def health_check(self, master_host: str):
         # This info is not helpful as a detailed health check, but it gives us
         # an up / not up signal.
         hdfs_master_ui = 'http://{m}:50070/webhdfs/v1/?op=GETCONTENTSUMMARY'.format(m=master_host)
 
-        attempt_limit = 3
-        for attempt in range(attempt_limit):
-            try:
-                json.loads(
-                    urllib.request
-                    .urlopen(hdfs_master_ui)
-                    .read()
-                    .decode('utf-8'))
-                break
-            except urllib.error.URLError as e:
-                if e.errno == errno.ECONNREFUSED:
-                    if attempt < attempt_limit - 1:
-                        waiting = " Waiting..."
-                        sleep_for = 30
-                    else:
-                        waiting = ""
-                        sleep_for = 0
-                    logger.warning(
-                        "HDFS master is not available.{}"
-                        .format(waiting)
-                    )
-                    time.sleep(sleep_for)
-                else:
-                    raise Exception("HDFS health check failed.") from e
-        else:
-            raise Exception("HDFS health check failed.")
+        try:
+            json.loads(
+                urllib.request
+                .urlopen(hdfs_master_ui)
+                .read()
+                .decode('utf-8'))
+        except Exception as e:
+            raise Exception("HDFS health check failed.") from e
 
         logger.info("HDFS online.")
 
@@ -382,18 +389,17 @@ class Spark(FlintrockService):
                                     --write-out "%{{http_code}}" {m}:8080
                             )"
                         done
-                    """.format(
-                        m=shlex.quote(cluster.master_host)),
+                    """.format(m=shlex.quote(cluster.master_host)),
                     timeout_seconds=90
                 )
                 break
             except socket.timeout as e:
                 logger.warning(
-                    "Timed out waiting for master to come up.{}"
+                    "Timed out waiting for Spark master to come up.{}"
                     .format(" Trying again..." if attempt < attempt_limit - 1 else "")
                 )
         else:
-            raise Exception("Timed out waiting for master to come up.")
+            raise Exception("Timed out waiting for Spark master to come up.")
 
     def health_check(self, master_host: str):
         spark_master_ui = 'http://{m}:8080/json/'.format(m=master_host)
@@ -405,8 +411,7 @@ class Spark(FlintrockService):
             # TODO: Catch a more specific problem known to be related to Spark not
             #       being up; provide a slightly better error message, and don't
             #       dump a large stack trace on the user.
-            print("Spark health check failed.", file=sys.stderr)
-            raise
+            raise Exception("Spark health check failed.") from e
 
         # TODO: Don't print here. Return this and let the caller print.
         logger.info(textwrap.dedent(
