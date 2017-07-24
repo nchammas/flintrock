@@ -189,10 +189,11 @@ class HDFS(FlintrockService):
         ssh_check_output(
             client=ssh_client,
             command="""
-                # `|| true` because on restart this command will fail.
+                # `|| true` because on cluster restart this command will fail.
                 ./hadoop/bin/hdfs namenode -format -nonInteractive || true
             """)
 
+        # This loop is a band-aid for: https://github.com/nchammas/flintrock/issues/157
         attempt_limit = 3
         for attempt in range(attempt_limit):
             try:
