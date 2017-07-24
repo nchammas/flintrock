@@ -189,6 +189,7 @@ class HDFS(FlintrockService):
         ssh_check_output(
             client=ssh_client,
             command="""
+                # `|| true` because on restart this command will fail.
                 ./hadoop/bin/hdfs namenode -format -nonInteractive || true
             """)
 
