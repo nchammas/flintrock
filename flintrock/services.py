@@ -199,6 +199,7 @@ class HDFS(FlintrockService):
                 ssh_check_output(
                     client=ssh_client,
                     command="""
+                        ./hadoop/sbin/stop-dfs.sh
                         ./hadoop/sbin/start-dfs.sh
 
                         master_ui_response_code=0
@@ -214,7 +215,7 @@ class HDFS(FlintrockService):
                 )
                 break
             except socket.timeout as e:
-                logger.warning(
+                logger.debug(
                     "Timed out waiting for HDFS master to come up.{}"
                     .format(" Trying again..." if attempt < attempt_limit - 1 else "")
                 )
@@ -395,7 +396,7 @@ class Spark(FlintrockService):
                 )
                 break
             except socket.timeout as e:
-                logger.warning(
+                logger.debug(
                     "Timed out waiting for Spark master to come up.{}"
                     .format(" Trying again..." if attempt < attempt_limit - 1 else "")
                 )
