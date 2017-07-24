@@ -15,6 +15,7 @@ services:
     #   - must contain a {v} template corresponding to the version
     #   - must be a .tar.gz file
     # download-source: "https://www.example.com/files/hadoop/{v}/hadoop-{v}.tar.gz"
+    # download-source: "http://www-us.apache.org/dist/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz"
 
 provider: ec2
 
