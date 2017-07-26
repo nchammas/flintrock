@@ -5,7 +5,6 @@ import os
 import posixpath
 import shlex
 import sys
-import time
 import logging
 from concurrent.futures import FIRST_EXCEPTION
 
