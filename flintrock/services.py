@@ -3,7 +3,6 @@ import os
 import shlex
 import socket
 import sys
-import textwrap
 import urllib.error
 import urllib.request
 import logging
@@ -234,10 +233,9 @@ class HDFS(FlintrockService):
                 .urlopen(hdfs_master_ui)
                 .read()
                 .decode('utf-8'))
+            logger.info("HDFS online.")
         except Exception as e:
             raise Exception("HDFS health check failed.") from e
-
-        logger.info("HDFS online.")
 
 
 class Spark(FlintrockService):
@@ -408,24 +406,16 @@ class Spark(FlintrockService):
         spark_master_ui = 'http://{m}:8080/json/'.format(m=master_host)
 
         try:
-            spark_ui_info = json.loads(
-                urllib.request.urlopen(spark_master_ui).read().decode('utf-8'))
+            json.loads(
+                urllib.request
+                .urlopen(spark_master_ui)
+                .read()
+                .decode('utf-8')
+            )
+            # TODO: Don't print here. Return this and let the caller print.
+            logger.info("Spark online.")
         except Exception as e:
             # TODO: Catch a more specific problem known to be related to Spark not
             #       being up; provide a slightly better error message, and don't
             #       dump a large stack trace on the user.
             raise Exception("Spark health check failed.") from e
-
-        # TODO: Don't print here. Return this and let the caller print.
-        logger.info(textwrap.dedent(
-            """\
-            Spark Health Report:
-              * Master: {status}
-              * Workers: {workers}
-              * Cores: {cores}
-              * Memory: {memory:.1f} GB\
-            """.format(
-                status=spark_ui_info['status'],
-                workers=len(spark_ui_info['workers']),
-                cores=spark_ui_info['cores'],
-                memory=spark_ui_info['memory'] / 1024)))
