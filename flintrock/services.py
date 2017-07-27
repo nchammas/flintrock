@@ -193,7 +193,7 @@ class HDFS(FlintrockService):
             """)
 
         # This loop is a band-aid for: https://github.com/nchammas/flintrock/issues/157
-        attempt_limit = 10
+        attempt_limit = 3
         for attempt in range(attempt_limit):
             try:
                 ssh_check_output(
@@ -372,7 +372,7 @@ class Spark(FlintrockService):
         logger.info("[{h}] Configuring Spark master...".format(h=host))
 
         # This loop is a band-aid for: https://github.com/nchammas/flintrock/issues/129
-        attempt_limit = 10
+        attempt_limit = 3
         for attempt in range(attempt_limit):
             try:
                 ssh_check_output(
