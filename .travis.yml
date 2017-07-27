@@ -16,3 +16,5 @@ addons:
     paths:
       - '$(ls -1 dist/*.zip | tr "\n" ":")'
   s3_region: "us-east-1"
+notifications:
+  email: false

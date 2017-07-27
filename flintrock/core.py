@@ -462,7 +462,9 @@ def generate_template_mapping(
         'hadoop_version': hadoop_version,
         'hadoop_short_version': '.'.join(hadoop_version.split('.')[:2]),
         'spark_version': spark_version,
-        'spark_short_version': '.'.join(spark_version.split('.')[:2]),
+        'spark_short_version': '.'.join(spark_version.split('.')[:2]) if '.' in spark_version else spark_version,
+
+        'spark_executor_instances': spark_executor_instances,
 
         'spark_executor_instances': spark_executor_instances,
 
