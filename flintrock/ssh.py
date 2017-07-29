@@ -96,6 +96,12 @@ def get_ssh_client(
         except paramiko.ssh_exception.AuthenticationException as e:
             logger.debug("[{h}] SSH AuthenticationException.".format(h=host))
             time.sleep(5)
+        except paramiko.ssh_exception.SSHException as e:
+            raise SSHError(
+                host=host,
+                message="SSH protocol error. Possible causes include using "
+                "the wrong key file or username.",
+            ) from e
     else:
         raise SSHError(
             host=host,
