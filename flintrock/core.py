@@ -466,8 +466,6 @@ def generate_template_mapping(
 
         'spark_executor_instances': spark_executor_instances,
 
-        'spark_executor_instances': spark_executor_instances,
-
         'hadoop_root_dir': hadoop_root_dir,
         'hadoop_ephemeral_dirs': hadoop_ephemeral_dirs,
         'spark_root_dir': spark_root_dir,
