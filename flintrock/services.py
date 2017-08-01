@@ -309,13 +309,6 @@ class Spark(FlintrockService):
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
 
-        mapping = generate_template_mapping(
-            cluster=cluster,
-            spark_executor_instances=self.spark_executor_instances,
-            hadoop_version=self.hadoop_version,
-            spark_version=self.version,
-        )
-
         template_paths = [
             'spark/conf/spark-env.sh',
             'spark/conf/slaves',
@@ -330,7 +323,12 @@ class Spark(FlintrockService):
                     f=shlex.quote(
                         get_formatted_template(
                             path=os.path.join(THIS_DIR, "templates", template_path),
-                            mapping=mapping)),
+                            mapping=generate_template_mapping(
+                                cluster=cluster,
+                                spark_executor_instances=self.spark_executor_instances,
+                                hadoop_version=self.hadoop_version,
+                                spark_version=self.version or self.git_commit,
+                            ))),
                     p=shlex.quote(template_path)))
 
     # TODO: Convert this into start_master() and split master- or slave-specific

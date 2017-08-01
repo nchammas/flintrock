@@ -18,10 +18,10 @@ Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
-    --spark-version 2.1.0 \
+    --spark-version 2.2.0 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
-    --ec2-ami ami-0b33d91d \
+    --ec2-ami ami-a4c7edb2 \
     --ec2-user ec2-user
 ```
 
@@ -220,7 +220,7 @@ provider: ec2
 
 services:
   spark:
-    version: 2.1.0
+    version: 2.2.0
 
 launch:
   num-slaves: 1
@@ -231,7 +231,7 @@ providers:
     identity-file: /path/to/.ssh/key.pem
     instance-type: m3.medium
     region: us-east-1
-    ami: ami-0b33d91d
+    ami: ami-a4c7edb2
     user: ec2-user
 ```
 

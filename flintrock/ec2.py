@@ -952,6 +952,8 @@ def launch(
             services=services,
             user=user,
             identity_file=identity_file)
+
+        return cluster
     except (Exception, KeyboardInterrupt) as e:
         if isinstance(e, InterruptedEC2Operation):
             cleanup_instances = e.instances
