@@ -7,6 +7,7 @@ import base64
 import logging
 from collections import namedtuple
 from datetime import datetime
+from itertools import groupby
 
 # External modules
 import boto3
@@ -78,6 +79,15 @@ class EC2Cluster(FlintrockCluster):
             return [self.master_instance] + self.slave_instances
         else:
             return self.slave_instances
+
+    @property
+    def slave_groups(self):
+        def tags_to_dict(tags: list) -> dict:
+            return dict((t['Key'], t['Value']) for t in tags)
+
+        group_id_keyfunc = lambda x: tags_to_dict(x.tags).get('flintrock-slave-group-id', '<no group>')
+        return dict((i[0], list(i[1]))
+                    for i in groupby(sorted(self.slave_instances, key=group_id_keyfunc), key=group_id_keyfunc))
 
     @property
     def master_ip(self):
@@ -242,6 +252,7 @@ class EC2Cluster(FlintrockCluster):
             num_slaves: int,
             spot_price: float,
             min_root_ebs_size_gb: int,
+            slave_group_id: str,
             tags: list,
             assume_yes: bool):
         security_group_ids = [
@@ -299,6 +310,7 @@ class EC2Cluster(FlintrockCluster):
 
             slave_tags = [
                 {'Key': 'flintrock-role', 'Value': 'slave'},
+                {'Key': 'flintrock-slave-group-id', 'Value': slave_group_id},
                 {'Key': 'Name', 'Value': '{c}-slave'.format(c=self.name)}]
             slave_tags += tags
 
@@ -333,14 +345,20 @@ class EC2Cluster(FlintrockCluster):
             raise
 
     @timeit
-    def remove_slaves(self, *, user: str, identity_file: str, num_slaves: int):
+    def remove_slaves(self, *, user: str, identity_file: str, num_slaves: int, slave_group_id: str):
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
 
         # self.remove_slaves_check() (?)
 
+        # Get instances from the specified slave group
+        if slave_group_id:
+            _filtered = self.slave_groups.get(slave_group_id, [])
+        else:
+            _filtered = self.slave_instances
+
         # Remove spot instances first, if any.
         _instances = sorted(
-            self.slave_instances,
+            _filtered,
             key=lambda x: x.instance_lifecycle == 'spot',
             reverse=True)
         removed_slave_instances, self.slave_instances = \
@@ -415,10 +433,12 @@ class EC2Cluster(FlintrockCluster):
         print('  node-count: {nc}'.format(nc=len(self.instances)))
         if self.state == 'running':
             print('  master:', self.master_host if self.num_masters > 0 else '')
-            print(
-                '\n    - '.join(
-                    ['  slaves:'] + (self.slave_hosts if self.num_slaves > 0 else [])))
+            print('  slaves:')
+            for (group, instances) in self.slave_groups.items():
+                print('    {}:'.format(group or '<no group>'))
+                print('\n'.join('      - {}'.format(i.public_dns_name) for i in instances))
         # print('...')
+
 
 
 def get_default_vpc(region: str) -> 'boto3.resources.factory.ec2.Vpc':
@@ -830,6 +850,7 @@ def launch(
         tenancy='default',
         ebs_optimized=False,
         instance_initiated_shutdown_behavior='stop',
+        slave_group_id,
         user_data,
         tags):
     """
@@ -927,6 +948,7 @@ def launch(
 
         slave_tags = [
             {'Key': 'flintrock-role', 'Value': 'slave'},
+            {'Key': 'flintrock-slave-group-id', 'Value': slave_group_id},
             {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]
         slave_tags += tags
 
