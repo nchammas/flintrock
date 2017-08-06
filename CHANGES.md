@@ -30,10 +30,17 @@
   master address and login command.
 * [#196], [#197]: Fixed some bugs that were preventing Flintrock from
   launching Spark clusters at a specific commit.
+* [#204]: Flintrock now automatically retries starting the Spark and
+  HDFS masters if it encounters common issues with bringing the
+  cluster up. This greatly improves launch and restart reliability.
+* [#208]: Flintrock now provides a hint with possible causes for
+  certain SSH errors.
 
 [#195]: https://github.com/nchammas/flintrock/pull/195
 [#196]: https://github.com/nchammas/flintrock/pull/196
 [#197]: https://github.com/nchammas/flintrock/pull/197
+[#204]: https://github.com/nchammas/flintrock/pull/204
+[#208]: https://github.com/nchammas/flintrock/pull/208
 
 ## [0.8.0] - 2017-02-11
 
