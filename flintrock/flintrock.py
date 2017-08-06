@@ -207,6 +207,8 @@ def cli(cli_context, config, provider, debug):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
+@click.option('--slave-group-id', default='',
+              help="Give the group of slave instances to be created an ID, which can be used to remove them later")
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version',
               # Don't set a default here because it may conflict with
@@ -277,6 +279,7 @@ def cli(cli_context, config, provider, debug):
 def launch(
         cli_context,
         cluster_name,
+        slave_group_id,
         num_slaves,
         install_hdfs,
         hdfs_version,
@@ -400,6 +403,7 @@ def launch(
             ebs_optimized=ec2_ebs_optimized,
             instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior,
             user_data=ec2_user_data,
+            slave_group_id=slave_group_id,
             tags=ec2_tags)
     else:
         raise UnsupportedProviderError(provider)
@@ -657,6 +661,8 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 
 @cli.command(name='add-slaves')
 @click.argument('cluster-name')
+@click.option('--slave-group-id', default='',
+              help="Give the group of slave instances to be created an ID, which can be used to remove them later")
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
@@ -677,6 +683,7 @@ def add_slaves(
         cli_context,
         cluster_name,
         num_slaves,
+        slave_group_id,
         ec2_region,
         ec2_vpc_id,
         ec2_identity_file,
@@ -734,12 +741,15 @@ def add_slaves(
             user=user,
             identity_file=identity_file,
             num_slaves=num_slaves,
+            slave_group_id=slave_group_id,
             assume_yes=assume_yes,
             **provider_options)
 
 
 @cli.command(name='remove-slaves')
 @click.argument('cluster-name')
+@click.option('--slave-group-id', default='',
+              help="Give the group of slave instances to be created an ID, which can be used to remove them later")
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
@@ -752,6 +762,7 @@ def add_slaves(
 def remove_slaves(
         cli_context,
         cluster_name,
+        slave_group_id,
         num_slaves,
         ec2_region,
         ec2_vpc_id,
@@ -782,34 +793,43 @@ def remove_slaves(
     else:
         raise UnsupportedProviderError(provider)
 
-    if num_slaves > cluster.num_slaves:
-        logger.warning(
-            "Warning: Cluster has {c} slave{cs}. "
-            "You asked to remove {n} slave{ns}."
-            .format(
-                c=cluster.num_slaves,
-                cs='' if cluster.num_slaves == 1 else 's',
-                n=num_slaves,
-                ns='' if num_slaves == 1 else 's'))
-        num_slaves = cluster.num_slaves
+    if slave_group_id:
+        slaves = cluster.slave_groups.get(slave_group_id, [])
+    else:
+        slaves = cluster.slave_instances
 
-    if not assume_yes:
-        cluster.print()
-        click.confirm(
-            text=("Are you sure you want to remove {n} slave{s} from this cluster?"
-                  .format(
-                      n=num_slaves,
-                      s='' if num_slaves == 1 else 's')),
-            abort=True)
+    if len(slaves) > 0:
 
-    logger.info("Removing {n} slave{s}..."
-                .format(
+        if num_slaves > len(slaves):
+            logger.warning(
+                "Warning: Cluster has {c} slave{cs}{g}. "
+                "You asked to remove {n} slave{ns}.".format(
+                    c=len(slaves),
+                    cs='' if cluster.num_slaves == 1 else 's',
+                    g=' in group "{}"'.format(slave_group_id) if slave_group_id else '',
                     n=num_slaves,
-                    s='' if num_slaves == 1 else 's'))
-    cluster.remove_slaves(
-        user=user,
-        identity_file=identity_file,
-        num_slaves=num_slaves)
+                    ns='' if num_slaves == 1 else 's'))
+            num_slaves = len(slaves)
+        if not assume_yes:
+            cluster.print()
+            click.confirm(
+                text=("Are you sure you want to remove {n} slave{s} from this {corg}?".format(
+                    n=num_slaves,
+                    s='' if num_slaves == 1 else 's',
+                    corg='group' if slave_group_id else 'cluster')),
+                abort=True)
+
+        logger.info("Removing {n} slave{s}..."
+                    .format(
+                        n=num_slaves,
+                        s='' if num_slaves == 1 else 's'))
+        cluster.remove_slaves(
+            user=user,
+            identity_file=identity_file,
+            num_slaves=num_slaves,
+            slave_group_id=slave_group_id)
+    else:
+        logger.warning("There are no slaves in this {corg}!".format(corg='group' if slave_group_id else 'cluster'))
 
 
 @cli.command(name='run-command')
