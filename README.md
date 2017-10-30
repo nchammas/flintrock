@@ -73,7 +73,7 @@ these steps:
    better performance.
 3. Make sure Flintrock is configured to use Hadoop/HDFS 2.7+. Earlier
    versions of Hadoop do not have solid implementations of `s3a://`.
-   Flintrock's default is Hadoop 2.7.3, so you don't need to do anything
+   Flintrock's default is Hadoop 2.7.4, so you don't need to do anything
    here if you're using a vanilla configuration.
 
 With this approach you don't need to copy around your AWS credentials
