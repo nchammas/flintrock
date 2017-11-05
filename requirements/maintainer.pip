@@ -2,4 +2,4 @@
 wheel >= 0.30.0
 twine >= 1.9.1
 pypandoc >= 1.4
-PyInstaller == 3.2
+PyInstaller == 3.3
