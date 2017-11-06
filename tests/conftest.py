@@ -19,6 +19,12 @@ class Dummy():
     pass
 
 
+aws_credentials_required = (
+    pytest.mark.skipif(
+        not bool(os.environ.get('USE_AWS_CREDENTIALS')),
+        reason="USE_AWS_CREDENTIALS not set"))
+
+
 @pytest.fixture(scope='session')
 def dummy_cluster():
     storage_dirs = StorageDirs(

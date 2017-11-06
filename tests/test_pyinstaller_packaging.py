@@ -4,6 +4,8 @@ import shutil
 import subprocess
 import sys
 
+from conftest import aws_credentials_required
+
 # External modules
 import pytest
 
@@ -46,6 +48,7 @@ def test_pyinstaller_flintrock_help(pyinstaller_flintrock):
 
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python 3.5+ is required")
 @pytest.mark.skipif(not pyinstaller_exists(), reason="PyInstaller is required")
+@aws_credentials_required
 def test_pyinstaller_flintrock_describe(pyinstaller_flintrock):
     # This test picks up some PyInstaller packaging issues that are not
     # exposed by the help test.

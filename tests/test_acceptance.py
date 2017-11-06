@@ -4,6 +4,9 @@ import urllib.request
 
 # Flintrock modules
 from flintrock.exceptions import ClusterInvalidState
+from conftest import aws_credentials_required
+
+pytestmark = aws_credentials_required
 
 
 def test_describe_stopped_cluster(stopped_cluster):
