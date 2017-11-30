@@ -329,6 +329,11 @@ def launch(
             '--spark-git-commit'],
         scope=locals())
     option_requires(
+        option='--install-spark',
+        requires_all=[
+            '--hdfs-version'],
+        scope=locals())
+    option_requires(
         option='--provider',
         conditional_value='ec2',
         requires_all=[
