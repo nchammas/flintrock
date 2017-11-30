@@ -208,12 +208,7 @@ def cli(cli_context, config, provider, debug):
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
-@click.option('--hdfs-version',
-              # Don't set a default here because it may conflict with
-              # the config file.
-              # See: https://github.com/nchammas/flintrock/issues/190
-              # default=
-              )
+@click.option('--hdfs-version', default='2.7.4')
 @click.option('--hdfs-download-source',
               help="URL to download Hadoop from.",
               default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
@@ -222,8 +217,8 @@ def cli(cli_context, config, provider, debug):
 @click.option('--spark-executor-instances', default=1,
               help="How many executor instances per worker.")
 @click.option('--spark-version',
-              # Don't set a default here because it may conflict with
-              # the config file.
+              # Don't set a default here because it will conflict with
+              # the config file if the git commit is set.
               # See: https://github.com/nchammas/flintrock/issues/190
               # default=,
               help="Spark release version to install.")
