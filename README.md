@@ -221,6 +221,9 @@ provider: ec2
 services:
   spark:
     version: 2.2.0
+    
+  hdfs:
+    version: 2.7.3
 
 launch:
   num-slaves: 1
@@ -233,6 +236,7 @@ providers:
     region: us-east-1
     ami: ami-a4c7edb2
     user: ec2-user
+    # user: ubuntu 
 ```
 
 With a config file like that, you can now launch a cluster with just this:
