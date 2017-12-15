@@ -437,8 +437,9 @@ def get_latest_commit(github_repository: str):
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
+@click.option('--no-wait', default=False)
 @click.pass_context
-def destroy(cli_context, cluster_name, assume_yes, ec2_region, ec2_vpc_id):
+def destroy(cli_context, cluster_name, assume_yes, ec2_region, ec2_vpc_id, no_wait):
     """
     Destroy a cluster.
     """
@@ -466,6 +467,9 @@ def destroy(cli_context, cluster_name, assume_yes, ec2_region, ec2_vpc_id):
 
     logger.info("Destroying {c}...".format(c=cluster.name))
     cluster.destroy()
+
+    if not no_wait:
+        cluster.wait_for_state('terminated')
 
 
 @cli.command()
