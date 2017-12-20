@@ -179,6 +179,7 @@ class EC2Cluster(FlintrockCluster):
                     {'Name': 'instance-id', 'Values': [i.id for i in self.instances]}
                 ])
             .terminate())
+        self.wait_for_state('terminated')
 
     def start_check(self):
         if self.state == 'running':
