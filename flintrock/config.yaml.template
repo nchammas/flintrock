@@ -1,6 +1,6 @@
 services:
   spark:
-    version: 2.0.2
+    version: 2.2.0
     # git-commit: latest  # if not 'latest', provide a full commit SHA; e.g. d6dc12ef0146ae409834c78737c116050961f350
     # git-repository:  # optional; defaults to https://github.com/apache/spark
     # optional; defaults to download from from the official Spark S3 bucket
@@ -8,12 +8,14 @@ services:
     #   - Spark must be pre-built
     #   - must be a tar.gz file
     # download-source: "https://www.example.com/files/spark/{v}/spark-{v}.tar.gz"
+    # executor-instances: 1
   hdfs:
-    version: 2.7.3
+    version: 2.7.4
     # optional; defaults to download from a dynamically selected Apache mirror
     #   - must contain a {v} template corresponding to the version
     #   - must be a .tar.gz file
     # download-source: "https://www.example.com/files/hadoop/{v}/hadoop-{v}.tar.gz"
+    # download-source: "http://www-us.apache.org/dist/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz"
 
 provider: ec2
 
@@ -24,7 +26,7 @@ providers:
     instance-type: m3.medium
     region: us-east-1
     # availability-zone: <name>
-    ami: ami-b73b63a0   # Amazon Linux, us-east-1
+    ami: ami-a4c7edb2   # Amazon Linux, us-east-1
     user: ec2-user
     # ami: ami-61bbf104   # CentOS 7, us-east-1
     # user: centos
@@ -36,6 +38,11 @@ providers:
     #   - group-name1
     #   - group-name2
     # instance-profile-name:
+    # tags:
+    #   - key1,value1
+    #   - key2, value2  # leading/trailing spaces are trimmed
+    #   - key3,  # value will be empty
+    # min-root-ebs-size-gb: <size-gb>
     tenancy: default  # default | dedicated
     ebs-optimized: no  # yes | no
     instance-initiated-shutdown-behavior: terminate  # terminate | stop
@@ -45,3 +52,5 @@ launch:
   num-slaves: 1
   # install-hdfs: True
   # install-spark: False
+
+debug: false

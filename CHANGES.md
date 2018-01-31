@@ -2,9 +2,85 @@
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/nchammas/flintrock/compare/v0.7.0...master
+[Unreleased]: https://github.com/nchammas/flintrock/compare/v0.9.0...master
 
 Nothing notable yet.
+
+## [0.9.0] - 2017-08-06
+
+[0.9.0]: https://github.com/nchammas/flintrock/compare/v0.8.0...v0.9.0
+
+### Added
+
+* [#178]: You can now see additional output during launch and other
+  operations with the new `--debug` option.
+* [#185]: Added a new mount point under `/media/tmp` that can be used
+  when `/tmp` is not big enough.
+* [#186]: You can now tag your clusters with arbitrary tags on launch
+  using the new `--ec2-tag` option. (Remember: As with all options,
+  you can also set this via `flintrock configure`.)
+* [#191]: You can now specify the size of the root EBS volume with the
+  new `--ec2-min-root-ebs-size-gb` option.
+* [#181]: You can now set the number of executors per worker with
+  `--spark-executor-instances`.
+
+[#178]: https://github.com/nchammas/flintrock/pull/178
+[#185]: https://github.com/nchammas/flintrock/pull/185
+[#186]: https://github.com/nchammas/flintrock/pull/186
+[#191]: https://github.com/nchammas/flintrock/pull/191
+[#181]: https://github.com/nchammas/flintrock/pull/181
+
+### Changed
+
+* [#195]: After launching a new cluster, Flintrock now shows the
+  master address and login command.
+* [#196], [#197]: Fixed some bugs that were preventing Flintrock from
+  launching Spark clusters at a specific commit.
+* [#204]: Flintrock now automatically retries starting the Spark and
+  HDFS masters if it encounters common issues with bringing the
+  cluster up. This greatly improves launch and restart reliability.
+* [#208]: Flintrock now provides a hint with possible causes for
+  certain SSH errors.
+
+[#195]: https://github.com/nchammas/flintrock/pull/195
+[#196]: https://github.com/nchammas/flintrock/pull/196
+[#197]: https://github.com/nchammas/flintrock/pull/197
+[#204]: https://github.com/nchammas/flintrock/pull/204
+[#208]: https://github.com/nchammas/flintrock/pull/208
+
+## [0.8.0] - 2017-02-11
+
+[0.8.0]: https://github.com/nchammas/flintrock/compare/v0.7.0...v0.8.0
+
+### Added
+
+* [#180]: Accessing data on S3 from your Flintrock cluster is now much
+  easier! Just configure Flintrock to use Hadoop 2.7+ (which is the
+  default) and an appropriate IAM role, and you'll be able to access
+  paths on S3 using the new `s3a://` prefix. [Check the README] for
+  more information.
+* [#176], [#187]: Flintrock now supports users with non-standard home
+  directories.
+
+[#180]: https://github.com/nchammas/flintrock/pull/180
+[#176]: https://github.com/nchammas/flintrock/pull/176
+[#187]: https://github.com/nchammas/flintrock/pull/187
+[Check the README]: https://github.com/nchammas/flintrock/tree/v0.8.0#accessing-data-on-s3
+
+### Changed
+
+* [#168]: Flintrock now does a better job of cleaning up after
+  interrupted operations.
+* [#179], [#184]: Flintrock can now clean up malformed Flintrock
+  clusters.
+* [`6b426ae`]: We fixed an issue affecting some users of Flintrock's
+  standalone package that caused Flintrock to intermittently throw
+  `ImportError`s.
+
+[#168]: https://github.com/nchammas/flintrock/pull/168
+[#179]: https://github.com/nchammas/flintrock/pull/179
+[#184]: https://github.com/nchammas/flintrock/pull/184
+[`6b426ae`]: https://github.com/nchammas/flintrock/commit/6b426aedc7e92b434021cc09c6e7eb181fca7eef
 
 ## [0.7.0] - 2016-11-15
 

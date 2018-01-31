@@ -4,15 +4,20 @@ import socket
 import subprocess
 import tempfile
 import time
+import logging
 from collections import namedtuple
 
 # External modules
 import paramiko
 
 # Flintrock modules
+from .util import get_subprocess_env
 from .exceptions import SSHError
 
 SSHKeyPair = namedtuple('KeyPair', ['public', 'private'])
+
+
+logger = logging.getLogger('flintrock.ssh')
 
 
 def generate_ssh_key_pair() -> SSHKeyPair:
@@ -21,13 +26,17 @@ def generate_ssh_key_pair() -> SSHKeyPair:
     communication.
     """
     with tempfile.TemporaryDirectory() as tempdir:
-        subprocess.check_call([
-            'ssh-keygen',
-            '-q',
-            '-t', 'rsa',
-            '-N', '',
-            '-f', os.path.join(tempdir, 'flintrock_rsa'),
-            '-C', 'flintrock'])
+        subprocess.check_call(
+            [
+                'ssh-keygen',
+                '-q',
+                '-t', 'rsa',
+                '-N', '',
+                '-f', os.path.join(tempdir, 'flintrock_rsa'),
+                '-C', 'flintrock',
+            ],
+            env=get_subprocess_env(),
+        )
 
         with open(file=os.path.join(tempdir, 'flintrock_rsa')) as private_key_file:
             private_key = private_key_file.read()
@@ -72,18 +81,27 @@ def get_ssh_client(
                 look_for_keys=False,
                 timeout=3)
             if print_status:
-                print("[{h}] SSH online.".format(h=host))
+                logger.info("[{h}] SSH online.".format(h=host))
             break
         except socket.timeout as e:
+            logger.debug("[{h}] SSH timeout.".format(h=host))
             time.sleep(5)
         except paramiko.ssh_exception.NoValidConnectionsError as e:
             if any(error.errno != errno.ECONNREFUSED for error in e.errors.values()):
                 raise
+            logger.debug("[{h}] SSH exception: {e}".format(h=host, e=e))
             time.sleep(5)
         # We get this exception during startup with CentOS but not Amazon Linux,
         # for some reason.
         except paramiko.ssh_exception.AuthenticationException as e:
+            logger.debug("[{h}] SSH AuthenticationException.".format(h=host))
             time.sleep(5)
+        except paramiko.ssh_exception.SSHException as e:
+            raise SSHError(
+                host=host,
+                message="SSH protocol error. Possible causes include using "
+                "the wrong key file or username.",
+            ) from e
     else:
         raise SSHError(
             host=host,
@@ -92,14 +110,21 @@ def get_ssh_client(
     return client
 
 
-def ssh_check_output(client: paramiko.client.SSHClient, command: str):
+def ssh_check_output(
+        client: paramiko.client.SSHClient,
+        command: str,
+        timeout_seconds: int=None,
+):
     """
     Run a command via the provided SSH client and return the output captured
     on stdout.
 
     Raise an exception if the command returns a non-zero code.
     """
-    stdin, stdout, stderr = client.exec_command(command, get_pty=True)
+    stdin, stdout, stderr = client.exec_command(
+        command,
+        get_pty=True,
+        timeout=timeout_seconds)
 
     # NOTE: Paramiko doesn't clearly document this, but we must read() before
     #       calling recv_exit_status().
@@ -124,8 +149,12 @@ def ssh(*, user: str, host: str, identity_file: str):
     """
     SSH into a host for interactive use.
     """
-    ret = subprocess.call([
-        'ssh',
-        '-o', 'StrictHostKeyChecking=no',
-        '-i', identity_file,
-        '{u}@{h}'.format(u=user, h=host)])
+    subprocess.call(
+        [
+            'ssh',
+            '-o', 'StrictHostKeyChecking=no',
+            '-i', identity_file,
+            '{u}@{h}'.format(u=user, h=host),
+        ],
+        env=get_subprocess_env(),
+    )

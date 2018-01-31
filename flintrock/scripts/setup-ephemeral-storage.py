@@ -12,6 +12,7 @@ The resulting structure we create is as follows:
         /root: The instance's root volume.
         /ephemeral[0-N]: Instance store volumes.
         /persistent[0-N]: EBS volumes.
+        /tmp: A temporary directory with lots of space.
 
 WARNING: Be conscious about what this script prints to stdout, as that
          output is parsed by Flintrock.
@@ -97,7 +98,7 @@ def format_devices(devices):
 
     for p in format_processes:
         stdout_raw, stderr_raw = p.communicate()
-        stdout, stderr = stdout_raw.decode('utf-8'), stderr_raw.decode('utf-8')
+        stdout, stderr = stdout_raw.decode('utf-8'), stderr_raw.decode('utf-8')  # noqa
         return_code = p.returncode
         if return_code != 0:
             raise Exception(
@@ -131,7 +132,7 @@ def mount_devices(devices):
                 device.name,
                 device.mount_point,
                 'ext4',
-                'defaults,users,noatime,nodiratime',
+                'defaults,users,noatime',
                 '0',
                 '0'])),
             shell=True)
@@ -153,6 +154,19 @@ def create_root_dir():
     path = '/media/root'
     subprocess.check_output([
         'sudo', 'mkdir', '-p', path])
+    subprocess.check_output(
+        'sudo chown "$(logname):$(logname)" {p}'.format(p=path),
+        shell=True)
+    return path
+
+
+def create_tmp_dir(target):
+    """
+    Create a folder that services can use as a temporary directory for big files.
+    """
+    path = '/media/tmp'
+    subprocess.check_output([
+        'sudo', 'ln', '-s', target, path])
     subprocess.check_output(
         'sudo chown "$(logname):$(logname)" {p}'.format(p=path),
         shell=True)
@@ -182,6 +196,11 @@ if __name__ == '__main__':
     mount_devices(ephemeral_devices)
 
     root_dir = create_root_dir()
+    if ephemeral_devices:
+        tmp_dir = ephemeral_devices[0].mount_point
+    else:
+        tmp_dir = '/tmp'
+    create_tmp_dir(tmp_dir)
 
     print(json.dumps(
         {

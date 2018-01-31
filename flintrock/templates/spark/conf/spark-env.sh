@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 
-export SPARK_LOCAL_DIRS="{root_ephemeral_dirs}"
+export SPARK_LOCAL_DIRS="{spark_root_ephemeral_dirs}"
 
 # Standalone cluster options
-export SPARK_EXECUTOR_INSTANCES="1"
+export SPARK_EXECUTOR_INSTANCES="{spark_executor_instances}"
+export SPARK_EXECUTOR_CORES="$(($(nproc) / {spark_executor_instances}))"
 export SPARK_WORKER_CORES="$(nproc)"
 
 export SPARK_MASTER_HOST="{master_host}"
 
 # TODO: Make this dependent on HDFS install.
-export HADOOP_CONF_DIR="/home/$(logname)/hadoop/conf"
+export HADOOP_CONF_DIR="$HOME/hadoop/conf"
 
 # TODO: Make this non-EC2-specific.
 # Bind Spark's web UIs to this machine's public EC2 hostname

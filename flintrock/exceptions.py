@@ -41,3 +41,11 @@ class SSHError(Error):
             "[{h}] {m}".format(h=host, m=message))
         self.host = host
         self.message = message
+
+
+class InterruptedEC2Operation(Error):
+    def __init__(self, *, instances: list):
+        super().__init__(
+            "Operation aborted."
+        )
+        self.instances = instances

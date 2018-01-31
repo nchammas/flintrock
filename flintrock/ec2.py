@@ -4,7 +4,7 @@ import sys
 import time
 import urllib.request
 import base64
-import os
+import logging
 from collections import namedtuple
 from datetime import datetime
 
@@ -21,8 +21,13 @@ from .exceptions import (
     ClusterNotFound,
     ClusterAlreadyExists,
     ClusterInvalidState,
-    NothingToDo)
+    InterruptedEC2Operation,
+    NothingToDo,
+)
 from .ssh import generate_ssh_key_pair
+
+
+logger = logging.getLogger('flintrock.ec2')
 
 
 class NoDefaultVPC(Error):
@@ -47,7 +52,7 @@ def timeit(func):
         start = datetime.now().replace(microsecond=0)
         res = func(*args, **kwargs)
         end = datetime.now().replace(microsecond=0)
-        print("{f} finished in {t}.".format(f=func.__name__, t=(end - start)))
+        logger.info("{f} finished in {t}.".format(f=func.__name__, t=(end - start)))
         return res
     return wrapper
 
@@ -119,6 +124,11 @@ class EC2Cluster(FlintrockCluster):
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
 
         while any([i.state['Name'] != state for i in self.instances]):
+            if logger.isEnabledFor(logging.DEBUG):
+                waiting_instances = [i for i in self.instances if i.state['Name'] != state]
+                sample = ', '.join(["'{}'".format(i.id) for i in waiting_instances][:3])
+                logger.debug("{size} instances not in state '{state}': {sample}, ...".format(size=len(waiting_instances), state=state, sample=sample))
+            time.sleep(3)
             # Update metadata for all instances in one shot. We don't want
             # to make a call to AWS for each of potentially hundreds of
             # instances.
@@ -130,7 +140,6 @@ class EC2Cluster(FlintrockCluster):
                         {'Name': 'instance-id', 'Values': [i.id for i in self.instances]}
                     ]))
             (self.master_instance, self.slave_instances) = _get_cluster_master_slaves(instances)
-            time.sleep(3)
 
     def destroy(self):
         self.destroy_check()
@@ -170,6 +179,7 @@ class EC2Cluster(FlintrockCluster):
                     {'Name': 'instance-id', 'Values': [i.id for i in self.instances]}
                 ])
             .terminate())
+        self.wait_for_state('terminated')
 
     def start_check(self):
         if self.state == 'running':
@@ -232,11 +242,14 @@ class EC2Cluster(FlintrockCluster):
             identity_file: str,
             num_slaves: int,
             spot_price: float,
+            min_root_ebs_size_gb: int,
+            tags: list,
             assume_yes: bool):
         security_group_ids = [
             group['GroupId']
             for group in self.master_instance.security_groups]
         block_device_mappings = get_ec2_block_device_mappings(
+            min_root_ebs_size_gb=min_root_ebs_size_gb,
             ami=self.master_instance.image_id,
             region=self.region)
         availability_zone = self.master_instance.placement['AvailabilityZone']
@@ -265,46 +278,60 @@ class EC2Cluster(FlintrockCluster):
             instance_profile_arn = self.master_instance.iam_instance_profile['Arn']
 
         self.add_slaves_check()
-        new_slave_instances = _create_instances(
-            num_instances=num_slaves,
-            region=self.region,
-            spot_price=spot_price,
-            ami=self.master_instance.image_id,
-            assume_yes=assume_yes,
-            key_name=self.master_instance.key_name,
-            instance_type=self.master_instance.instance_type,
-            block_device_mappings=block_device_mappings,
-            availability_zone=availability_zone,
-            placement_group=self.master_instance.placement['GroupName'],
-            tenancy=self.master_instance.placement['Tenancy'],
-            security_group_ids=security_group_ids,
-            subnet_id=self.master_instance.subnet_id,
-            instance_profile_arn=instance_profile_arn,
-            ebs_optimized=self.master_instance.ebs_optimized,
-            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
-            user_data=user_data)
+        try:
+            new_slave_instances = _create_instances(
+                num_instances=num_slaves,
+                region=self.region,
+                spot_price=spot_price,
+                ami=self.master_instance.image_id,
+                assume_yes=assume_yes,
+                key_name=self.master_instance.key_name,
+                instance_type=self.master_instance.instance_type,
+                block_device_mappings=block_device_mappings,
+                availability_zone=availability_zone,
+                placement_group=self.master_instance.placement['GroupName'],
+                tenancy=self.master_instance.placement['Tenancy'],
+                security_group_ids=security_group_ids,
+                subnet_id=self.master_instance.subnet_id,
+                instance_profile_arn=instance_profile_arn,
+                ebs_optimized=self.master_instance.ebs_optimized,
+                instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
+                user_data=user_data)
 
-        (ec2.instances
-            .filter(
-                Filters=[
-                    {'Name': 'instance-id', 'Values': [i.id for i in new_slave_instances]}
-                ])
-            .create_tags(
-                Tags=[
-                    {'Key': 'flintrock-role', 'Value': 'slave'},
-                    {'Key': 'Name', 'Value': '{c}-slave'.format(c=self.name)}]))
+            slave_tags = [
+                {'Key': 'flintrock-role', 'Value': 'slave'},
+                {'Key': 'Name', 'Value': '{c}-slave'.format(c=self.name)}]
+            slave_tags += tags
 
-        existing_slaves = {i.public_ip_address for i in self.slave_instances}
+            (ec2.instances
+                .filter(
+                    Filters=[
+                        {'Name': 'instance-id', 'Values': [i.id for i in new_slave_instances]}
+                    ])
+                .create_tags(Tags=slave_tags))
 
-        self.slave_instances += new_slave_instances
-        self.wait_for_state('running')
+            existing_slaves = {i.public_ip_address for i in self.slave_instances}
 
-        new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
+            self.slave_instances += new_slave_instances
+            self.wait_for_state('running')
 
-        super().add_slaves(
-            user=user,
-            identity_file=identity_file,
-            new_hosts=new_slaves)
+            new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
+
+            super().add_slaves(
+                user=user,
+                identity_file=identity_file,
+                new_hosts=new_slaves)
+        except (Exception, KeyboardInterrupt) as e:
+            if isinstance(e, InterruptedEC2Operation):
+                cleanup_instances = e.instances
+            else:
+                cleanup_instances = new_slave_instances
+            _cleanup_instances(
+                instances=cleanup_instances,
+                assume_yes=assume_yes,
+                region=self.region,
+            )
+            raise
 
     @timeit
     def remove_slaves(self, *, user: str, identity_file: str, num_slaves: int):
@@ -600,6 +627,7 @@ def get_or_create_flintrock_security_groups(
 
 def get_ec2_block_device_mappings(
         *,
+        min_root_ebs_size_gb: int,
         ami: str,
         region: str) -> 'List[dict]':
     """
@@ -609,7 +637,6 @@ def get_ec2_block_device_mappings(
     """
     ec2 = boto3.resource(service_name='ec2', region_name=region)
     block_device_mappings = []
-    min_root_device_size_gb = 30
 
     try:
         image = list(
@@ -627,14 +654,14 @@ def get_ec2_block_device_mappings(
         root_device = [
             device for device in image.block_device_mappings
             if device['DeviceName'] == image.root_device_name][0]
-        if root_device['Ebs']['VolumeSize'] < min_root_device_size_gb:
+        if root_device['Ebs']['VolumeSize'] < min_root_ebs_size_gb:
             root_device['Ebs'].update({
                 # Max root volume size for instance store-backed AMIs is 10 GiB.
                 # See: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/add-instance-store-volumes.html
                 # Though, this code is probably incorrect for instance store-backed
                 # instances anyway, since boto3 doesn't seem to let you set the size
                 # of a root instance store volume.
-                'VolumeSize': min_root_device_size_gb,
+                'VolumeSize': min_root_ebs_size_gb,
                 # gp2 is general-purpose SSD
                 'VolumeType': 'gp2'})
         del root_device['Ebs']['Encrypted']
@@ -676,7 +703,7 @@ def _create_instances(
     try:
         if spot_price:
             user_data = base64.b64encode(user_data.encode('utf-8')).decode()
-            print("Requesting {c} spot instances at a max price of ${p}...".format(
+            logger.info("Requesting {c} spot instances at a max price of ${p}...".format(
                 c=num_instances, p=spot_price))
             client = ec2.meta.client
             spot_requests = client.request_spot_instances(
@@ -701,7 +728,7 @@ def _create_instances(
             pending_request_ids = request_ids
 
             while pending_request_ids:
-                print("{grant} of {req} instances granted. Waiting...".format(
+                logger.info("{grant} of {req} instances granted. Waiting...".format(
                     grant=num_instances - len(pending_request_ids),
                     req=num_instances))
                 time.sleep(30)
@@ -721,7 +748,7 @@ def _create_instances(
                     r['SpotInstanceRequestId'] for r in spot_requests
                     if r['State'] == 'open']
 
-            print("All {c} instances granted.".format(c=num_instances))
+            logger.info("All {c} instances granted.".format(c=num_instances))
 
             cluster_instances = list(
                 ec2.instances.filter(
@@ -730,10 +757,12 @@ def _create_instances(
                     ]))
         else:
             # Move this to flintrock.py?
-            print("Launching {c} instance{s}...".format(
+            logger.info("Launching {c} instance{s}...".format(
                 c=num_instances,
                 s='' if num_instances == 1 else 's'))
 
+            # TODO: If an exception is raised in here, some instances may be
+            #       left stranded.
             cluster_instances = ec2.create_instances(
                 MinCount=num_instances,
                 MaxCount=num_instances,
@@ -752,13 +781,11 @@ def _create_instances(
                 EbsOptimized=ebs_optimized,
                 InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior,
                 UserData=user_data)
-
         time.sleep(10)  # AWS metadata eventual consistency tax.
         return cluster_instances
     except (Exception, KeyboardInterrupt) as e:
-        # TODO: Cleanup cluster security group here.
-        print("There was a problem with the launch. Cleaning up...", file=sys.stderr)
-
+        if not isinstance(e, KeyboardInterrupt):
+            print(e, file=sys.stderr)
         if spot_requests:
             request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
             if any([r['State'] != 'active' for r in spot_requests]):
@@ -777,25 +804,7 @@ def _create_instances(
                         Filters=[
                             {'Name': 'instance-id', 'Values': instance_ids}
                         ]))
-
-        if cluster_instances:
-            if not assume_yes:
-                yes = click.confirm(
-                    text="Do you want to terminate the {c} instances created by this operation?"
-                         .format(c=len(cluster_instances)),
-                    err=True,
-                    default=True)
-
-            if assume_yes or yes:
-                print("Terminating instances...", file=sys.stderr)
-                (ec2.instances
-                    .filter(
-                        Filters=[
-                            {'Name': 'instance-id', 'Values': [i.id for i in cluster_instances]}
-                        ])
-                    .terminate())
-
-        raise
+        raise InterruptedEC2Operation(instances=cluster_instances) from e
 
 
 @timeit
@@ -814,6 +823,7 @@ def launch(
         user,
         security_groups,
         spot_price=None,
+        min_root_ebs_size_gb,
         vpc_id,
         subnet_id,
         instance_profile_name,
@@ -821,7 +831,8 @@ def launch(
         tenancy='default',
         ebs_optimized=False,
         instance_initiated_shutdown_behavior='stop',
-        user_data):
+        user_data,
+        tags):
     """
     Launch a cluster.
     """
@@ -859,6 +870,7 @@ def launch(
         security_group_names=security_groups)
     security_group_ids = [sg.id for sg in user_security_groups + flintrock_security_groups]
     block_device_mappings = get_ec2_block_device_mappings(
+        min_root_ebs_size_gb=min_root_ebs_size_gb,
         ami=ami,
         region=region)
 
@@ -879,62 +891,84 @@ def launch(
     else:
         user_data = ''
 
-    cluster_instances = _create_instances(
-        num_instances=num_instances,
-        region=region,
-        spot_price=spot_price,
-        ami=ami,
-        assume_yes=assume_yes,
-        key_name=key_name,
-        instance_type=instance_type,
-        block_device_mappings=block_device_mappings,
-        availability_zone=availability_zone,
-        placement_group=placement_group,
-        tenancy=tenancy,
-        security_group_ids=security_group_ids,
-        subnet_id=subnet_id,
-        instance_profile_arn=instance_profile_arn,
-        ebs_optimized=ebs_optimized,
-        instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
-        user_data=user_data)
+    try:
+        cluster_instances = _create_instances(
+            num_instances=num_instances,
+            region=region,
+            spot_price=spot_price,
+            ami=ami,
+            assume_yes=assume_yes,
+            key_name=key_name,
+            instance_type=instance_type,
+            block_device_mappings=block_device_mappings,
+            availability_zone=availability_zone,
+            placement_group=placement_group,
+            tenancy=tenancy,
+            security_group_ids=security_group_ids,
+            subnet_id=subnet_id,
+            instance_profile_arn=instance_profile_arn,
+            ebs_optimized=ebs_optimized,
+            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
+            user_data=user_data)
 
-    master_instance = cluster_instances[0]
-    slave_instances = cluster_instances[1:]
+        master_instance = cluster_instances[0]
+        slave_instances = cluster_instances[1:]
 
-    (ec2.instances
-        .filter(
-            Filters=[
-                {'Name': 'instance-id', 'Values': [master_instance.id]}
-            ])
-        .create_tags(
-            Tags=[
-                {'Key': 'flintrock-role', 'Value': 'master'},
-                {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]))
-    (ec2.instances
-        .filter(
-            Filters=[
-                {'Name': 'instance-id', 'Values': [i.id for i in slave_instances]}
-            ])
-        .create_tags(
-            Tags=[
-                {'Key': 'flintrock-role', 'Value': 'slave'},
-                {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]))
+        master_tags = [
+            {'Key': 'flintrock-role', 'Value': 'master'},
+            {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]
+        master_tags += tags
 
-    cluster = EC2Cluster(
-        name=cluster_name,
-        region=region,
-        vpc_id=vpc_id,
-        ssh_key_pair=generate_ssh_key_pair(),
-        master_instance=master_instance,
-        slave_instances=slave_instances)
+        (ec2.instances
+            .filter(
+                Filters=[
+                    {'Name': 'instance-id', 'Values': [master_instance.id]}
+                ])
+            .create_tags(Tags=master_tags))
 
-    cluster.wait_for_state('running')
+        slave_tags = [
+            {'Key': 'flintrock-role', 'Value': 'slave'},
+            {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]
+        slave_tags += tags
 
-    provision_cluster(
-        cluster=cluster,
-        services=services,
-        user=user,
-        identity_file=identity_file)
+        (ec2.instances
+            .filter(
+                Filters=[
+                    {'Name': 'instance-id', 'Values': [i.id for i in slave_instances]}
+                ])
+            .create_tags(Tags=slave_tags))
+
+        cluster = EC2Cluster(
+            name=cluster_name,
+            region=region,
+            vpc_id=vpc_id,
+            ssh_key_pair=generate_ssh_key_pair(),
+            master_instance=master_instance,
+            slave_instances=slave_instances)
+
+        cluster.wait_for_state('running')
+
+        provision_cluster(
+            cluster=cluster,
+            services=services,
+            user=user,
+            identity_file=identity_file)
+
+        return cluster
+    except (Exception, KeyboardInterrupt) as e:
+        if isinstance(e, InterruptedEC2Operation):
+            cleanup_instances = e.instances
+        else:
+            # TODO: There is no guarantee that cluster_instances is
+            #       defined.
+            # See: https://github.com/nchammas/flintrock/issues/183
+            cleanup_instances = cluster_instances
+        _cleanup_instances(
+            instances=cleanup_instances,
+            assume_yes=assume_yes,
+            region=region,
+        )
+        raise
 
 
 def get_cluster(*, cluster_name: str, region: str, vpc_id: str) -> EC2Cluster:
@@ -994,6 +1028,30 @@ def get_clusters(*, cluster_names: list=[], region: str, vpc_id: str) -> list:
     return clusters
 
 
+def cli_validate_tags(ctx, param, value):
+    return validate_tags(value)
+
+
+def validate_tags(value):
+    """
+    Validate and parse optional EC2 tags.
+    """
+    err_msg = ("Tags need to be specified as 'Key,Value' pairs "
+               "separated by a single comma. Key cannot be empty "
+               "or be made up entirely of whitespace.")
+    tags = value
+    result = []
+    for tag in tags:
+        if tag.count(',') != 1:
+            raise click.BadParameter(err_msg)
+        key, value = [word.strip() for word in tag.split(',', maxsplit=1)]
+        if not key:
+            raise click.BadParameter(err_msg)
+        result.append({'Key': key, 'Value': value})
+
+    return result
+
+
 def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:
     """
     Given an EC2 instance, get the name of the Flintrock cluster it belongs to.
@@ -1016,6 +1074,10 @@ def _get_cluster_master_slaves(
     slave_instances = []
 
     for instance in instances:
+        if not instance.tags:
+            # TODO: Better handle malformed clusters with missing tags.
+            # See: https://github.com/nchammas/flintrock/issues/183
+            continue
         for tag in instance.tags:
             if tag['Key'] == 'flintrock-role':
                 if tag['Value'] == 'master':
@@ -1050,3 +1112,23 @@ def _compose_cluster(*, name: str, region: str, vpc_id: str, instances: list) ->
         slave_instances=slave_instances)
 
     return cluster
+
+
+def _cleanup_instances(*, instances: list, assume_yes: bool, region: str):
+    ec2 = boto3.resource(service_name='ec2', region_name=region)
+    if instances:
+        if not assume_yes:
+            yes = click.confirm(
+                text="Do you want to terminate the {c} instances created by this operation?"
+                     .format(c=len(instances)),
+                err=True,
+                default=True)
+
+        if assume_yes or yes:
+            print("Terminating instances...", file=sys.stderr)
+            (ec2.instances
+                .filter(
+                    Filters=[
+                        {'Name': 'instance-id', 'Values': [i.id for i in instances]}
+                    ])
+                .terminate())

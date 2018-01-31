@@ -1,4 +1,3 @@
-import asyncio
 import concurrent.futures
 import functools
 import json
@@ -6,7 +5,8 @@ import os
 import posixpath
 import shlex
 import sys
-import time
+import logging
+from concurrent.futures import FIRST_EXCEPTION
 
 # External modules
 import paramiko
@@ -23,6 +23,9 @@ else:
     THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
+
+
+logger = logging.getLogger('flintrock.core')
 
 
 class StorageDirs:
@@ -140,8 +143,8 @@ class FlintrockCluster:
             manifest_raw = ssh_check_output(
                 client=master_ssh_client,
                 command="""
-                    cat /home/{u}/.flintrock-manifest.json
-                """.format(u=shlex.quote(user)))
+                    cat "$HOME/.flintrock-manifest.json"
+                """)
             # TODO: Would it be better if storage (ephemeral and otherwise) was
             #       implemented as a Flintrock service and tracked in the manifest?
             ephemeral_dirs_raw = ssh_check_output(
@@ -228,15 +231,7 @@ class FlintrockCluster:
             cluster=self)
         hosts = [self.master_ip] + self.slave_ips
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
-
-        # EC2 seems to require a good wait here so that certain parts
-        # of the network stack are up and configured. Otherwise, we
-        # hit these issues:
-        #  * https://github.com/nchammas/flintrock/issues/129
-        #  * https://github.com/nchammas/flintrock/issues/157
-        if self.services:
-            time.sleep(30)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
         master_ssh_client = get_ssh_client(
             user=user,
@@ -248,12 +243,6 @@ class FlintrockCluster:
                 service.configure_master(
                     ssh_client=master_ssh_client,
                     cluster=self)
-
-        # NOTE: We sleep here so that the slave services have time to come up.
-        #       If we refactor stuff to have a start_slave() that blocks until
-        #       the slave is fully up, then we won't need this sleep anymore.
-        if self.services:
-            time.sleep(15)
 
         for service in self.services:
             service.health_check(master_host=self.master_ip)
@@ -298,7 +287,7 @@ class FlintrockCluster:
             identity_file=identity_file,
             cluster=self,
             new_hosts=new_hosts)
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
         master_ssh_client = get_ssh_client(
             user=user,
@@ -335,7 +324,7 @@ class FlintrockCluster:
             cluster=self)
         hosts = [self.master_ip] + self.slave_ips
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     def run_command_check(self):
         """
@@ -370,7 +359,7 @@ class FlintrockCluster:
             command=command)
         hosts = target_hosts
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     def copy_file_check(self):
         """
@@ -408,7 +397,7 @@ class FlintrockCluster:
             remote_path=remote_path)
         hosts = target_hosts
 
-        _run_asynchronously(partial_func=partial_func, hosts=hosts)
+        run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     def login(
             self,
@@ -423,68 +412,84 @@ class FlintrockCluster:
             user=user,
             identity_file=identity_file)
 
-    def generate_template_mapping(self, *, service: str) -> dict:
-        """
-        Generate a template mapping from a FlintrockCluster instance that we can use
-        to fill in template parameters.
-        """
-        root_dir = posixpath.join(self.storage_dirs.root, service)
-        ephemeral_dirs = ','.join(posixpath.join(path, service) for path in self.storage_dirs.ephemeral)
 
-        template_mapping = {
-            'master_ip': self.master_ip,
-            'master_host': self.master_host,
-            'slave_ips': '\n'.join(self.slave_ips),
-            'slave_hosts': '\n'.join(self.slave_hosts),
-            'root_dir': root_dir,
-            'ephemeral_dirs': ephemeral_dirs,
+def generate_template_mapping(
+    *,
+    cluster: FlintrockCluster,
+    # If we add additional services later on we may want to refactor
+    # this to take a list of services and dynamically pull the service
+    # name.
+    spark_executor_instances: int,
+    hadoop_version: str,
+    spark_version: str
+) -> dict:
+    """
+    Generate a template mapping from a FlintrockCluster instance that we can use
+    to fill in template parameters.
+    """
+    hadoop_root_dir = posixpath.join(cluster.storage_dirs.root, 'hadoop')
+    hadoop_ephemeral_dirs = ','.join(
+        posixpath.join(path, 'hadoop')
+        for path in cluster.storage_dirs.ephemeral
+    )
+    spark_root_dir = posixpath.join(cluster.storage_dirs.root, 'spark')
+    spark_ephemeral_dirs = ','.join(
+        posixpath.join(path, 'spark')
+        for path in cluster.storage_dirs.ephemeral
+    )
 
-            # If ephemeral storage is available, it replaces the root volume, which is
-            # typically persistent. We don't want to mix persistent and ephemeral
-            # storage since that causes problems after cluster stop/start; some volumes
-            # have leftover data, whereas others start fresh.
-            'root_ephemeral_dirs': ephemeral_dirs if ephemeral_dirs else root_dir,
-        }
+    template_mapping = {
+        'master_ip': cluster.master_ip,
+        'master_host': cluster.master_host,
+        'slave_ips': '\n'.join(cluster.slave_ips),
+        'slave_hosts': '\n'.join(cluster.slave_hosts),
 
-        return template_mapping
+        'hadoop_version': hadoop_version,
+        'hadoop_short_version': '.'.join(hadoop_version.split('.')[:2]),
+        'spark_version': spark_version,
+        'spark_short_version': '.'.join(spark_version.split('.')[:2]) if '.' in spark_version else spark_version,
+
+        'spark_executor_instances': spark_executor_instances,
+
+        'hadoop_root_dir': hadoop_root_dir,
+        'hadoop_ephemeral_dirs': hadoop_ephemeral_dirs,
+        'spark_root_dir': spark_root_dir,
+        'spark_ephemeral_dirs': spark_ephemeral_dirs,
+
+        # If ephemeral storage is available, it replaces the root volume, which is
+        # typically persistent. We don't want to mix persistent and ephemeral
+        # storage since that causes problems after cluster stop/start; some volumes
+        # have leftover data, whereas others start fresh.
+        'hadoop_root_ephemeral_dirs': hadoop_ephemeral_dirs if hadoop_ephemeral_dirs else hadoop_root_dir,
+        'spark_root_ephemeral_dirs': spark_ephemeral_dirs if spark_ephemeral_dirs else spark_root_dir,
+    }
+
+    return template_mapping
 
 
-def _run_asynchronously(*, partial_func: functools.partial, hosts: list):
+# TODO: Cache these files. (?) They are being read potentially tens or
+#       hundreds of times. Maybe it doesn't matter because the files
+#       are so small.
+def get_formatted_template(*, path: str, mapping: dict) -> str:
+    with open(path) as f:
+        formatted = f.read().format(**mapping)
+    return formatted
+
+
+def run_against_hosts(*, partial_func: functools.partial, hosts: list):
     """
     Run a function asynchronously against each of the provided hosts.
 
     This function assumes that partial_func accepts `host` as a keyword argument.
     """
-    loop = asyncio.get_event_loop()
-    executor = concurrent.futures.ThreadPoolExecutor(len(hosts))
-
-    tasks = []
-    for host in hosts:
-        # TODO: Use parameter names for run_in_executor() once Python 3.4.4 is released.
-        #       Until then, we leave them out to maintain compatibility across Python 3.4
-        #       and 3.5.
-        # See: http://stackoverflow.com/q/32873974/
-        task = loop.run_in_executor(
-            executor,
-            functools.partial(partial_func, host=host))
-        tasks.append(task)
-
-    try:
-        loop.run_until_complete(asyncio.gather(*tasks))
-        # done, _ = loop.run_until_complete(asyncio.wait(tasks))
-        # # Is this the right way to make sure no coroutine failed?
-        # for future in done:
-        #     future.result()
-    finally:
-        # TODO: Let KeyboardInterrupt cleanly cancel hung commands.
-        #       Currently, we can't do this without dumping a large stack trace or
-        #       waiting until the executor threads yield control.
-        #       See: http://stackoverflow.com/q/29177490/
-        # We shutdown explcitly to make sure threads are cleaned up before shutting
-        # the loop down.
-        # See: http://stackoverflow.com/a/32615276/
-        executor.shutdown(wait=True)
-        loop.close()
+    with concurrent.futures.ThreadPoolExecutor(len(hosts)) as executor:
+        futures = {
+            executor.submit(functools.partial(partial_func, host=host))
+            for host in hosts
+        }
+        concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
+        for future in futures:
+            future.result()
 
 
 def get_java_major_version(client: paramiko.client.SSHClient):
@@ -517,7 +522,7 @@ def ensure_java8(client: paramiko.client.SSHClient):
     java_major_version = get_java_major_version(client)
 
     if not java_major_version or java_major_version < (1, 8):
-        print("[{h}] Installing Java 1.8...".format(h=host))
+        logger.info("[{h}] Installing Java 1.8...".format(h=host))
 
         ssh_check_output(
             client=client,
@@ -557,10 +562,10 @@ def setup_node(
         command="""
             set -e
 
-            echo {private_key} > ~/.ssh/id_rsa
-            echo {public_key} >> ~/.ssh/authorized_keys
+            echo {private_key} > "$HOME/.ssh/id_rsa"
+            echo {public_key} >> "$HOME/.ssh/authorized_keys"
 
-            chmod 400 ~/.ssh/id_rsa
+            chmod 400 "$HOME/.ssh/id_rsa"
         """.format(
             private_key=shlex.quote(cluster.ssh_key_pair.private),
             public_key=shlex.quote(cluster.ssh_key_pair.public)))
@@ -570,7 +575,7 @@ def setup_node(
             localpath=os.path.join(SCRIPTS_DIR, 'setup-ephemeral-storage.py'),
             remotepath='/tmp/setup-ephemeral-storage.py')
 
-    print("[{h}] Configuring ephemeral storage...".format(h=host))
+    logger.info("[{h}] Configuring ephemeral storage...".format(h=host))
     # TODO: Print some kind of warning if storage is large, since formatting
     #       will take several minutes (~4 minutes for 2TB).
     storage_dirs_raw = ssh_check_output(
@@ -610,11 +615,7 @@ def provision_cluster(
         cluster=cluster)
     hosts = [cluster.master_ip] + cluster.slave_ips
 
-    _run_asynchronously(partial_func=partial_func, hosts=hosts)
-
-    # For: https://github.com/nchammas/flintrock/issues/129
-    if services:
-        time.sleep(20)
+    run_against_hosts(partial_func=partial_func, hosts=hosts)
 
     master_ssh_client = get_ssh_client(
         user=user,
@@ -631,22 +632,16 @@ def provision_cluster(
         ssh_check_output(
             client=master_ssh_client,
             command="""
-                echo {m} > /home/{u}/.flintrock-manifest.json
-                chmod go-rw /home/{u}/.flintrock-manifest.json
+                echo {m} > "$HOME/.flintrock-manifest.json"
+                chmod go-rw "$HOME/.flintrock-manifest.json"
             """.format(
-                m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True)),
-                u=shlex.quote(user)))
+                m=shlex.quote(json.dumps(manifest, indent=4, sort_keys=True))
+            ))
 
         for service in services:
             service.configure_master(
                 ssh_client=master_ssh_client,
                 cluster=cluster)
-
-    # NOTE: We sleep here so that the slave services have time to come up.
-    #       If we refactor stuff to have a start_slave() that blocks until
-    #       the slave is fully up, then we won't need this sleep anymore.
-    if services:
-        time.sleep(20)
 
     for service in services:
         service.health_check(master_host=cluster.master_host)
@@ -793,7 +788,7 @@ def run_command_node(*, user: str, host: str, identity_file: str, command: tuple
         host=host,
         identity_file=identity_file)
 
-    print("[{h}] Running command...".format(h=host))
+    logger.info("[{h}] Running command...".format(h=host))
 
     command_str = ' '.join(command)
 
@@ -802,7 +797,7 @@ def run_command_node(*, user: str, host: str, identity_file: str, command: tuple
             client=ssh_client,
             command=command_str)
 
-    print("[{h}] Command complete.".format(h=host))
+    logger.info("[{h}] Command complete.".format(h=host))
 
 
 def copy_file_node(
@@ -837,15 +832,15 @@ def copy_file_node(
             raise Exception("Remote directory does not exist: {d}".format(d=remote_dir))
 
         with ssh_client.open_sftp() as sftp:
-            print("[{h}] Copying file...".format(h=host))
+            logger.info("[{h}] Copying file...".format(h=host))
 
             sftp.put(localpath=local_path, remotepath=remote_path)
 
-            print("[{h}] Copy complete.".format(h=host))
+            logger.info("[{h}] Copy complete.".format(h=host))
 
 
 # This is necessary down here since we have a circular import dependency between
 # core.py and services.py. I've thought about how to remove this circular dependency,
 # but for now this seems like what we need to go with.
 # Flintrock modules
-from .services import HDFS, Spark  # Used by start_cluster()
+from .services import HDFS, Spark  # Used by start_cluster() # noqa
