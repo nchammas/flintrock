@@ -663,6 +663,8 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
+@click.option('--ec2-instance-type', default='master',
+              help="Additional option for instance type of slave, default follows master's instance type")
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
@@ -680,6 +682,7 @@ def add_slaves(
         ec2_region,
         ec2_vpc_id,
         ec2_identity_file,
+        ec2_instance_type,
         ec2_user,
         ec2_spot_price,
         ec2_min_root_ebs_size_gb,
@@ -729,10 +732,14 @@ def add_slaves(
         identity_file=identity_file)
     cluster.add_slaves_check()
 
+    if ec2_instance_type == "master":
+        ec2_instance_type = cluster.master_instance.instance_type
+
     if provider == 'ec2':
         cluster.add_slaves(
             user=user,
             identity_file=identity_file,
+            instance_type=ec2_instance_type,
             num_slaves=num_slaves,
             assume_yes=assume_yes,
             **provider_options)
