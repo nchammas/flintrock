@@ -69,7 +69,9 @@ def get_ssh_client(
     if wait:
         tries = 100
     else:
-        tries = 1
+        # It's greater than 1 as a band-aid for this issue:
+        # https://github.com/nchammas/flintrock/issues/198
+        tries = 3
 
     while tries > 0:
         try:
