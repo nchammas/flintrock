@@ -331,7 +331,7 @@ class EC2Cluster(FlintrockCluster):
             self.slave_instances += new_slave_instances
             self.wait_for_state('running')
 
-            new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
+            new_slaves = {i.public_ip_address or i.private_ip_address for i in self.slave_instances} - existing_slaves
 
             super().add_slaves(
                 user=user,
