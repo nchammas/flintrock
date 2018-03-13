@@ -7,11 +7,11 @@ install:
   - "pip install -r requirements/developer.pip"
   - "curl -L -o pandoc.deb https://github.com/jgm/pandoc/releases/download/2.0.1.1/pandoc-2.0.1.1-1-amd64.deb && sudo dpkg -i pandoc.deb"
 script:
-  - "py.test ./tests/test_static.py"
-  - "py.test ./tests/test_flintrock.py"
-  - "py.test ./tests/test_core.py"
+  - "pytest ./tests/test_static.py"
+  - "pytest ./tests/test_flintrock.py"
+  - "pytest ./tests/test_core.py"
   - "pip install -r requirements/maintainer.pip"
-  - "py.test ./tests/test_pyinstaller_packaging.py"
+  - "pytest ./tests/test_pyinstaller_packaging.py"
 addons:
   artifacts:
     paths:
