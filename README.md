@@ -106,6 +106,8 @@ pip3 install flintrock
 
 This will install Flintrock and place it on your path. You should be good to go now!
 
+If you use [Homebrew](https://brew.sh), you can `brew install flintrock` instead.
+
 You'll probably want to get started with the following two commands:
 
 ```sh
