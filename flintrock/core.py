@@ -592,6 +592,15 @@ def setup_node(
 
     ensure_java8(ssh_client)
 
+    print("[{h}] Configuring hostname...".format(h=host))
+    ssh_check_output(
+        client=ssh_client,
+        command="""
+            set -e
+            fullname=`hostname`.ec2.internal
+            echo "{h} $fullname $(hostname)" |sudo tee -a /etc/hosts
+        """.format(h=host))
+
     for service in services:
         service.install(
             ssh_client=ssh_client,
