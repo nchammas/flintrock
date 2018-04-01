@@ -2,13 +2,24 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/nchammas/flintrock/blob/master/LICENSE)
 [![Build Status](https://img.shields.io/travis/nchammas/flintrock/master.svg)](https://travis-ci.org/nchammas/flintrock)
-[![Chat](https://img.shields.io/gitter/room/nchammas/flintrock.svg)](https://gitter.im/nchammas/flintrock)
-
-*Watch [@nchammas](https://github.com/nchammas)'s talk on Flintrock at Spark Summit East 2016: [talk](https://www.youtube.com/watch?v=3aeIpOGrJOA) / [slides](http://www.slideshare.net/SparkSummit/flintrock-a-faster-better-sparkec2-by-nicholas-chammas)*
 
 Flintrock is a command-line tool for launching [Apache Spark](http://spark.apache.org/) clusters.
 
-**Flintrock is currently undergoing heavy development. Until we make a 1.0 release, you probably should not use Flintrock unless you are ready to keep up with frequent changes to how it works.** Python hackers or heavy spark-ec2 users who are looking to experiment with something new are welcome to try Flintrock out and potentially even [contribute](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md).
+Though Flintrock hasn't made a 1.0 release yet, it's fairly stable. Expect some minor but nonethless backwards incompatible changes as Flintrock reaches formal stability via a 1.0 release.
+
+
+## Flintrock around the web
+
+Flintrock has been featured in a few talks, guides, and papers around the web.
+
+* Talks:
+  * [Flintrock: A faster, better spark-ec2](https://www.youtube.com/watch?v=3aeIpOGrJOA) ([slides](http://www.slideshare.net/SparkSummit/flintrock-a-faster-better-sparkec2-by-nicholas-chammas))
+* Guides:
+  * [Spark with Jupyter on AWS](https://github.com/PiercingDan/spark-Jupyter-AWS)
+  * [Building a data science platform for R&D, part 2 – Deploying Spark on AWS using Flintrock](https://alexioannides.com/2016/08/18/building-a-data-science-platform-for-rd-part-2-deploying-spark-on-aws-using-flintrock/)
+  * [AWS EC2를 활용 스파크 클러스터 생성](http://statkclee.github.io/ml/ml-aws-ec2-flintrock.html)
+* Papers:
+  * ["Birds in the Clouds": Adventures in Data Engineering](https://arxiv.org/pdf/1710.08521.pdf)
 
 
 ## Usage
@@ -25,9 +36,11 @@ flintrock launch test-cluster \
     --ec2-user ec2-user
 ```
 
-If you [persist these options to a file](#configurable-cli-defaults), you'll be able to do the same thing simply by typing:
+If you [persist these options to a file](#configurable-cli-defaults), you'll be able to do the same thing much more concisely:
 
 ```sh
+flintrock configure
+# Save your preferences via the opened editor, then...
 flintrock launch test-cluster
 ```
 
@@ -135,19 +148,15 @@ cd flintrock/
 ./flintrock --help
 ```
 
-You'll probably want to add the location of the Flintrock executable to your `PATH` so that you
-can invoke it from any directory.
+You'll probably want to add the location of the Flintrock executable to your `PATH` so that you can invoke it from any directory.
 
 ### Community-supported distributions
 
-Flintrock may be available in your favorite package manager!
-These packages are not supported by the core contributors and may be out of date.
-Please reach out to these communities directly if you have trouble using them to install flintrock.
+Flintrock is also available via the following package managers:
 
-These include:
+* [Homebrew](https://brew.sh): `brew install flintrock`
 
- * [Homebrew](https://brew.sh): `brew install flintrock`
-
+These packages are not supported by the core contributors and may be out of date. Please reach out to the relevant communities directly if you have trouble using these distributions to install Flintrock.
 
 ### Development version
 
