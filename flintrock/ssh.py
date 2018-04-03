@@ -96,6 +96,12 @@ def get_ssh_client(
         except paramiko.ssh_exception.AuthenticationException as e:
             logger.debug("[{h}] SSH AuthenticationException.".format(h=host))
             time.sleep(5)
+        except paramiko.ssh_exception.SSHException as e:
+            raise SSHError(
+                host=host,
+                message="SSH protocol error. Possible causes include using "
+                "the wrong key file or username.",
+            ) from e
     else:
         raise SSHError(
             host=host,
@@ -104,14 +110,21 @@ def get_ssh_client(
     return client
 
 
-def ssh_check_output(client: paramiko.client.SSHClient, command: str):
+def ssh_check_output(
+        client: paramiko.client.SSHClient,
+        command: str,
+        timeout_seconds: int=None,
+):
     """
     Run a command via the provided SSH client and return the output captured
     on stdout.
 
     Raise an exception if the command returns a non-zero code.
     """
-    stdin, stdout, stderr = client.exec_command(command, get_pty=True)
+    stdin, stdout, stderr = client.exec_command(
+        command,
+        get_pty=True,
+        timeout=timeout_seconds)
 
     # NOTE: Paramiko doesn't clearly document this, but we must read() before
     #       calling recv_exit_status().

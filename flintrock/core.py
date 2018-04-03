@@ -5,7 +5,6 @@ import os
 import posixpath
 import shlex
 import sys
-import time
 import logging
 from concurrent.futures import FIRST_EXCEPTION
 
@@ -234,14 +233,6 @@ class FlintrockCluster:
 
         run_against_hosts(partial_func=partial_func, hosts=hosts)
 
-        # EC2 seems to require a good wait here so that certain parts
-        # of the network stack are up and configured. Otherwise, we
-        # hit these issues:
-        #  * https://github.com/nchammas/flintrock/issues/129
-        #  * https://github.com/nchammas/flintrock/issues/157
-        if self.services:
-            time.sleep(30)
-
         master_ssh_client = get_ssh_client(
             user=user,
             host=self.master_ip,
@@ -252,12 +243,6 @@ class FlintrockCluster:
                 service.configure_master(
                     ssh_client=master_ssh_client,
                     cluster=self)
-
-        # NOTE: We sleep here so that the slave services have time to come up.
-        #       If we refactor stuff to have a start_slave() that blocks until
-        #       the slave is fully up, then we won't need this sleep anymore.
-        if self.services:
-            time.sleep(15)
 
         for service in self.services:
             service.health_check(master_host=self.master_ip)
@@ -632,10 +617,6 @@ def provision_cluster(
 
     run_against_hosts(partial_func=partial_func, hosts=hosts)
 
-    # For: https://github.com/nchammas/flintrock/issues/129
-    if services:
-        time.sleep(20)
-
     master_ssh_client = get_ssh_client(
         user=user,
         host=cluster.master_host,
@@ -661,12 +642,6 @@ def provision_cluster(
             service.configure_master(
                 ssh_client=master_ssh_client,
                 cluster=cluster)
-
-    # NOTE: We sleep here so that the slave services have time to come up.
-    #       If we refactor stuff to have a start_slave() that blocks until
-    #       the slave is fully up, then we won't need this sleep anymore.
-    if services:
-        time.sleep(20)
 
     for service in services:
         service.health_check(master_host=cluster.master_host)

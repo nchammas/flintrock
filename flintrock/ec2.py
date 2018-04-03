@@ -81,19 +81,36 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def master_ip(self):
-        return self.master_instance.public_ip_address
+        if self.subnet_is_private:
+            return self.master_instance.private_ip_address
+        else:
+            return self.master_instance.public_ip_address
 
     @property
     def master_host(self):
-        return self.master_instance.public_dns_name
+        if self.subnet_is_private:
+            return self.master_instance.private_dns_name
+        else:
+            return self.master_instance.public_dns_name
 
     @property
     def slave_ips(self):
-        return [i.public_ip_address for i in self.slave_instances]
+        if self.subnet_is_private:
+            return [i.private_ip_address for i in self.slave_instances]
+        else:
+            return [i.public_ip_address for i in self.slave_instances]
 
     @property
     def slave_hosts(self):
-        return [i.public_dns_name for i in self.slave_instances]
+        if self.subnet_is_private:
+            return [i.private_dns_name for i in self.slave_instances]
+        else:
+            return [i.public_dns_name for i in self.slave_instances]
+
+    @property
+    def subnet_is_private(self):
+        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
+        return not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
 
     @property
     def num_masters(self):
@@ -314,7 +331,7 @@ class EC2Cluster(FlintrockCluster):
             self.slave_instances += new_slave_instances
             self.wait_for_state('running')
 
-            new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
+            new_slaves = {i.public_ip_address or i.private_ip_address for i in self.slave_instances} - existing_slaves
 
             super().add_slaves(
                 user=user,
@@ -452,13 +469,6 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
             "Flintrock requires DNS hostnames to be enabled.\n"
             "See: https://github.com/nchammas/flintrock/issues/43"
             .format(v=vpc_id)
-        )
-    if not ec2.Subnet(subnet_id).map_public_ip_on_launch:
-        raise ConfigurationNotSupported(
-            "{s} does not auto-assign public IP addresses. "
-            "Flintrock requires public IP addresses.\n"
-            "See: https://github.com/nchammas/flintrock/issues/14"
-            .format(s=subnet_id)
         )
 
 

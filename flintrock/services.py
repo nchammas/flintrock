@@ -1,8 +1,9 @@
 import json
 import os
 import shlex
+import socket
 import sys
-import textwrap
+import urllib.error
 import urllib.request
 import logging
 
@@ -187,9 +188,39 @@ class HDFS(FlintrockService):
         ssh_check_output(
             client=ssh_client,
             command="""
-                ./hadoop/bin/hdfs namenode -format -nonInteractive
-                ./hadoop/sbin/start-dfs.sh
+                # `|| true` because on cluster restart this command will fail.
+                ./hadoop/bin/hdfs namenode -format -nonInteractive || true
             """)
+
+        # This loop is a band-aid for: https://github.com/nchammas/flintrock/issues/157
+        attempt_limit = 3
+        for attempt in range(attempt_limit):
+            try:
+                ssh_check_output(
+                    client=ssh_client,
+                    command="""
+                        ./hadoop/sbin/stop-dfs.sh
+                        ./hadoop/sbin/start-dfs.sh
+
+                        master_ui_response_code=0
+                        while [ "$master_ui_response_code" -ne 200 ]; do
+                            sleep 1
+                            master_ui_response_code="$(
+                                curl --head --silent --output /dev/null \
+                                    --write-out "%{{http_code}}" {m}:50070
+                            )"
+                        done
+                    """.format(m=shlex.quote(cluster.master_host)),
+                    timeout_seconds=90
+                )
+                break
+            except socket.timeout as e:
+                logger.debug(
+                    "Timed out waiting for HDFS master to come up.{}"
+                    .format(" Trying again..." if attempt < attempt_limit - 1 else "")
+                )
+        else:
+            raise Exception("Time out waiting for HDFS master to come up.")
 
     def health_check(self, master_host: str):
         # This info is not helpful as a detailed health check, but it gives us
@@ -197,16 +228,14 @@ class HDFS(FlintrockService):
         hdfs_master_ui = 'http://{m}:50070/webhdfs/v1/?op=GETCONTENTSUMMARY'.format(m=master_host)
 
         try:
-            hdfs_ui_info = json.loads(  # noqa
-                urllib.request.urlopen(hdfs_master_ui).read().decode('utf-8'))
+            json.loads(
+                urllib.request
+                .urlopen(hdfs_master_ui)
+                .read()
+                .decode('utf-8'))
+            logger.info("HDFS online.")
         except Exception as e:
-            # TODO: Catch a more specific problem.
-            # TODO: Don't print to screen here. Raise the exception and let the
-            #       catcher decide on whether to print.
-            print("HDFS health check failed.", file=sys.stderr)
-            raise
-
-        logger.info("HDFS online.")
+            raise Exception("HDFS health check failed.") from e
 
 
 class Spark(FlintrockService):
@@ -342,48 +371,51 @@ class Spark(FlintrockService):
         host = ssh_client.get_transport().getpeername()[0]
         logger.info("[{h}] Configuring Spark master...".format(h=host))
 
-        # TODO: Maybe move this shell script out to some separate file/folder
-        #       for the Spark service.
-        # TODO: Add some timeout for waiting on master UI to come up.
-        ssh_check_output(
-            client=ssh_client,
-            command="""
-                spark/sbin/start-all.sh
+        # This loop is a band-aid for: https://github.com/nchammas/flintrock/issues/129
+        attempt_limit = 3
+        for attempt in range(attempt_limit):
+            try:
+                ssh_check_output(
+                    client=ssh_client,
+                    # Maybe move this shell script out to some separate
+                    # file/folder for the Spark service.
+                    command="""
+                        spark/sbin/start-all.sh
 
-                master_ui_response_code=0
-                while [ "$master_ui_response_code" -ne 200 ]; do
-                    sleep 1
-                    master_ui_response_code="$(
-                        curl --head --silent --output /dev/null \
-                             --write-out "%{{http_code}}" {m}:8080
-                    )"
-                done
-            """.format(
-                m=shlex.quote(cluster.master_host)))
+                        master_ui_response_code=0
+                        while [ "$master_ui_response_code" -ne 200 ]; do
+                            sleep 1
+                            master_ui_response_code="$(
+                                curl --head --silent --output /dev/null \
+                                    --write-out "%{{http_code}}" {m}:8080
+                            )"
+                        done
+                    """.format(m=shlex.quote(cluster.master_host)),
+                    timeout_seconds=90
+                )
+                break
+            except socket.timeout as e:
+                logger.debug(
+                    "Timed out waiting for Spark master to come up.{}"
+                    .format(" Trying again..." if attempt < attempt_limit - 1 else "")
+                )
+        else:
+            raise Exception("Timed out waiting for Spark master to come up.")
 
     def health_check(self, master_host: str):
         spark_master_ui = 'http://{m}:8080/json/'.format(m=master_host)
 
         try:
-            spark_ui_info = json.loads(
-                urllib.request.urlopen(spark_master_ui).read().decode('utf-8'))
+            json.loads(
+                urllib.request
+                .urlopen(spark_master_ui)
+                .read()
+                .decode('utf-8')
+            )
+            # TODO: Don't print here. Return this and let the caller print.
+            logger.info("Spark online.")
         except Exception as e:
             # TODO: Catch a more specific problem known to be related to Spark not
             #       being up; provide a slightly better error message, and don't
             #       dump a large stack trace on the user.
-            print("Spark health check failed.", file=sys.stderr)
-            raise
-
-        # TODO: Don't print here. Return this and let the caller print.
-        logger.info(textwrap.dedent(
-            """\
-            Spark Health Report:
-              * Master: {status}
-              * Workers: {workers}
-              * Cores: {cores}
-              * Memory: {memory:.1f} GB\
-            """.format(
-                status=spark_ui_info['status'],
-                workers=len(spark_ui_info['workers']),
-                cores=spark_ui_info['cores'],
-                memory=spark_ui_info['memory'] / 1024)))
+            raise Exception("Spark health check failed.") from e
