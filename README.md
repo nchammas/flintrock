@@ -15,7 +15,7 @@ Flintrock has been featured in a few talks, guides, and papers around the web.
 * Talks:
   * [Flintrock: A faster, better spark-ec2](https://www.youtube.com/watch?v=3aeIpOGrJOA) ([slides](http://www.slideshare.net/SparkSummit/flintrock-a-faster-better-sparkec2-by-nicholas-chammas))
 * Guides:
-  * **Running Spark on a Cluster: The Basics (using flintrock)**
+  * Running Spark on a Cluster: The Basics (using Flintrock)
     * [Part 1: Start a Spark Cluster and Use the spark-shell](http://heather.miller.am/blog/launching-a-spark-cluster-part-1.html)
     * [Part 2: Dependencies, S3, and Deploying via spark-submit](http://heather.miller.am/blog/launching-a-spark-cluster-part-2.html)    
   * [Spark with Jupyter on AWS](https://github.com/PiercingDan/spark-Jupyter-AWS)
