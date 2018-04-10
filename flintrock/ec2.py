@@ -71,6 +71,7 @@ class EC2Cluster(FlintrockCluster):
         self.vpc_id = vpc_id
         self.master_instance = master_instance
         self.slave_instances = slave_instances
+        self._subnet_is_private = not boto3.resource(service_name='ec2', region_name=self.region).Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
 
     @property
     def instances(self):
@@ -109,8 +110,7 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def subnet_is_private(self):
-        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
-        return not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
+        return self._subnet_is_private
 
     @property
     def num_masters(self):
