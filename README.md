@@ -327,23 +327,26 @@ We here at project Flintrock are much more modest in our abilities. We are best 
 
 ## Motivation
 
-*Note: The explanation here is provided from the perspective of Flintrock's original author, Nicholas Chammas. spark-ec2 is still an active project, so the problems described below may no longer exist. However, they were all present at the time Flintrock was created.*
+*Note: The explanation here is provided from the perspective of Flintrock's original author, Nicholas Chammas.*
 
 I got started with Spark by using [spark-ec2](https://github.com/amplab/spark-ec2). It's one of the biggest reasons I found Spark so accessible. I didn't need to spend time upfront working through some setup guide before I could work on a "real" problem. Instead, with a simple spark-ec2 command I was able to launch a large, working cluster and get straight to business.
 
 As I became a heavy user of spark-ec2, several limitations stood out and became an increasing pain. They provided me with the motivation for this project.
 
-Among those limitations were:
+Among those limitations, the most frustrating ones were:
 
 * **Slow launches**: spark-ec2 cluster launch times increase linearly with the number of slaves being created. For example, it takes spark-ec2 **[over an hour](https://issues.apache.org/jira/browse/SPARK-5189)** to launch a cluster with 100 slaves. ([SPARK-4325](https://issues.apache.org/jira/browse/SPARK-4325), [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189))
 * **No support for configuration files**: spark-ec2 does not support reading options from a config file, so users are always forced to type them in at the command line. ([SPARK-925](https://issues.apache.org/jira/browse/SPARK-925))
 * **Un-resizable clusters**: Adding or removing slaves from an existing spark-ec2 cluster is not possible. ([SPARK-2008](https://issues.apache.org/jira/browse/SPARK-2008))
-* **Custom machine images**: spark-ec2 uses custom machine images, and since the process of updating those machine images is not automated, they have not been updated in years. ([SPARK-3821](https://issues.apache.org/jira/browse/SPARK-3821))
-* **Unexposed EC2 options**: spark-ec2 does not expose all the EC2 options one would want to use as part of automated performance testing of Spark. ([SPARK-6220](https://issues.apache.org/jira/browse/SPARK-6220))
-* **Poor support for programmatic use cases**: spark-ec2 was not built with programmatic use in mind, so many flows are difficult or impossible to automate. ([SPARK-5627](https://issues.apache.org/jira/browse/SPARK-5627), [SPARK-5629](https://issues.apache.org/jira/browse/SPARK-5629))
-* **No standalone distribution**: spark-ec2 comes bundled with Spark and has no independent releases or distribution. Instead of being a nimble tool that can progress independently and be installed separately, it is tied to Spark's release cycle and distributed with Spark, which clocks in at a few hundred megabytes.
+* **Custom machine images**: spark-ec2 uses custom machine images, making it difficult for users to bring their own image. And since the process of updating those machine images is not automated, they have not been updated in years. ([SPARK-3821](https://issues.apache.org/jira/browse/SPARK-3821))
 
-Flintrock addresses all of these shortcomings.
+I built Flintrock to address all of these shortcomings, which it does.
+
+### Why build Flintrock when we have EMR?
+
+I started work on Flintrock months before [EMR added support for Spark](https://aws.amazon.com/blogs/aws/new-apache-spark-on-amazon-emr/). It's likely that, had I considered building Flintrock a year later than I did, I would have decided against it.
+
+Now that Flintrock exists, many users appreciate the lower cost of running Flintrock clusters as compared to EMR, as well as Flintrock's simpler interface. And for my part, I enjoy working on Flintrock in my free time.
 
 ### Why didn't you build Flintrock on top of an orchestration tool?
 
