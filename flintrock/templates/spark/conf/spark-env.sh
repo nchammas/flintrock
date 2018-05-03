@@ -9,8 +9,11 @@ export SPARK_WORKER_CORES="$(nproc)"
 
 export SPARK_MASTER_HOST="{master_host}"
 
+export HADOOP_HOME="$HOME/hadoop"
+export LD_LIBRARY_PATH="$HADOOP_HOME/lib/native:$LD_LIBRARY_PATH"
+
 # TODO: Make this dependent on HDFS install.
-export HADOOP_CONF_DIR="$HOME/hadoop/conf"
+export HADOOP_CONF_DIR="$HADOOP_HOME/hadoop/conf"
 
 # TODO: Make this non-EC2-specific.
 # Bind Spark's web UIs to this machine's public EC2 hostname if it has, otherwise bind to private name
