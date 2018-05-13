@@ -211,7 +211,7 @@ def cli(cli_context, config, provider, debug):
 @click.option('--hdfs-version', default='2.7.5')
 @click.option('--hdfs-download-source',
               help="URL to download Hadoop from.",
-              default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
+              default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz',
               show_default=True)
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-executor-instances', default=1,
@@ -224,7 +224,7 @@ def cli(cli_context, config, provider, debug):
               help="Spark release version to install.")
 @click.option('--spark-download-source',
               help="URL to download a release of Spark from.",
-              default='https://s3.amazonaws.com/spark-related-packages/spark-{v}-bin-hadoop2.6.tgz',
+              default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop2.7.tgz',
               show_default=True)
 @click.option('--spark-git-commit',
               help="Git commit to build Spark from. "

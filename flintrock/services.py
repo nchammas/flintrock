@@ -116,33 +116,32 @@ class HDFS(FlintrockService):
     def install(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster):
+            cluster: FlintrockCluster,
+        ):
         logger.info("[{h}] Installing HDFS...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
         with ssh_client.open_sftp() as sftp:
             sftp.put(
-                localpath=os.path.join(SCRIPTS_DIR, 'download-hadoop.py'),
-                remotepath='/tmp/download-hadoop.py')
+                localpath=os.path.join(SCRIPTS_DIR, 'download-package.py'),
+                remotepath='/tmp/download-package.py')
 
         ssh_check_output(
             client=ssh_client,
             command="""
                 set -e
 
-                python /tmp/download-hadoop.py "{version}" "{download_source}"
-
-                mkdir "hadoop"
-                mkdir "hadoop/conf"
-
-                tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
-                rm "hadoop-{version}.tar.gz"
+                python /tmp/download-package.py "{download_source}" "hadoop"
 
                 for f in $(find hadoop/bin -type f -executable -not -name '*.cmd'); do
                     sudo ln -s "$(pwd)/$f" "/usr/local/bin/$(basename $f)"
                 done
+
                 echo "export HADOOP_LIBEXEC_DIR='$(pwd)/hadoop/libexec'" >> .bashrc
-            """.format(version=self.version, download_source=self.download_source))
+            """.format(
+                version=self.version,
+                download_source=self.download_source.format(v=self.version),
+            ))
 
     def configure(
             self,
@@ -156,6 +155,11 @@ class HDFS(FlintrockService):
             'hadoop/conf/core-site.xml',
             'hadoop/conf/hdfs-site.xml',
         ]
+
+        ssh_check_output(
+            client=ssh_client,
+            command="mkdir -p hadoop/conf",
+        )
 
         for template_path in template_paths:
             ssh_check_output(
@@ -273,65 +277,60 @@ class Spark(FlintrockService):
     def install(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster):
-
+            cluster: FlintrockCluster,
+        ):
         logger.info("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
-        try:
-            if self.version:
-                with ssh_client.open_sftp() as sftp:
-                    sftp.put(
-                        localpath=os.path.join(SCRIPTS_DIR, 'install-spark.sh'),
-                        remotepath='/tmp/install-spark.sh')
-                    sftp.chmod(path='/tmp/install-spark.sh', mode=0o755)
-                url = self.download_source.format(v=self.version)
-                ssh_check_output(
-                    client=ssh_client,
-                    command="""
-                        set -e
-                        /tmp/install-spark.sh {url}
-                        rm -f /tmp/install-spark.sh
-                    """.format(url=shlex.quote(url)))
-            else:
-                ssh_check_output(
-                    client=ssh_client,
-                    command="""
-                        set -e
-                        sudo yum install -y git
-                        sudo yum install -y java-devel
-                        """)
-                ssh_check_output(
-                    client=ssh_client,
-                    command="""
-                        set -e
-                        git clone {repo} spark
-                        cd spark
-                        git reset --hard {commit}
-                        if [ -e "make-distribution.sh" ]; then
-                            ./make-distribution.sh -Phadoop-{hadoop_short_version}
-                        else
-                            ./dev/make-distribution.sh -Phadoop-{hadoop_short_version}
-                        fi
-                    """.format(
-                        repo=shlex.quote(self.git_repository),
-                        commit=shlex.quote(self.git_commit),
-                        hadoop_short_version='.'.join(self.hadoop_version.split('.')[:2]),
-                    ))
+        if self.version:
+            with ssh_client.open_sftp() as sftp:
+                sftp.put(
+                    localpath=os.path.join(SCRIPTS_DIR, 'download-package.py'),
+                    remotepath='/tmp/download-package.py')
+
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    python /tmp/download-package.py "{download_source}" "spark"
+                """.format(
+                    version=self.version,
+                    download_source=self.download_source.format(v=self.version),
+                ))
+
+        else:
             ssh_check_output(
                 client=ssh_client,
                 command="""
                     set -e
-                    for f in $(find spark/bin -type f -executable -not -name '*.cmd'); do
-                        sudo ln -s "$(pwd)/$f" "/usr/local/bin/$(basename $f)"
-                    done
-                    echo "export SPARK_HOME='$(pwd)/spark'" >> .bashrc
-                """)
-        except Exception as e:
-            # TODO: This should be a more specific exception.
-            print("Error: Failed to install Spark.", file=sys.stderr)
-            print(e, file=sys.stderr)
-            raise
+                    sudo yum install -y git
+                    sudo yum install -y java-devel
+                    """)
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    set -e
+                    git clone {repo} spark
+                    cd spark
+                    git reset --hard {commit}
+                    if [ -e "make-distribution.sh" ]; then
+                        ./make-distribution.sh -Phadoop-{hadoop_short_version}
+                    else
+                        ./dev/make-distribution.sh -Phadoop-{hadoop_short_version}
+                    fi
+                """.format(
+                    repo=shlex.quote(self.git_repository),
+                    commit=shlex.quote(self.git_commit),
+                    hadoop_short_version='.'.join(self.hadoop_version.split('.')[:2]),
+                ))
+        ssh_check_output(
+            client=ssh_client,
+            command="""
+                set -e
+                for f in $(find spark/bin -type f -executable -not -name '*.cmd'); do
+                    sudo ln -s "$(pwd)/$f" "/usr/local/bin/$(basename $f)"
+                done
+                echo "export SPARK_HOME='$(pwd)/spark'" >> .bashrc
+            """)
 
     def configure(
             self,
@@ -343,6 +342,12 @@ class Spark(FlintrockService):
             'spark/conf/slaves',
             'spark/conf/spark-defaults.conf',
         ]
+
+        ssh_check_output(
+            client=ssh_client,
+            command="mkdir -p spark/conf",
+        )
+
         for template_path in template_paths:
             ssh_check_output(
                 client=ssh_client,
