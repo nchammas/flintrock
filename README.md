@@ -32,7 +32,7 @@ Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
-    --spark-version 2.2.0 \
+    --spark-version 2.3.0 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
     --ec2-ami ami-97785bed \
@@ -243,7 +243,7 @@ provider: ec2
 
 services:
   spark:
-    version: 2.2.0
+    version: 2.3.0
 
 launch:
   num-slaves: 1
