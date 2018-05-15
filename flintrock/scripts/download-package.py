@@ -8,13 +8,6 @@ import sys
 import subprocess
 import time
 
-# if sys.version_info < (3, 0):
-#     from urllib import urlretrieve
-#     from urllib2 import urlopen
-# else:
-#     from urllib.request import urlopen, urlretrieve
-#     from urllib.parse import urlparse
-
 MAX_TRIES = 5
 
 
