@@ -33,6 +33,7 @@ def project_root_dir():
         )
     )
 
+
 @pytest.fixture(scope='session')
 def dummy_cluster():
     storage_dirs = StorageDirs(

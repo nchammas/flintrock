@@ -116,8 +116,7 @@ class HDFS(FlintrockService):
     def install(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster,
-        ):
+            cluster: FlintrockCluster):
         logger.info("[{h}] Installing HDFS...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
@@ -277,8 +276,7 @@ class Spark(FlintrockService):
     def install(
             self,
             ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster,
-        ):
+            cluster: FlintrockCluster):
         logger.info("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
