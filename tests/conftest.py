@@ -26,6 +26,14 @@ aws_credentials_required = (
 
 
 @pytest.fixture(scope='session')
+def project_root_dir():
+    return os.path.dirname(
+        os.path.dirname(
+            os.path.realpath(__file__)
+        )
+    )
+
+@pytest.fixture(scope='session')
 def dummy_cluster():
     storage_dirs = StorageDirs(
         root='/media/root',
