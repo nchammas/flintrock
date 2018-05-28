@@ -174,15 +174,12 @@ def configure_log(debug: bool):
 
 
 def validate_hdfs_download_source(ctx, param, value):
-    # print(ctx.params['hdfs_version'])
     hdfs_download_url = value.format(v=ctx.params['hdfs_version'])
     validate_download_source(hdfs_download_url)
     return hdfs_download_url
 
 
 def validate_spark_download_source(ctx, param, value):
-    # print(ctx.params['spark_version'])
-    # print(ctx.params['hdfs_version'])
     spark_download_url = value.format(v=ctx.params['spark_version'])
     validate_download_source(spark_download_url)
     return spark_download_url
