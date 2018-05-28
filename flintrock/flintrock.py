@@ -173,6 +173,57 @@ def configure_log(debug: bool):
     root_logger.addHandler(handler)
 
 
+def validate_hdfs_download_source(ctx, param, value):
+    # print(ctx.params['hdfs_version'])
+    hdfs_download_url = value.format(v=ctx.params['hdfs_version'])
+    validate_download_source(hdfs_download_url)
+    return hdfs_download_url
+
+
+def validate_spark_download_source(ctx, param, value):
+    # print(ctx.params['spark_version'])
+    # print(ctx.params['hdfs_version'])
+    spark_download_url = value.format(v=ctx.params['spark_version'])
+    validate_download_source(spark_download_url)
+    return spark_download_url
+
+
+def validate_download_source(url):
+    if 'spark' in url:
+        software = 'Spark'
+    elif 'hadoop' in url:
+        software = 'Hadoop'
+    else:
+        software = 'software'
+
+    parsed_url = urllib.parse.urlparse(url)
+
+    if parsed_url.netloc == 'www.apache.org' and parsed_url.path == '/dyn/closer.lua':
+        logger.warning(
+            "Warning: "
+            "Downloading {software} from an Apache mirror. Apache mirrors are "
+            "often slow and unreliable, and typically only serve the most recent releases. "
+            "We strongly recommend you specify a custom download source. "
+            "For more information on this, please see: https://github.com/nchammas/flintrock/issues/238"
+            .format(
+                software=software,
+            )
+        )
+        try:
+            urllib.request.urlopen(url)
+        except urllib.error.HTTPError as e:
+            raise Error(
+                "Error: Could not access {software} download. Maybe try a more recent release?\n"
+                "  - Automatically redirected to: {url}\n"
+                "  - HTTP error: {code}"
+                .format(
+                    software=software,
+                    url=e.url,
+                    code=e.code,
+                )
+            )
+
+
 @click.group()
 @click.option(
     '--config',
@@ -212,7 +263,8 @@ def cli(cli_context, config, provider, debug):
 @click.option('--hdfs-download-source',
               help="URL to download Hadoop from.",
               default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz',
-              show_default=True)
+              show_default=True,
+              callback=validate_hdfs_download_source)
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-executor-instances', default=1,
               help="How many executor instances per worker.")
@@ -225,7 +277,8 @@ def cli(cli_context, config, provider, debug):
 @click.option('--spark-download-source',
               help="URL to download a release of Spark from.",
               default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop2.7.tgz',
-              show_default=True)
+              show_default=True,
+              callback=validate_spark_download_source)
 @click.option('--spark-git-commit',
               help="Git commit to build Spark from. "
                    "Set to 'latest' to build Spark from the latest commit on the "
