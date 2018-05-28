@@ -173,15 +173,13 @@ def configure_log(debug: bool):
     root_logger.addHandler(handler)
 
 
-def validate_hdfs_download_source(ctx, param, value):
+def build_hdfs_download_url(ctx, param, value):
     hdfs_download_url = value.format(v=ctx.params['hdfs_version'])
-    validate_download_source(hdfs_download_url)
     return hdfs_download_url
 
 
-def validate_spark_download_source(ctx, param, value):
+def build_spark_download_url(ctx, param, value):
     spark_download_url = value.format(v=ctx.params['spark_version'])
-    validate_download_source(spark_download_url)
     return spark_download_url
 
 
@@ -261,7 +259,7 @@ def cli(cli_context, config, provider, debug):
               help="URL to download Hadoop from.",
               default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz',
               show_default=True,
-              callback=validate_hdfs_download_source)
+              callback=build_hdfs_download_url)
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-executor-instances', default=1,
               help="How many executor instances per worker.")
@@ -275,7 +273,7 @@ def cli(cli_context, config, provider, debug):
               help="URL to download a release of Spark from.",
               default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop2.7.tgz',
               show_default=True,
-              callback=validate_spark_download_source)
+              callback=build_spark_download_url)
 @click.option('--spark-git-commit',
               help="Git commit to build Spark from. "
                    "Set to 'latest' to build Spark from the latest commit on the "
@@ -401,10 +399,15 @@ def launch(
     check_external_dependency('ssh-keygen')
 
     if install_hdfs:
-        hdfs = HDFS(version=hdfs_version, download_source=hdfs_download_source)
+        validate_download_source(hdfs_download_source)
+        hdfs = HDFS(
+            version=hdfs_version,
+            download_source=hdfs_download_source,
+        )
         services += [hdfs]
     if install_spark:
         if spark_version:
+            validate_download_source(spark_download_source)
             spark = Spark(
                 spark_executor_instances=spark_executor_instances,
                 version=spark_version,
