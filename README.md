@@ -32,7 +32,7 @@ Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
-    --spark-version 2.2.0 \
+    --spark-version 2.3.0 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
     --ec2-ami ami-97785bed \
@@ -89,7 +89,7 @@ these steps:
    better performance.
 3. Make sure Flintrock is configured to use Hadoop/HDFS 2.7+. Earlier
    versions of Hadoop do not have solid implementations of `s3a://`.
-   Flintrock's default is Hadoop 2.7.5, so you don't need to do anything
+   Flintrock's default is Hadoop 2.8.4, so you don't need to do anything
    here if you're using a vanilla configuration.
 
 With this approach you don't need to copy around your AWS credentials
@@ -243,7 +243,7 @@ provider: ec2
 
 services:
   spark:
-    version: 2.2.0
+    version: 2.3.0
 
 launch:
   num-slaves: 1

@@ -593,9 +593,16 @@ def setup_node(
     ensure_java8(ssh_client)
 
     for service in services:
-        service.install(
-            ssh_client=ssh_client,
-            cluster=cluster)
+        try:
+            service.install(
+                ssh_client=ssh_client,
+                cluster=cluster,
+            )
+        except Exception as e:
+            raise Exception(
+                "Failed to install {}."
+                .format(type(service).__name__)
+            ) from e
 
 
 def provision_cluster(
