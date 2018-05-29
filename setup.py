@@ -10,6 +10,7 @@ setuptools.setup(
     version=__version__,
     description='A command-line tool for launching Apache Spark clusters.',
     long_description=long_description,
+    # FYI: This option requires setuptools >= 38.6.0.
     long_description_content_type="text/markdown",
     url='https://github.com/nchammas/flintrock',
     author='Nicholas Chammas',

@@ -7,6 +7,3 @@ setuptools >= 39.0.1
 #       `install_requires` in setup.py.
 #       See: https://caremad.io/2013/07/setup-vs-requirement/
 -e .
-
-# The following packages are considered to be unsafe in a requirements file:
-# setuptools
