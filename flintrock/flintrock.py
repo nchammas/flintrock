@@ -199,7 +199,7 @@ def validate_download_source(url):
             "Downloading {software} from an Apache mirror. Apache mirrors are "
             "often slow and unreliable, and typically only serve the most recent releases. "
             "We strongly recommend you specify a custom download source. "
-            "For more information on this, please see: https://github.com/nchammas/flintrock/issues/238"
+            "For more background on this issue, please see: https://github.com/nchammas/flintrock/issues/238"
             .format(
                 software=software,
             )
