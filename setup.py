@@ -1,18 +1,16 @@
 import setuptools
-
-try:
-    import pypandoc
-    long_description = pypandoc.convert('README.md', 'rst')
-except ImportError:
-    long_description = open('README.md').read()
-
 from flintrock import __version__
+
+
+with open('README.md') as f:
+    long_description = f.read()
 
 setuptools.setup(
     name='Flintrock',
     version=__version__,
     description='A command-line tool for launching Apache Spark clusters.',
     long_description=long_description,
+    long_description_content_type="text/markdown",
     url='https://github.com/nchammas/flintrock',
     author='Nicholas Chammas',
     author_email='nicholas.chammas@gmail.com',
