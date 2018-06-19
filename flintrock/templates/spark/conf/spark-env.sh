@@ -15,6 +15,8 @@ export LD_LIBRARY_PATH="$HADOOP_HOME/lib/native:$LD_LIBRARY_PATH"
 # TODO: Make this dependent on HDFS install.
 export HADOOP_CONF_DIR="$HADOOP_HOME/hadoop/conf"
 
+export SPARK_DIST_CLASSPATH=$($HADOOP_HOME/bin/hadoop classpath)
+
 # TODO: Make this non-EC2-specific.
 # Bind Spark's web UIs to this machine's public EC2 hostname if it has, otherwise bind to private name
 HTTP_STATUS_PUBLIC_NAME=$(curl --head --silent --output /dev/null --write-out "%{{http_code}}" http://169.254.169.254/latest/meta-data/public-hostname)
