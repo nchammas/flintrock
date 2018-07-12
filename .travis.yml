@@ -1,3 +1,8 @@
+# Workaround for Python 3.7 support pulled from here:
+# https://github.com/travis-ci/travis-ci/issues/9815#issuecomment-401756442
+dist: xenial
+sudo: true
+
 language: python
 python:
   - "3.4"
