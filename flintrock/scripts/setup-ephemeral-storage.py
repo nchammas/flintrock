@@ -39,11 +39,22 @@ Mount = namedtuple(
     ])
 
 BlockDevice = namedtuple(
-    'BlockDevice', [
-        'name',
-        'mount_point'
-    ])
-BlockDevice.__new__.__defaults__ = (None, None)
+    'BlockDevice', sorted([
+        'kname',
+        'mountpoint',
+        'size',
+    ]))
+BlockDevice.__new__.__defaults__ = (None, ) * len(BlockDevice._fields)
+
+
+def device_pairs_to_tuple(pairs):
+    device_dict = {}
+    for pair in pairs:
+        key, value = pair.split('=')
+        key = key.lower()
+        value = value.strip('"').lower()
+        device_dict.update({key: value})
+    return BlockDevice(**device_dict)
 
 
 def get_non_root_block_devices():
@@ -55,17 +66,33 @@ def get_non_root_block_devices():
     block_devices_raw = subprocess.check_output([
         'lsblk',
         '--ascii',
+        '--pairs',
+        '--bytes',
         '--paths',
-        '--output', 'KNAME,MOUNTPOINT',
+        '--output', 'KNAME,MOUNTPOINT,SIZE',
         # --inverse and --nodeps make sure that
         #   1) we get the mount points for devices that have holder devices
         #   2) we don't get the holder devices themselves
         '--inverse',
         '--nodeps',
-        '--noheadings']).decode('utf-8')
-    block_devices = [BlockDevice(*line.split()) for line in block_devices_raw.splitlines()]
-    non_root_block_devices = [bd for bd in block_devices if bd.mount_point != '/']
-    return non_root_block_devices
+        '--noheadings',
+    ]).decode('utf-8')
+    block_devices = [
+        device_pairs_to_tuple(line.split())
+        for line in block_devices_raw.splitlines()
+    ]
+    non_root_block_devices = [
+        device for device in block_devices
+        if device.mountpoint != '/'
+    ]
+    # Skip tiny devices, like the 1M devices that show up on
+    # m5 instances on EC2.
+    # See: https://github.com/nchammas/flintrock/issues/256
+    non_trivial_non_root_block_devices = [
+        device for device in non_root_block_devices
+        if int(device.size) >= 1024 ** 3
+    ]
+    return non_trivial_non_root_block_devices
 
 
 def unmount_devices(devices):
@@ -76,7 +103,7 @@ def unmount_devices(devices):
         mounts = [Mount(*line.split()) for line in m.read().splitlines()]
 
     for mount in mounts:
-        if mount.device_name in [d.name for d in devices]:
+        if mount.device_name in [d.kname for d in devices]:
             subprocess.check_output(['sudo', 'umount', mount.device_name])
 
 
@@ -91,7 +118,7 @@ def format_devices(devices):
             '-F',
             '-E',
             'lazy_itable_init=0,lazy_journal_init=0',
-            device.name],
+            device.kname],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
         format_processes.append(p)
@@ -117,20 +144,20 @@ def mount_devices(devices):
     """
     for device in devices:
         subprocess.check_output([
-            'sudo', 'mkdir', '-p', device.mount_point])
+            'sudo', 'mkdir', '-p', device.mountpoint])
 
         # Replace any existing fstab entries with our own.
         subprocess.check_output(
             """
             grep -v -e "^{device_name}" /etc/fstab | sudo tee /etc/fstab
-            """.format(device_name=device.name),
+            """.format(device_name=device.kname),
             shell=True)
         subprocess.check_output(
             """
             echo "{fstab_entry}" | sudo tee -a /etc/fstab
             """.format(fstab_entry='   '.join([
-                device.name,
-                device.mount_point,
+                device.kname,
+                device.mountpoint,
                 'ext4',
                 'defaults,users,noatime',
                 '0',
@@ -138,11 +165,11 @@ def mount_devices(devices):
             shell=True)
 
         subprocess.check_output([
-            'sudo', 'mount', '--source', device.name])
+            'sudo', 'mount', '--source', device.kname])
         # NOTE: `mount` changes the mount point owner to root, so we have
         #       to set it to what we want here, after `mount` runs.
         subprocess.check_output(
-            'sudo chown "$(logname):$(logname)" {m}'.format(m=device.mount_point),
+            'sudo chown "$(logname):$(logname)" {m}'.format(m=device.mountpoint),
             shell=True)
 
 
@@ -185,11 +212,11 @@ if __name__ == '__main__':
     #       We're going to assign them the mount points we want them to have once we're
     #       done with the unmount -> format -> mount cycle.
     ephemeral_devices = []
-    for (num, device) in enumerate(sorted(non_root_block_devices, key=lambda d: d.name)):
+    for (num, device) in enumerate(sorted(non_root_block_devices, key=lambda d: d.kname)):
         ephemeral_devices.append(
             BlockDevice(
-                name=device.name,
-                mount_point='/media/ephemeral' + str(num)))
+                kname=device.kname,
+                mountpoint='/media/ephemeral' + str(num)))
 
     unmount_devices(ephemeral_devices)
     format_devices(ephemeral_devices)
@@ -197,7 +224,7 @@ if __name__ == '__main__':
 
     root_dir = create_root_dir()
     if ephemeral_devices:
-        tmp_dir = ephemeral_devices[0].mount_point
+        tmp_dir = ephemeral_devices[0].mountpoint
     else:
         tmp_dir = '/tmp'
     create_tmp_dir(tmp_dir)
@@ -205,5 +232,5 @@ if __name__ == '__main__':
     print(json.dumps(
         {
             'root': root_dir,
-            'ephemeral': [d.mount_point for d in ephemeral_devices]
+            'ephemeral': [d.mountpoint for d in ephemeral_devices]
         }))
