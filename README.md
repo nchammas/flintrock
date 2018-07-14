@@ -27,7 +27,7 @@ Flintrock has been featured in a few talks, guides, and papers around the web.
 
 ## Usage
 
-Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS account set up](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/get-set-up-for-amazon-ec2.html).
+Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS account set up](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/get-set-up-for-amazon-ec2.html). Flintrock works best with Amazon Linux. You can get the latest AMI IDs [from here](https://aws.amazon.com/amazon-linux-2/release-notes/).
 
 ```sh
 flintrock launch test-cluster \
@@ -35,7 +35,7 @@ flintrock launch test-cluster \
     --spark-version 2.3.0 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
-    --ec2-ami ami-97785bed \
+    --ec2-ami ami-7105540e \
     --ec2-user ec2-user
 ```
 
@@ -265,7 +265,7 @@ providers:
     identity-file: /path/to/.ssh/key.pem
     instance-type: m3.medium
     region: us-east-1
-    ami: ami-97785bed
+    ami: ami-7105540e
     user: ec2-user
 ```
 
