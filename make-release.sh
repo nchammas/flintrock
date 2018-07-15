@@ -1,8 +1,10 @@
 # Update:
 #   - Default Spark and Hadoop versions
 #   - Default Amazon Linux AMI
+#   - Dependencies
 # Run full acceptance tests
 # Update Flintrock version
+#   - flintrock/__init__.py
 # Update CHANGES
 #   - Check: https://github.com/nchammas/flintrock/pulls?q=is%3Apr+is%3Aclosed+label%3A%22needs+changelog%22
 #   - Update "Unreleased" section. "Nothing notable yet."
