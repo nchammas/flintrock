@@ -4,7 +4,48 @@
 
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v0.9.0...master
 
-Nothing notable yet.
+### Added
+
+* [#242]: Flintrock is now available on Homebrew:
+  ```
+  brew install flintrock
+  ```
+  This is a community-supported distribution.
+
+[#242]: https://github.com/nchammas/flintrock/pull/242
+
+### Changed
+
+* [#224]: Fixed a problem with some Flintrock config combinations
+  related to Hadoop.
+* [#232]: When you destroy a cluster, Flintrock now waits until the
+  instances are completely terminated before returning.
+* [#234]: Flintrock now tries more times by default to connect via
+  SSH, which should provide more launch stability in certain
+  environments.
+* [#246]: Fixed some bugs with `flintrock describe` that are exposed
+  when a cluster is transitioning states (e.g. from running to
+  terminated).
+* [#249]: **Flintrock now downloads both Spark and Hadoop from Apache
+  mirrors by default.** This is a significant change. You can read the
+  background on what prompted this change in [#238].
+* [#254]: Flintrock no longer configures hadoop-aws automatically due
+  to version incompatibilities that are difficult to resolve
+  automatically. Instead, the README now provides additional guidance
+  on using `s3a://`.
+* [#259]: Flintrock now correctly ignores tiny devices that show up
+  on some instance types, like the M5 series on EC2. This fixes the
+  problems Flintrock had getting HDFS to work on those instance
+  types.
+
+[#224]: https://github.com/nchammas/flintrock/pull/224
+[#232]: https://github.com/nchammas/flintrock/pull/232
+[#234]: https://github.com/nchammas/flintrock/pull/234
+[#238]: https://github.com/nchammas/flintrock/pull/238
+[#246]: https://github.com/nchammas/flintrock/pull/246
+[#249]: https://github.com/nchammas/flintrock/pull/249
+[#254]: https://github.com/nchammas/flintrock/pull/254
+[#259]: https://github.com/nchammas/flintrock/pull/259
 
 ## [0.9.0] - 2017-08-06
 
