@@ -1,6 +1,6 @@
 services:
   spark:
-    version: 2.3.0
+    version: 2.3.1
     # git-commit: latest  # if not 'latest', provide a full commit SHA; e.g. d6dc12ef0146ae409834c78737c116050961f350
     # git-repository:  # optional; defaults to https://github.com/apache/spark
     # optional; defaults to download from from the official Spark S3 bucket
