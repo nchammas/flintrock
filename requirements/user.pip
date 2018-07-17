@@ -1,9 +1,0 @@
-# NOTE: Run pip from Flintrock's root directory, not from the directory containing
-#       this file.
-
-setuptools >= 39.0.1
-
-# NOTE: The `-e .` syntax lets us reuse the requirements already specified under
-#       `install_requires` in setup.py.
-#       See: https://caremad.io/2013/07/setup-vs-requirement/
--e .
