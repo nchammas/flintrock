@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "Flintrock"
+description = "A command-line tool for launching Apache Spark clusters."
+version = "0.11.0.dev0"
+authors = ["Nicholas Chammas <nicholas.chammas@gmail.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+homepage = "https://github.com/nchammas/flintrock"
+repository = "https://github.com/nchammas/flintrock"
+keywords = ["Apache Spark"]
+packages = [
+    { include = "flintrock" },
+]
+
+[tool.poetry.scripts]
+flintrock = 'flintrock.flintrock:main'
+
+[tool.poetry.dependencies]
+python = ">=3.4, <3.7"
+boto3 = "^1.7"
+botocore = "^1.10"
+click = "^6.7"
+paramiko = "^2.4"
+PyYAML = "~3.12"
+
+[tool.poetry.dev-dependencies]
+flake8 = "~3.5"
+pytest = "^3.6"
+pytest-cov = "^2.5"
+PyInstaller = "3.3"
