@@ -12,6 +12,27 @@ packages = [
     { include = "flintrock" },
 ]
 
+# See: https://pypi.org/classifiers/
+classifiers = [
+    'Development Status :: 4 - Beta',
+
+    'Intended Audience :: Developers',
+    'Intended Audience :: Science/Research',
+
+    'Topic :: Utilities',
+    'Environment :: Console',
+    'Operating System :: MacOS :: MacOS X',
+    'Operating System :: POSIX',
+
+    'License :: OSI Approved :: Apache Software License',
+
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3 :: Only',
+    'Programming Language :: Python :: 3.4',
+    'Programming Language :: Python :: 3.5',
+    'Programming Language :: Python :: 3.6',
+]
+
 [tool.poetry.scripts]
 flintrock = 'flintrock.flintrock:main'
 
