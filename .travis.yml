@@ -4,13 +4,10 @@ python:
   - "3.5"
   - "3.6"
 install:
-  - "pip install -r requirements/developer.pip"
+  - "pip install poetry"
+  - "poetry develop"
 script:
-  - "pytest ./tests/test_static.py"
-  - "pytest ./tests/test_flintrock.py"
-  - "pytest ./tests/test_core.py"
-  - "pip install -r requirements/maintainer.pip"
-  - "pytest ./tests/test_pyinstaller_packaging.py"
+  - "pytest ./tests/"
 addons:
   artifacts:
     paths:
