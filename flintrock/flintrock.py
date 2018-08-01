@@ -573,7 +573,7 @@ def describe(
     else:
         if master_hostname_only:
             for cluster in sorted(clusters, key=lambda x: x.name):
-                logger.info(cluster.name + ':', cluster.master_host)
+                logger.info("{} : {}".format(cluster.name, cluster.master_host))
         else:
             logger.info("Found {n} cluster{s}{space}{search_area}.".format(
                 n=len(clusters),
