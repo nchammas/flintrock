@@ -272,7 +272,7 @@ providers:
 With a config file like that, you can now launch a cluster with just this:
 
 ```sh
-flintrock launch test-cluster
+flintrock --config config.yaml launch test-cluster
 ```
 
 And if you want, you can even override individual options in your config file at the command line:
