@@ -53,7 +53,7 @@ setuptools.setup(
         'botocore == 1.10.58',
         'click == 6.7',
         'paramiko == 2.4.1',
-        'PyYAML == 3.12',
+        'PyYAML == 3.13',
         # This is to ensure that PyInstaller works. dateutil is an
         # indirect dependency of Flintrock, and PyInstaller chokes on
         # dateutil 2.5.0.
