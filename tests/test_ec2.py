@@ -1,6 +1,7 @@
 import pytest
 import click
-from flintrock.ec2 import validate_tags
+from types import SimpleNamespace
+import flintrock.ec2 as ec2
 
 
 def test_validate_tags():
@@ -18,7 +19,7 @@ def test_validate_tags():
          [{'Key': 'k4', 'Value': 'v4'}, {'Key': 'k5', 'Value': 'v5'}])]
 
     for test_case in positive_test_cases:
-        ec2_tags = validate_tags(test_case[0])
+        ec2_tags = ec2.validate_tags(test_case[0])
         assert(isinstance(ec2_tags, list))
         for i, ec2_tag in enumerate(ec2_tags):
             expected_dict = test_case[1][i]
@@ -29,4 +30,18 @@ def test_validate_tags():
     negative_test_cases = [["k1"], ["k2,v2,"], ["k3,,v3"], [",v4"]]
     for test_case in negative_test_cases:
         with pytest.raises(click.BadParameter):
-            validate_tags(test_case)
+            ec2.validate_tags(test_case)
+
+
+def test_client_address_for_multiple_ips(monkeypatch):
+    # Possible return value from AWS service "checkip".
+    multiple_ips = '189.4.79.64, 107.167.109.191\n'
+
+    read_obj = SimpleNamespace()
+    read_obj.decode = lambda _: multiple_ips
+    request_obj = SimpleNamespace()
+    request_obj.read = lambda: read_obj
+    monkeypatch.setattr(ec2.urllib.request, 'urlopen',
+                        lambda url: request_obj)
+
+    assert ec2._get_client_ip_address() == multiple_ips.strip()
