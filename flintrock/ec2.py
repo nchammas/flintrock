@@ -495,7 +495,9 @@ def _get_client_ip_address() -> str:
     (which may return multiple addresses).
     """
     return (urllib.request.urlopen('http://checkip.amazonaws.com/')
-            .read().decode('utf-8').strip())
+            .read().decode('utf-8')
+            .split(',')[0]
+            .strip())
 
 
 def get_or_create_flintrock_security_groups(

@@ -33,15 +33,20 @@ def test_validate_tags():
             ec2.validate_tags(test_case)
 
 
-def test_client_address_for_multiple_ips(monkeypatch):
-    # Possible return value from AWS service "checkip".
-    multiple_ips = '189.4.79.64, 107.167.109.191\n'
+def test_client_ip_address(monkeypatch):
+    def mock_checkip(ret_ip: str):
+        read_obj = SimpleNamespace()
+        read_obj.decode = lambda _: ret_ip
+        request_obj = SimpleNamespace()
+        request_obj.read = lambda: read_obj
+        monkeypatch.setattr(ec2.urllib.request, 'urlopen',
+                            lambda url: request_obj)
 
-    read_obj = SimpleNamespace()
-    read_obj.decode = lambda _: multiple_ips
-    request_obj = SimpleNamespace()
-    request_obj.read = lambda: read_obj
-    monkeypatch.setattr(ec2.urllib.request, 'urlopen',
-                        lambda url: request_obj)
+    # Mocking urllib to make the request to AWS service "checkip" return
+    # multiple IP addresses.
+    mock_checkip('189.4.79.64, 107.167.109.191\n')
+    assert ec2._get_client_ip_address() == '189.4.79.64'
 
-    assert ec2._get_client_ip_address() == multiple_ips.strip()
+    # Checking the most common case, a single IP address.
+    mock_checkip('189.4.79.64\n')
+    assert ec2._get_client_ip_address() == '189.4.79.64'
