@@ -489,6 +489,15 @@ def get_security_groups(
     return groups
 
 
+def _get_client_ip_address() -> str:
+    """
+    Returns a single Flintrock client's IP address using AWS "checkip" service
+    (which may return multiple addresses).
+    """
+    return (urllib.request.urlopen('http://checkip.amazonaws.com/')
+            .read().decode('utf-8').strip())
+
+
 def get_or_create_flintrock_security_groups(
         *,
         cluster_name,
@@ -540,10 +549,7 @@ def get_or_create_flintrock_security_groups(
             VpcId=vpc_id)
 
     # Rules for the client interacting with the cluster.
-    flintrock_client_ip = (
-        urllib.request.urlopen('http://checkip.amazonaws.com/')
-        .read().decode('utf-8').strip())
-    flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+    flintrock_client_cidr = '{ip}/32'.format(ip=_get_client_ip_address())
 
     # TODO: Services should be responsible for registering what ports they want exposed.
     client_rules = [
