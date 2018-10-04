@@ -42,11 +42,9 @@ def test_client_ip_address(monkeypatch):
         monkeypatch.setattr(ec2.urllib.request, 'urlopen',
                             lambda url: request_obj)
 
-    # Mocking urllib to make the request to AWS service "checkip" return
-    # multiple IP addresses.
+    # Vide issue 271: https://github.com/nchammas/flintrock/issues/271
     mock_checkip('189.4.79.64, 107.167.109.191\n')
     assert ec2._get_client_ip_address() == '189.4.79.64'
 
-    # Checking the most common case, a single IP address.
     mock_checkip('189.4.79.64\n')
     assert ec2._get_client_ip_address() == '189.4.79.64'
