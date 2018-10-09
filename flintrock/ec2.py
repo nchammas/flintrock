@@ -669,6 +669,9 @@ def get_ec2_block_device_mappings(
                 'VolumeSize': min_root_ebs_size_gb,
                 # gp2 is general-purpose SSD
                 'VolumeType': 'gp2'})
+                
+        #ADDING THIS LINE TO ALWAYS REMOVE EBS ON TERMINATED INSTANCES
+        root_device['Ebs'].update({'DeleteOnTermination': True})
         del root_device['Ebs']['Encrypted']
         block_device_mappings.append(root_device)
 
