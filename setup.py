@@ -54,13 +54,6 @@ setuptools.setup(
         'click == 7.0',
         'paramiko == 2.4.2',
         'PyYAML == 3.13',
-        # This is to ensure that PyInstaller works. dateutil is an
-        # indirect dependency of Flintrock, and PyInstaller chokes on
-        # dateutil 2.5.0.
-        # See: https://github.com/pyinstaller/pyinstaller/issues/1848
-        # More recently, botocore also imposes additional restrictions
-        # on the acceptable versions of python-dateutil.
-        'python-dateutil >= 2.5.3, < 2.7.0',
         # This is to address reports that PyInstaller-packaged versions
         # of Flintrock intermittently fail due to an out-of-date version
         # of Cryptography being used.
