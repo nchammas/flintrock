@@ -1171,9 +1171,11 @@ def check_external_dependency(executable_name: str):
 
 
 def main() -> int:
-    if flintrock_is_in_development_mode():
-        warnings.simplefilter(action='always', category=DeprecationWarning)
-        # warnings.simplefilter(action='always', category=ResourceWarning)
+    # Starting in Python 3.7, deprecation warnings are shown by default. We
+    # don't want to show these to end-users.
+    # See: https://docs.python.org/3/library/warnings.html#default-warning-filter
+    if not flintrock_is_in_development_mode():
+        warnings.simplefilter(action='ignore', category=DeprecationWarning)
 
     set_open_files_limit(4096)
 
