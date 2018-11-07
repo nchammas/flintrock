@@ -541,7 +541,7 @@ def get_or_create_flintrock_security_groups(
 
     # Rules for the client interacting with the cluster.
     flintrock_client_ip = (
-        urllib.request.urlopen('http://checkip.amazonaws.com/')
+        urllib.request.urlopen('https://checkip.amazonaws.com/')
         .read().decode('utf-8').strip())
     flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
 
