@@ -11,13 +11,9 @@ matrix:
       dist: "xenial"
       sudo: true
 install:
-  - "pip install -r requirements/developer.pip"
-script:
-  - "pytest ./tests/test_static.py"
-  - "pytest ./tests/test_flintrock.py"
-  - "pytest ./tests/test_core.py"
   - "pip install -r requirements/maintainer.pip"
-  - "pytest ./tests/test_pyinstaller_packaging.py"
+script:
+  - "pytest"
 addons:
   artifacts:
     paths:
