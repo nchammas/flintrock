@@ -1,5 +1,4 @@
 import os
-from urllib.error import HTTPError
 
 # External modules
 import pytest
@@ -136,7 +135,7 @@ def test_mutually_exclusive():
 
 @pytest.mark.xfail(
     reason="This test often fails on Travis CI for unknown reasons.",
-    raises=HTTPError,
+    raises=Exception,
     condition=(os.environ.get('TRAVIS') == 'true'),
 )
 def test_get_latest_commit():
