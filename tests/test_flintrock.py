@@ -1,5 +1,4 @@
 import os
-from urllib.error import HTTPError
 
 # External modules
 import pytest
