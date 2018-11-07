@@ -318,7 +318,9 @@ class Spark(FlintrockService):
                 """.format(
                     repo=shlex.quote(self.git_repository),
                     commit=shlex.quote(self.git_commit),
-                    hadoop_short_version='.'.join(self.hadoop_version.split('.')[:2]),
+                    # Hardcoding this here until we figure out a better way to handle
+                    # the supported build profiles.
+                    hadoop_short_version='2.7',
                 ))
         ssh_check_output(
             client=ssh_client,
@@ -338,7 +340,6 @@ class Spark(FlintrockService):
         template_paths = [
             'spark/conf/spark-env.sh',
             'spark/conf/slaves',
-            'spark/conf/spark-defaults.conf',
         ]
 
         ssh_check_output(

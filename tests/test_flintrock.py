@@ -1,3 +1,6 @@
+import os
+from urllib.error import HTTPError
+
 # External modules
 import pytest
 
@@ -131,6 +134,11 @@ def test_mutually_exclusive():
             scope=locals())
 
 
+@pytest.mark.xfail(
+    reason="This test often fails on Travis CI for unknown reasons.",
+    raises=HTTPError,
+    condition=(os.environ.get('TRAVIS') == 'true'),
+)
 def test_get_latest_commit():
     sha = get_latest_commit("https://github.com/apache/spark")
     assert len(sha) == 40
@@ -151,7 +159,7 @@ def test_get_latest_commit():
 )
 def test_validate_valid_download_source():
     validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-2.8.4/hadoop-2.8.4.tar.gz")
-    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-2.3.0/spark-2.3.0-bin-hadoop2.7.tgz")
+    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-2.3.1/spark-2.3.1-bin-hadoop2.7.tgz")
 
 
 def test_validate_invalid_download_source():

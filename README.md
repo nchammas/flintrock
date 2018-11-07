@@ -27,15 +27,15 @@ Flintrock has been featured in a few talks, guides, and papers around the web.
 
 ## Usage
 
-Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS account set up](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/get-set-up-for-amazon-ec2.html).
+Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS account set up](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/get-set-up-for-amazon-ec2.html). Flintrock works best with Amazon Linux. You can get the latest AMI IDs [from here](https://aws.amazon.com/amazon-linux-2/release-notes/).
 
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
-    --spark-version 2.3.0 \
+    --spark-version 2.3.1 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
-    --ec2-ami ami-97785bed \
+    --ec2-ami ami-7105540e \
     --ec2-user ec2-user
 ```
 
@@ -91,6 +91,17 @@ these steps:
    versions of Hadoop do not have solid implementations of `s3a://`.
    Flintrock's default is Hadoop 2.8.4, so you don't need to do anything
    here if you're using a vanilla configuration.
+4. Call Spark with the hadoop-aws package to enable `s3a://`. For example:
+   ```sh
+   spark-submit --packages org.apache.hadoop:hadoop-aws:2.7.6 my-app.py
+   pyspark --packages org.apache.hadoop:hadoop-aws:2.7.6
+   ```
+   If you have issues using the package, consult the [hadoop-aws troubleshooting
+   guide](http://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html)
+   and try adjusting the version. As a rule of thumb, you should match the version
+   of hadoop-aws to the version of Hadoop that Spark was built against (which is
+   typically Hadoop 2.7), even if the version of Hadoop that you're deploying to
+   your Flintrock cluster is different.
 
 With this approach you don't need to copy around your AWS credentials
 or pass them into your Spark programs. As long as the assigned IAM role
@@ -243,7 +254,7 @@ provider: ec2
 
 services:
   spark:
-    version: 2.3.0
+    version: 2.3.1
 
 launch:
   num-slaves: 1
@@ -254,7 +265,7 @@ providers:
     identity-file: /path/to/.ssh/key.pem
     instance-type: m3.medium
     region: us-east-1
-    ami: ami-97785bed
+    ami: ami-7105540e
     user: ec2-user
 ```
 
