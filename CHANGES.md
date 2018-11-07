@@ -2,9 +2,18 @@
 
 ## [Unreleased]
 
-Nothing notable yet.
-
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v0.10.0...master
+
+### Changed
+
+* [#258], [#268]: Fixed up support for Python 3.7.
+* [#264]: Fixed a logging error in `flintrock describe --master-hostname-only`.
+* [#277]: Fixed a bug in resolving client IP addresses from behind proxy.
+
+[#258]: https://github.com/nchammas/flintrock/pull/258
+[#264]: https://github.com/nchammas/flintrock/pull/264
+[#268]: https://github.com/nchammas/flintrock/pull/268
+[#277]: https://github.com/nchammas/flintrock/pull/277
 
 ## [0.10.0] - 2018-07-15
 
