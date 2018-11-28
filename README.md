@@ -89,7 +89,7 @@ these steps:
    better performance.
 3. Make sure Flintrock is configured to use Hadoop/HDFS 2.7+. Earlier
    versions of Hadoop do not have solid implementations of `s3a://`.
-   Flintrock's default is Hadoop 2.8.4, so you don't need to do anything
+   Flintrock's default is Hadoop 2.8.5, so you don't need to do anything
    here if you're using a vanilla configuration.
 4. Call Spark with the hadoop-aws package to enable `s3a://`. For example:
    ```sh

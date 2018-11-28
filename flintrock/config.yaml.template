@@ -10,7 +10,7 @@ services:
     # download-source: "https://www.example.com/files/spark/{v}/spark-{v}.tar.gz"
     # executor-instances: 1
   hdfs:
-    version: 2.8.4
+    version: 2.8.5
     # optional; defaults to download from a dynamically selected Apache mirror
     #   - must contain a {v} template corresponding to the version
     #   - must be a .tar.gz file
