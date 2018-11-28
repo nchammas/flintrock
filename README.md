@@ -5,7 +5,7 @@
 
 Flintrock is a command-line tool for launching [Apache Spark](http://spark.apache.org/) clusters.
 
-Though Flintrock hasn't made a 1.0 release yet, it's fairly stable. Expect some minor but nonethless backwards incompatible changes as Flintrock reaches formal stability via a 1.0 release.
+Though Flintrock hasn't made a 1.0 release yet, it's fairly stable. Expect some minor but nonetheless backwards incompatible changes as Flintrock reaches formal stability via a 1.0 release.
 
 
 ## Flintrock around the web
