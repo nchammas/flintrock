@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/nchammas/flintrock/compare/v0.10.0...master
+[Unreleased]: https://github.com/nchammas/flintrock/compare/v0.11.0...master
+
+Nothing notable yet.
+
+## [0.11.0] - 2018-12-02
+
+[0.11.0]: https://github.com/nchammas/flintrock/compare/v0.10.0...v0.11.0
 
 ### Changed
 
