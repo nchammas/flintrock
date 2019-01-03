@@ -152,7 +152,7 @@ unzip it to a location of your choice, and run the `flintrock` executable inside
 For example:
 
 ```sh
-flintrock_version="0.8.0"
+flintrock_version="0.11.0"
 
 curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
 unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
@@ -170,7 +170,7 @@ Flintrock is also available via the following package managers:
 
 * [Homebrew](https://brew.sh): `brew install flintrock`
 
-These packages are not supported by the core contributors and may be out of date. Please reach out to the relevant communities directly if you have trouble using these distributions to install Flintrock.
+These packages are not supported by the core contributors and **may be out of date**. Please reach out to the relevant communities directly if you have trouble using these distributions to install Flintrock. You can always find the latest release of Flintrock [on GitHub](https://github.com/nchammas/flintrock/releases/latest) and [on PyPI](https://pypi.org/project/Flintrock/).
 
 ### Development version
 
