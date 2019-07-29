@@ -50,11 +50,11 @@ setuptools.setup(
     # totally break Flintrock.
     # For example: https://github.com/paramiko/paramiko/issues/615
     install_requires=[
-        'boto3 == 1.9.57',
-        'botocore == 1.12.57',
+        'boto3 == 1.9.197',
+        'botocore == 1.12.197',
         'click == 7.0',
-        'paramiko == 2.4.2',
-        'PyYAML == 3.13',
+        'paramiko == 2.6.0',
+        'PyYAML == 5.1.1',
         # This is to address reports that PyInstaller-packaged versions
         # of Flintrock intermittently fail due to an out-of-date version
         # of Cryptography being used.
