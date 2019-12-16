@@ -71,7 +71,7 @@ class EC2Cluster(FlintrockCluster):
         self.vpc_id = vpc_id
         self.master_instance = master_instance
         self.slave_instances = slave_instances
-        #check private mode
+        # check private mode
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
         self.private_net = not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
 
@@ -84,28 +84,28 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def master_ip(self):
-        if not private_net:
+        if not self.private_net:
             return self.master_instance.public_ip_address
         else:
             return self.master_instance.private_ip_address
 
     @property
     def master_host(self):
-        if not private_net:
+        if not self.private_net:
             return self.master_instance.public_dns_name
         else:
             return self.master_instance.private_dns_name
 
     @property
     def slave_ips(self):
-        if not private_net:
+        if not self.private_net:
             return [i.public_ip_address for i in self.slave_instances]
         else:
             return [i.private_ip_address for i in self.slave_instances]
 
     @property
     def slave_hosts(self):
-        if not private_net:
+        if not self.private_net:
             return [i.public_dns_name for i in self.slave_instances]
         else:
             return [i.private_dns_name for i in self.slave_instances]
@@ -469,12 +469,12 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
             "See: https://github.com/nchammas/flintrock/issues/43"
             .format(v=vpc_id)
         )
-    if not ec2.Subnet(subnet_id).map_public_ip_on_launch :
+    if not ec2.Subnet(subnet_id).map_public_ip_on_launch:
         logger.info("{s} does not auto-assign public IP addresses. "
                     "Flintrock will run into private mode.\n"
                     "See: https://github.com/nchammas/flintrock/issues/14"
                     .format(s=subnet_id)
-        )
+                    )
 
 
 def get_security_groups(
@@ -554,8 +554,8 @@ def get_or_create_flintrock_security_groups(
             Description="Flintrock base group",
             VpcId=vpc_id)
 
-    flintrock_client_cidr = None;
-    flintrock_client_group = None;
+    flintrock_client_cidr = None
+    flintrock_client_group = None
     # Rules for the client interacting with the cluster.
     if not client_source:
         flintrock_client_ip = (
@@ -567,7 +567,6 @@ def get_or_create_flintrock_security_groups(
             flintrock_client_group = client_source
         else:
             flintrock_client_cidr = client_source
-
 
     # TODO: Services should be responsible for registering what ports they want exposed.
     client_rules = [
