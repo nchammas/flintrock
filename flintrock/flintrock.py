@@ -316,6 +316,7 @@ def cli(cli_context, config, provider, debug):
               multiple=True,
               help="Additional tags (e.g. 'Key,Value') to assign to the instances. "
                    "You can specify this option multiple times.")
+@click.option('--clients-net', type=str, default=None)
 @click.pass_context
 def launch(
         cli_context,
@@ -349,7 +350,8 @@ def launch(
         ec2_ebs_optimized,
         ec2_instance_initiated_shutdown_behavior,
         ec2_user_data,
-        ec2_tags):
+        ec2_tags,
+        clients_net):
     """
     Launch a new cluster.
     """
@@ -453,7 +455,8 @@ def launch(
             ebs_optimized=ec2_ebs_optimized,
             instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior,
             user_data=ec2_user_data,
-            tags=ec2_tags)
+            tags=ec2_tags,
+            clients_net=clients_net)
     else:
         raise UnsupportedProviderError(provider)
 
