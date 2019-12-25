@@ -81,14 +81,17 @@ There are a few things you should do before diving in to write a new feature or 
 If you are changing anything about Flintrock's dependencies, be sure to update the compiled requirements using [pip-tools]:
 
 ```
-pip-compile requirements/user.in -o requirements/user.pip
-pip-compile requirements/developer.in -o requirements/developer.pip
-pip-compile requirements/maintainer.in -o requirements/maintainer.pip
+pip install -U pip-tools
+pip-compile -U requirements/user.in -o requirements/user.pip
+pip-compile -U requirements/developer.in -o requirements/developer.pip
+pip-compile -U requirements/maintainer.in -o requirements/maintainer.pip
 ```
 
-After doing that, there are a couple of things you'll need to do:
-1. Update the compiled requirements to remove the absolute `-e file:///` paths that `pip-tools` adds and replace them with `-e .`.
-2. Optionally, run `pip-sync` to make sure your environment matches what's in the compiled requirements.
+After doing that, make sure your environment matches what's in the compiled requirements by running `pip-sync` against the appropriate requirements file:
+
+```
+pip-sync requirements/developer.pip
+```
 
 [pip-tools]: https://github.com/jazzband/pip-tools
 
