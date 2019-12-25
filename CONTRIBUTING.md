@@ -90,7 +90,7 @@ pip-compile -U requirements/maintainer.in -o requirements/maintainer.pip
 After doing that, make sure your environment matches what's in the compiled requirements by running `pip-sync` against the appropriate requirements file:
 
 ```
-pip-sync requirements/developer.pip
+pip-sync requirements/[user|developer|maintainer].pip
 ```
 
 [pip-tools]: https://github.com/jazzband/pip-tools
