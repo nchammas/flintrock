@@ -15,14 +15,14 @@ certifi==2019.11.28       # via requests
 cffi==1.13.2
 chardet==3.0.4            # via requests
 click==7.0
-coverage==5.0.1
+coverage==5.0
 cryptography==2.8
 docutils==0.15.2
 flake8==3.5.0
 idna==2.8                 # via requests
 importlib-metadata==1.3.0
 jmespath==0.9.4
-keyring==21.0.0           # via twine
+keyring==20.0.1
 macholib==1.11            # via pyinstaller
 mccabe==0.6.1
 more-itertools==8.0.2

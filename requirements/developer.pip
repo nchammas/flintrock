@@ -11,7 +11,7 @@ boto3==1.10.45
 botocore==1.13.45
 cffi==1.13.2
 click==7.0
-coverage==5.0.1           # via pytest-cov
+coverage==5.0
 cryptography==2.8
 docutils==0.15.2
 flake8==3.5.0

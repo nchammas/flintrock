@@ -2,3 +2,4 @@
 wheel >= 0.31.0
 twine >= 3.1.1
 PyInstaller == 3.5
+keyring < 21.0.0  # to maintain compatibility for Python < 3.6
