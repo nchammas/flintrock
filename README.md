@@ -116,7 +116,7 @@ Before using Flintrock, take a quick look at the
 notice and [license](https://github.com/nchammas/flintrock/blob/master/LICENSE)
 and make sure you're OK with their terms.
 
-**Flintrock requires Python 3.4 or newer**, unless you are using one
+**Flintrock requires Python 3.5 or newer**, unless you are using one
 of our **standalone packages**. Flintrock has been thoroughly tested
 only on OS X, but it should run on all POSIX systems.
 A motivated contributor should be able to add
