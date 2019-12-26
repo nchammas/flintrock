@@ -3,4 +3,3 @@ pytest >= 3.5.0
 pytest-cov >= 2.5.1
 flake8 == 3.5.0
 # PyYAML  # requirement already covered by setup.py
-coverage < 5.0.0  # for compatibility with Python < 3.5
