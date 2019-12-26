@@ -1,0 +1,9 @@
+# Notes:
+#   - Run pip from Flintrock's root directory, not from the
+#     directory containing this file.
+#   - The `-e .` syntax lets us reuse the requirements already
+#     specified under `install_requires` in setup.py.
+#     See: https://caremad.io/2013/07/setup-vs-requirement/
+#   - The #egg= syntax is a workaround for pip-tools.
+#     See: https://github.com/jazzband/pip-tools/issues/204#issuecomment-550051424
+-e file:.#egg=Flintrock

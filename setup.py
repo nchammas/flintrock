@@ -10,6 +10,7 @@ setuptools.setup(
     version=__version__,
     description='A command-line tool for launching Apache Spark clusters.',
     long_description=long_description,
+    # FYI: This option requires setuptools >= 38.6.0.
     long_description_content_type="text/markdown",
     url='https://github.com/nchammas/flintrock',
     author='Nicholas Chammas',
@@ -49,11 +50,11 @@ setuptools.setup(
     # totally break Flintrock.
     # For example: https://github.com/paramiko/paramiko/issues/615
     install_requires=[
-        'boto3 == 1.9.197',
-        'botocore == 1.12.197',
+        'boto3 == 1.10.45',
+        'botocore == 1.13.45',
         'click == 7.0',
-        'paramiko == 2.6.0',
-        'PyYAML == 5.1.1',
+        'paramiko == 2.7.1',
+        'PyYAML == 5.2',
         # This is to address reports that PyInstaller-packaged versions
         # of Flintrock intermittently fail due to an out-of-date version
         # of Cryptography being used.
