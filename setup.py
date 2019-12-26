@@ -15,7 +15,7 @@ setuptools.setup(
     author='Nicholas Chammas',
     author_email='nicholas.chammas@gmail.com',
     license='Apache License 2.0',
-    python_requires='>= 3.4',
+    python_requires='>= 3.5',
 
     # See: https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
@@ -33,7 +33,6 @@ setuptools.setup(
 
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
