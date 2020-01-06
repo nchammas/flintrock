@@ -325,12 +325,18 @@ class EC2Cluster(FlintrockCluster):
                     ])
                 .create_tags(Tags=slave_tags))
 
-            existing_slaves = {i.public_ip_address or i.private_ip_address for i in self.slave_instances}
+            if not self.private_net:
+                existing_slaves = {i.public_ip_address for i in self.slave_instances}
+            else:
+                existing_slaves = {i.private_ip_address for i in self.slave_instances}
 
             self.slave_instances += new_slave_instances
             self.wait_for_state('running')
 
-            new_slaves = {i.public_ip_address or i.private_ip_address for i in self.slave_instances} - existing_slaves
+            if not self.private_net:
+                new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
+            else:
+                new_slaves = {i.private_ip_address for i in self.slave_instances} - existing_slaves
 
             super().add_slaves(
                 user=user,
@@ -894,7 +900,8 @@ def launch(
     flintrock_security_groups = get_or_create_flintrock_security_groups(
         cluster_name=cluster_name,
         vpc_id=vpc_id,
-        region=region)
+        region=region,
+        client_source=client_source)
     user_security_groups = get_security_groups(
         vpc_id=vpc_id,
         region=region,

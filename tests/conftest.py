@@ -11,8 +11,8 @@ from flintrock.core import StorageDirs
 import pytest
 
 HADOOP_VERSION = '2.8.5'
-SPARK_VERSION = '2.4.3'
-SPARK_GIT_COMMIT = 'c3e32bf06c35ba2580d46150923abfa795b4446a'  # 2.4.3
+SPARK_VERSION = '2.4.4'
+SPARK_GIT_COMMIT = '7955b3962ac46b89564e0613db7bea98a1478bf2'  # 2.4.4
 
 
 class Dummy():
@@ -107,15 +107,15 @@ class ClusterConfig:
 
 
 cluster_configs = [
-    ClusterConfig(restarted=False, instance_type='t2.small'),
-    ClusterConfig(restarted=True, instance_type='t2.small'),
-    ClusterConfig(restarted=False, instance_type='m3.medium'),
-    ClusterConfig(restarted=True, instance_type='m3.medium'),
+    ClusterConfig(restarted=False, instance_type='t3.small'),
+    ClusterConfig(restarted=True, instance_type='t3.small'),
+    ClusterConfig(restarted=False, instance_type='m5.large'),
+    ClusterConfig(restarted=True, instance_type='m5.large'),
     # We don't test all cluster states when building Spark because
     # it takes a very long time.
     ClusterConfig(
         restarted=True,
-        instance_type='m3.xlarge',
+        instance_type='m5.xlarge',
         spark_version='',
         spark_git_commit=SPARK_GIT_COMMIT)]
 
