@@ -84,7 +84,7 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def private_net(self):
-        return self._private_net
+        return self.__private_net
 
     @property
     def master_ip(self):
