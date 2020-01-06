@@ -287,7 +287,7 @@ def cli(cli_context, config, provider, debug):
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
-@click.option('--ec2-instance-type', default='m3.medium', show_default=True)
+@click.option('--ec2-instance-type', default='m5.medium', show_default=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 # We set some of these defaults to empty strings because of boto3's parameter validation.
 # See: https://github.com/boto/boto3/issues/400
@@ -419,7 +419,7 @@ def launch(
         elif spark_git_commit:
             logger.warning(
                 "Warning: Building Spark takes a long time. "
-                "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
+                "e.g. 15-20 minutes on an m5.xlarge instance on EC2.")
             if spark_git_commit == 'latest':
                 spark_git_commit = get_latest_commit(spark_git_repository)
                 logger.info("Building Spark at latest commit: {c}".format(c=spark_git_commit))

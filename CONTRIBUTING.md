@@ -60,8 +60,6 @@ If you agree to our license, the next thing you'll want to do is get Flintrock's
 git clone https://github.com/nchammas/flintrock
 cd flintrock
 
-# Setup a virtual environment.
-# Optional, but *strongly recommended*.
 python3 -m venv venv
 source venv/bin/activate
 
@@ -77,6 +75,25 @@ If you're making a small change, go right ahead and open that pull request. Ther
 ### New features, non-trivial changes
 
 There are a few things you should do before diving in to write a new feature or implement some non-trivial change.
+
+### Changing dependencies
+
+If you are changing anything about Flintrock's dependencies, be sure to update the compiled requirements using [pip-tools]:
+
+```
+pip install -U pip-tools
+pip-compile -U requirements/user.in -o requirements/user.pip
+pip-compile -U requirements/developer.in -o requirements/developer.pip
+pip-compile -U requirements/maintainer.in -o requirements/maintainer.pip
+```
+
+After doing that, make sure your environment matches what's in the compiled requirements by running `pip-sync` against the appropriate requirements file:
+
+```
+pip-sync requirements/[user|developer|maintainer].pip
+```
+
+[pip-tools]: https://github.com/jazzband/pip-tools
 
 #### Coordinate first
 

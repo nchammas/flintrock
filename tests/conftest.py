@@ -157,7 +157,7 @@ def stopped_cluster(request):
         '--no-install-hdfs',
         '--no-install-spark',
         '--assume-yes',
-        '--ec2-instance-type', 't2.small'])
+        '--ec2-instance-type', 't3.small'])
     assert p.returncode == 0
 
     p = subprocess.run([

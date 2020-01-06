@@ -1,0 +1,5 @@
+-r developer.pip
+wheel >= 0.31.0
+twine == 1.15.0
+PyInstaller == 3.5
+keyring < 21.0.0  # to maintain compatibility for Python 3.5

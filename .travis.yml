@@ -1,6 +1,5 @@
 language: python
 python:
-  - "3.4"
   - "3.5"
   - "3.6"
 # Work-around for Python 3.7 on Travis CI pulled from here:
