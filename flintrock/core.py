@@ -77,6 +77,15 @@ class FlintrockCluster:
         raise NotImplementedError
 
     @property
+    def private_net(self) -> bool:
+        """
+        Indicate if this cluster run into a private network
+
+        Providers must override this property since it is typically derived from
+        an underlying object, like a VPC subnet of an EC2 Instance.
+        """
+
+    @property
     def slave_ips(self) -> 'List[str]':
         """
         A list of the IP addresses of the slaves.

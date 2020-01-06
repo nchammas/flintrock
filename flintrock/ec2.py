@@ -73,7 +73,7 @@ class EC2Cluster(FlintrockCluster):
         self.slave_instances = slave_instances
         # check private mode
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
-        self.private_net = not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
+        self.__private_net = not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
 
     @property
     def instances(self):
@@ -81,6 +81,10 @@ class EC2Cluster(FlintrockCluster):
             return [self.master_instance] + self.slave_instances
         else:
             return self.slave_instances
+
+    @property
+    def private_net(self):
+        return self._private_net
 
     @property
     def master_ip(self):
