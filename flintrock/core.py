@@ -84,6 +84,7 @@ class FlintrockCluster:
         Providers must override this property since it is typically derived from
         an underlying object, like a VPC subnet of an EC2 Instance.
         """
+        raise NotImplementedError
 
     @property
     def slave_ips(self) -> 'List[str]':
