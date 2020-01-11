@@ -11,6 +11,9 @@
 #   - Check: https://github.com/nchammas/flintrock/pulls?q=is%3Apr+is%3Aclosed+label%3A%22needs+changelog%22
 #   - Update "Unreleased" section. "Nothing notable yet."
 # Tag release on GitHub
+#   - https://github.com/nchammas/flintrock/releases
+#   - vX.Y.Z
+#   - "Here's what's new in X.Y.Z."
 
 trash dist/ build/ Flintrock.egg-info/
 
