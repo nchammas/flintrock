@@ -154,8 +154,8 @@ For example:
 ```sh
 flintrock_version="0.11.0"
 
-curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
-unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
+curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-macOS-x86_64.zip"
+unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-macOS-x86_64.zip"
 cd flintrock/
 
 # You're good to go!

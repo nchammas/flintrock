@@ -10,7 +10,7 @@ THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 if __name__ == '__main__':
     operating_system = platform.system()
     if operating_system.lower() == 'darwin':
-        operating_system = 'OSX'
+        operating_system = 'macOS'
     machine_type = platform.machine()
 
     subprocess.run(
