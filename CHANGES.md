@@ -2,9 +2,21 @@
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/nchammas/flintrock/compare/v0.11.0...master
+[Unreleased]: https://github.com/nchammas/flintrock/compare/v1.0.0...master
 
 Nothing notable yet.
+
+## [1.0.0] - 2020-01-11
+
+[1.0.0]: https://github.com/nchammas/flintrock/compare/v0.11.0...v1.0.0
+
+### Changed
+
+* [#297]: Dropped support for Python 3.4.
+* [#252]: Flintrock now pins all its transitive dependencies via the files under `requirements/`. This is useful for users who want to build Flintrock themselves.
+
+[#297]: https://github.com/nchammas/flintrock/pull/297
+[#252]: https://github.com/nchammas/flintrock/pull/252
 
 ## [0.11.0] - 2018-12-02
 
