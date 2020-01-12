@@ -1188,7 +1188,7 @@ def main() -> int:
         except botocore.exceptions.NoCredentialsError:
             raise Error(
                 "Flintrock could not find your AWS credentials. "
-                "You can fix this is by providing your credentials "
+                "You can fix this by providing your credentials "
                 "via environment variables or by creating a shared "
                 "credentials file.\n"
                 "For more information see:\n"
