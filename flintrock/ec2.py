@@ -610,14 +610,20 @@ def get_or_create_flintrock_security_groups(
             VpcId=vpc_id)
 
     try:
+        # cluster_group.authorize_ingress(
+        #     IpPermissions=[
+        #         {
+        #             'IpProtocol': '-1',  # -1 means all
+        #             'FromPort': -1,
+        #             'ToPort': -1,
+        #             'UserIdGroupPairs': [{'GroupId': cluster_group.id}]
+        #         }])
+        # Allow all traffic from all ports
         cluster_group.authorize_ingress(
-            IpPermissions=[
-                {
-                    'IpProtocol': '-1',  # -1 means all
-                    'FromPort': -1,
-                    'ToPort': -1,
-                    'UserIdGroupPairs': [{'GroupId': cluster_group.id}]
-                }])
+            IpProtocol='-1',
+            FromPort=-1,
+            ToPort=-1,
+            CidrIp='0.0.0.0/0')
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] != 'InvalidPermission.Duplicate':
             raise Exception("Error authorizing cluster ingress to self.") from e

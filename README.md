@@ -3,6 +3,12 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/nchammas/flintrock/blob/master/LICENSE)
 [![Build Status](https://img.shields.io/travis/nchammas/flintrock/master.svg)](https://travis-ci.org/nchammas/flintrock)
 
+Thie repo is forked from the open-source project Flintrock. It modified the security 
+group to accept all trafic from all ports in the cluster. The modification is used
+for 15-719 course project P2.
+
+---
+
 Flintrock is a command-line tool for launching [Apache Spark](http://spark.apache.org/) clusters.
 
 Though Flintrock hasn't made a 1.0 release yet, it's fairly stable. Expect some minor but nonetheless backwards incompatible changes as Flintrock reaches formal stability via a 1.0 release.
