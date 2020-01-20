@@ -300,6 +300,11 @@ class Spark(FlintrockService):
                 client=ssh_client,
                 command="""
                     set -e
+                    sudo yum update -y
+                    sudo yum install git libcurl python3 -y
+                    pip3 install --user warc3-wet beautifulsoup4
+                    echo "export PYSPARK_PYTHON='/usr/bin/python3'" >> ~/.bash_profile
+                    sudo ln -s /usr/bin/python /usr/bin/python3
                     sudo yum install -y git
                     sudo yum install -y java-devel
                     """)

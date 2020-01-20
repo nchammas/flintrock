@@ -582,7 +582,7 @@ def setup_node(
         client=ssh_client,
         command="""
             set -e
-            python /tmp/setup-ephemeral-storage.py
+            python3 /tmp/setup-ephemeral-storage.py
             rm -f /tmp/setup-ephemeral-storage.py
         """)
     storage_dirs = json.loads(storage_dirs_raw)
