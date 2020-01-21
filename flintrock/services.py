@@ -155,6 +155,7 @@ class HDFS(FlintrockService):
             'hadoop/conf/hdfs-site.xml',
         ]
 
+
         ssh_check_output(
             client=ssh_client,
             command="mkdir -p hadoop/conf",
@@ -280,6 +281,16 @@ class Spark(FlintrockService):
         logger.info("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
+        ssh_check_output(
+            client=ssh_client,
+            command="""
+                set -e
+                sudo yum update -y
+                sudo yum install git libcurl python3 -y
+                pip3 install --user warc3-wet beautifulsoup4
+                echo "export PYSPARK_PYTHON='/usr/bin/python3'" >> ~/.bash_profile
+                """)
+
         if self.version:
             with ssh_client.open_sftp() as sftp:
                 sftp.put(
@@ -300,11 +311,6 @@ class Spark(FlintrockService):
                 client=ssh_client,
                 command="""
                     set -e
-                    sudo yum update -y
-                    sudo yum install git libcurl python3 -y
-                    pip3 install --user warc3-wet beautifulsoup4
-                    echo "export PYSPARK_PYTHON='/usr/bin/python3'" >> ~/.bash_profile
-                    sudo ln -s /usr/bin/python /usr/bin/python3
                     sudo yum install -y git
                     sudo yum install -y java-devel
                     """)
