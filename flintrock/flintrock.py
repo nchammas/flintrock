@@ -316,7 +316,16 @@ def cli(cli_context, config, provider, debug):
               multiple=True,
               help="Additional tags (e.g. 'Key,Value') to assign to the instances. "
                    "You can specify this option multiple times.")
-@click.option('--client-source', type=str, default=None)
+@click.option('--ec2-authorize-access-from',
+              callback=ec2.cli_validate_ec2_authorize_access,
+              type=str,
+              default=None,
+              help="Authorize cluster access from a private source"
+                   "(To be used in VPC context, behind a nat gateway for instance)"
+                   " which can be either a plain IP,"
+                   "an IP network in CIDR notation, or an EC2 SecurityGroup. "
+                   "For security concerns, this options disable client configuration "
+                   "using automatic detection of client public IP")
 @click.pass_context
 def launch(
         cli_context,
@@ -351,7 +360,7 @@ def launch(
         ec2_instance_initiated_shutdown_behavior,
         ec2_user_data,
         ec2_tags,
-        client_source):
+        ec2_authorize_access_from):
     """
     Launch a new cluster.
     """
@@ -456,7 +465,7 @@ def launch(
             instance_initiated_shutdown_behavior=ec2_instance_initiated_shutdown_behavior,
             user_data=ec2_user_data,
             tags=ec2_tags,
-            client_source=client_source)
+            ec2_authorize_access_from=ec2_authorize_access_from)
     else:
         raise UnsupportedProviderError(provider)
 

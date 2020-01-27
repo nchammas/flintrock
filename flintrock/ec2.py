@@ -5,6 +5,7 @@ import time
 import urllib.request
 import base64
 import logging
+from ipaddress import IPv4Network
 from collections import namedtuple
 from datetime import datetime
 
@@ -71,9 +72,6 @@ class EC2Cluster(FlintrockCluster):
         self.vpc_id = vpc_id
         self.master_instance = master_instance
         self.slave_instances = slave_instances
-        # check private mode
-        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
-        self.__private_net = not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
 
     @property
     def instances(self):
@@ -84,7 +82,9 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def private_net(self):
-        return self.__private_net
+        # check private mode
+        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
+        return not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
 
     @property
     def master_ip(self):
@@ -518,7 +518,7 @@ def get_or_create_flintrock_security_groups(
         cluster_name,
         vpc_id,
         region,
-        client_source) -> "List[boto3.resource('ec2').SecurityGroup]":
+        ec2_authorize_access_from) -> "List[boto3.resource('ec2').SecurityGroup]":
     """
     If they do not already exist, create all the security groups needed for a
     Flintrock cluster.
@@ -567,16 +567,16 @@ def get_or_create_flintrock_security_groups(
     flintrock_client_cidr = None
     flintrock_client_group = None
     # Rules for the client interacting with the cluster.
-    if not client_source:
+    if not ec2_authorize_access_from:
         flintrock_client_ip = (
             urllib.request.urlopen('https://checkip.amazonaws.com/')
             .read().decode('utf-8').strip())
-        flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+        flintrock_client_cidr = str(IPv4Network(flintrock_client_ip))
     else:
-        if client_source.startswith('sg-'):
-            flintrock_client_group = client_source
+        if ec2_authorize_access_from.startswith('sg-'):
+            flintrock_client_group = ec2_authorize_access_from
         else:
-            flintrock_client_cidr = client_source
+            flintrock_client_cidr = ec2_authorize_access_from
 
     # TODO: Services should be responsible for registering what ports they want exposed.
     client_rules = [
@@ -873,7 +873,7 @@ def launch(
         instance_initiated_shutdown_behavior='stop',
         user_data,
         tags,
-        client_source):
+        ec2_authorize_access_from):
     """
     Launch a cluster.
     """
@@ -905,7 +905,7 @@ def launch(
         cluster_name=cluster_name,
         vpc_id=vpc_id,
         region=region,
-        client_source=client_source)
+        ec2_authorize_access_from=ec2_authorize_access_from)
     user_security_groups = get_security_groups(
         vpc_id=vpc_id,
         region=region,
@@ -1093,6 +1093,31 @@ def validate_tags(value):
         result.append({'Key': key, 'Value': value})
 
     return result
+
+
+def cli_validate_ec2_authorize_access(ctx, param, value):
+    return validate_ec2_authorize_access(value)
+
+
+def validate_ec2_authorize_access(value):
+    """
+    Validate and parse optional EC2 Security/CIDR
+    authorized to connect to cluster
+    """
+    err_msg = ("This option accept only a plain IP, "
+               "IP(s) in CIDR notation "
+               "or an EC2 Security Group id")
+    if value is not None:
+        try:
+            ipv4_network = IPv4Network(value)
+            return str(ipv4_network)
+        except ValueError:
+            if value.startswith('sg-'):
+                return value
+            else:
+                raise click.BadParameter(err_msg)
+    else:
+        return value
 
 
 def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:
