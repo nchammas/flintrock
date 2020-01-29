@@ -417,6 +417,46 @@ class Spark(FlintrockService):
         else:
             raise Exception("Timed out waiting for Spark master to come up.")
 
+        self.configure_master_history_server(ssh_client, cluster)
+
+    def configure_master_history_server(
+            self,
+            ssh_client: paramiko.client.SSHClient,
+            cluster: FlintrockCluster):
+        host = ssh_client.get_transport().getpeername()[0]
+        logger.info("[{h}] Configuring History Server on Spark master...".format(h=host))
+
+        attempt_limit = 3
+        for attempt in range(attempt_limit):
+            try:
+                ssh_check_output(
+                    client=ssh_client,
+                    # Maybe move this shell script out to some separate
+                    # file/folder for the Spark service.
+                    command="""
+                        mkdir -p /tmp/spark-events
+                        spark/sbin/start-history-server.sh
+
+                        master_ui_response_code=0
+                        while [ "$master_ui_response_code" -ne 200 ]; do
+                            sleep 1
+                            master_ui_response_code="$(
+                                curl --head --silent --output /dev/null \
+                                    --write-out "%{{http_code}}" {m}:18080
+                            )"
+                        done
+                    """.format(m=shlex.quote(cluster.master_host)),
+                    timeout_seconds=90
+                )
+                break
+            except socket.timeout as e:
+                logger.debug(
+                    "Timed out waiting for Spark History Server to come up.{}"
+                    .format(" Trying again..." if attempt < attempt_limit - 1 else "")
+                )
+        else:
+            raise Exception("Timed out waiting for Spark master to come up.")
+
     def health_check(self, master_host: str):
         spark_master_ui = 'http://{m}:8080/json/'.format(m=master_host)
 
