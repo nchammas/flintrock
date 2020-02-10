@@ -287,7 +287,7 @@ class Spark(FlintrockService):
                 set -e
                 sudo yum update -y
                 sudo yum install git libcurl python3 -y
-                pip3 install --user warc3-wet beautifulsoup4
+                pip3 install --user warc3-wet beautifulsoup4 numpy
                 echo "export PYSPARK_PYTHON='/usr/bin/python3'" >> ~/.bash_profile
                 """)
 
