@@ -11,7 +11,7 @@ from flintrock.core import StorageDirs
 import pytest
 
 HADOOP_VERSION = '2.8.5'
-SPARK_VERSION = '2.4.4'
+SPARK_VERSION = '2.4.5'
 SPARK_GIT_COMMIT = '7955b3962ac46b89564e0613db7bea98a1478bf2'  # 2.4.4
 
 
