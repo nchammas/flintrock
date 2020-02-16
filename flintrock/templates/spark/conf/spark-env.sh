@@ -7,7 +7,7 @@ export SPARK_EXECUTOR_INSTANCES="{spark_executor_instances}"
 export SPARK_EXECUTOR_CORES="$(($(nproc) / {spark_executor_instances}))"
 export SPARK_WORKER_CORES="$(nproc)"
 
-export SPARK_MASTER_HOST="{master_host}"
+export SPARK_MASTER_HOST="{master_private_host}"
 
 # TODO: Make this dependent on HDFS install.
 export HADOOP_CONF_DIR="$HOME/hadoop/conf"

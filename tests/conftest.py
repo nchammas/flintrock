@@ -47,8 +47,10 @@ def dummy_cluster():
     cluster.storage_dirs = storage_dirs
     cluster.master_ip = '10.0.0.1'
     cluster.master_host = 'master.hostname'
+    cluster.master_private_host = 'master.privatehostname'
     cluster.slave_ips = ['10.0.0.2']
     cluster.slave_hosts = ['slave1.hostname']
+    cluster.slave_private_hosts = ['slave1.privatehostname']
 
     return cluster
 
