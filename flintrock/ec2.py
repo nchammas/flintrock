@@ -944,6 +944,9 @@ def launch(
                 ])
             .create_tags(Tags=slave_tags))
 
+        for volume in ec2.volumes.all():
+            volume.create_tags(Tags=tags)
+
         cluster = EC2Cluster(
             name=cluster_name,
             region=region,
