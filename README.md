@@ -32,7 +32,7 @@ Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
-    --spark-version 2.4.4 \
+    --spark-version 2.4.5 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
     --ec2-ami ami-00b882ac5193044e4 \
@@ -152,10 +152,10 @@ unzip it to a location of your choice, and run the `flintrock` executable inside
 For example:
 
 ```sh
-flintrock_version="0.11.0"
+flintrock_version="1.0.0"
 
-curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
-unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
+curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-macOS-x86_64.zip"
+unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-macOS-x86_64.zip"
 cd flintrock/
 
 # You're good to go!
@@ -254,7 +254,7 @@ provider: ec2
 
 services:
   spark:
-    version: 2.4.4
+    version: 2.4.5
 
 launch:
   num-slaves: 1

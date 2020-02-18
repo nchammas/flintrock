@@ -213,7 +213,7 @@ class HDFS(FlintrockService):
                                     --write-out "%{{http_code}}" {m}:50070
                             )"
                         done
-                    """.format(m=shlex.quote(cluster.master_host)),
+                    """.format(m=shlex.quote(cluster.master_private_host)),
                     timeout_seconds=90
                 )
                 break
@@ -394,7 +394,7 @@ class Spark(FlintrockService):
                                     --write-out "%{{http_code}}" {m}:8080
                             )"
                         done
-                    """.format(m=shlex.quote(cluster.master_host)),
+                    """.format(m=shlex.quote(cluster.master_private_host)),
                     timeout_seconds=90
                 )
                 break

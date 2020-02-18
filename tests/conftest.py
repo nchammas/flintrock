@@ -11,8 +11,8 @@ from flintrock.core import StorageDirs
 import pytest
 
 HADOOP_VERSION = '2.8.5'
-SPARK_VERSION = '2.4.4'
-SPARK_GIT_COMMIT = 'c3e32bf06c35ba2580d46150923abfa795b4446a'  # 2.4.3
+SPARK_VERSION = '2.4.5'
+SPARK_GIT_COMMIT = '7955b3962ac46b89564e0613db7bea98a1478bf2'  # 2.4.4
 
 
 class Dummy():
@@ -47,8 +47,10 @@ def dummy_cluster():
     cluster.storage_dirs = storage_dirs
     cluster.master_ip = '10.0.0.1'
     cluster.master_host = 'master.hostname'
+    cluster.master_private_host = 'master.privatehostname'
     cluster.slave_ips = ['10.0.0.2']
     cluster.slave_hosts = ['slave1.hostname']
+    cluster.slave_private_hosts = ['slave1.privatehostname']
 
     return cluster
 

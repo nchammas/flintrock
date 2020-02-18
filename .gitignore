@@ -1,5 +1,6 @@
-# From: https://github.com/github/gitignore/blob/master/Python.gitignore
+# Started from: https://github.com/github/gitignore/blob/master/Python.gitignore
 
+.vscode/
 config.yaml
 venv/
 *example.py
