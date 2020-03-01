@@ -3,8 +3,8 @@ data "http" "myip" {
 }
 
 resource "aws_security_group" "ssh" {
-  name        = "flintrock-bastion-ssh"
-  vpc_id      = aws_vpc.main.id
+  name   = "flintrock-bastion-ssh"
+  vpc_id = aws_vpc.main.id
 
   ingress {
     from_port   = 22
@@ -14,28 +14,28 @@ resource "aws_security_group" "ssh" {
   }
 
   egress {
-    from_port       = 0
-    to_port         = 0
-    protocol        = "-1"
-    cidr_blocks     = ["0.0.0.0/0"]
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
 resource "aws_instance" "bastion" {
-  ami = "ami-0a887e401f7654935"
-  instance_type = "t2.nano"
-  key_name = var.ec2_key_name
-  subnet_id = aws_subnet.public.id
+  ami                         = "ami-0a887e401f7654935"
+  instance_type               = "t2.nano"
+  key_name                    = var.ec2_key_name
+  subnet_id                   = aws_subnet.public.id
   associate_public_ip_address = true
-  vpc_security_group_ids = [aws_security_group.ssh.id]
+  vpc_security_group_ids      = [aws_security_group.ssh.id]
 
   tags = {
     Name = "flintrock-bastion"
   }
 
   connection {
-    host = self.public_ip
-    user = "ec2-user"
+    host        = self.public_ip
+    user        = "ec2-user"
     private_key = file(var.ssh_key_path)
   }
 
@@ -46,12 +46,12 @@ resource "aws_instance" "bastion" {
   }
 
   provisioner "file" {
-    source = var.aws_credentials_path
+    source      = var.aws_credentials_path
     destination = "/home/ec2-user/.aws/credentials"
   }
 
   provisioner "file" {
-    source = var.ssh_key_path
+    source      = var.ssh_key_path
     destination = "/home/ec2-user/.ssh/${var.ec2_key_name}.pem"
   }
 
@@ -68,7 +68,7 @@ resource "aws_instance" "bastion" {
   }
 
   provisioner "file" {
-    source = var.flintrock_config_path
+    source      = var.flintrock_config_path
     destination = "/home/ec2-user/.config/flintrock/config.yaml"
   }
 
