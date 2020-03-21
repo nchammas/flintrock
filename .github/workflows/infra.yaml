@@ -16,9 +16,7 @@ jobs:
     - name: Check Terraform Formatting
       run: |
         cd test-infra
-        ls -l
-        which terraform
-        terraform fmt --check
+        terraform fmt -check -diff
     - name: Validate Terraform Templates
       run: |
         cd test-infra

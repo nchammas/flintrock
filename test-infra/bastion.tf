@@ -82,7 +82,7 @@ resource "aws_instance" "bastion" {
 
   provisioner "remote-exec" {
     inline = [
-        <<-EOM
+      <<-EOM
         /home/ec2-user/venv/bin/python << EO_PYTHON
         import yaml
         with open('/home/ec2-user/.config/flintrock/config.yaml') as f:
@@ -101,6 +101,6 @@ resource "aws_instance" "bastion" {
 }
 
 output "bastion_ip" {
-    value = aws_instance.bastion.public_ip
+  value = aws_instance.bastion.public_ip
 }
 
