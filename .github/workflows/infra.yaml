@@ -20,4 +20,5 @@ jobs:
     - name: Validate Terraform Templates
       run: |
         cd test-infra
+        terraform init
         terraform validate
