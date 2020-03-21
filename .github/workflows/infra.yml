@@ -22,4 +22,6 @@ jobs:
     - name: Check Terraform Formatting
       run: |
         cd test-infra
+        ls -l
+        echo "$PATH"
         terraform fmt --check
