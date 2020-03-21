@@ -18,7 +18,7 @@ jobs:
         curl -O https://releases.hashicorp.com/terraform/0.12.24/terraform_0.12.24_linux_amd64.zip
         unzip terraform_0.12.24_linux_amd64.zip
         test -a terraform
-        export PATH="$PATH:$(realpath ./terraform)"
+        mv ./terraform /usr/local/bin/
     - name: Check Terraform Formatting
       run: |
         cd test-infra
