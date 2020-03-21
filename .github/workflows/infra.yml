@@ -1,0 +1,26 @@
+name: terraform
+
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  terraform-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Terraform
+      run: |
+        curl -O https://releases.hashicorp.com/terraform/0.12.24/terraform_0.12.24_linux_amd64.zip
+        unzip terraform_0.12.24_linux_amd64.zip
+        test -a terraform
+        test -a terraformz
+        export PATH="$PATH:$(realpath ./terraform)"
+    - name: Check Terraform Formatting
+      run: |
+        cd test-infra
+        terraform fmt --check
