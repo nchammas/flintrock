@@ -1,4 +1,4 @@
-name: terraform
+name: test-infra
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
     - master
 
 jobs:
-  terraform-check:
+  terraform-lint:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
