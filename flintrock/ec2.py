@@ -278,7 +278,10 @@ class EC2Cluster(FlintrockCluster):
         if not response['UserData']:
             user_data = ''
         else:
-            user_data = response['UserData']['Value']
+            user_data = (
+                base64.b64decode(response['UserData']['Value'])
+                .decode('utf-8')
+            )
 
         if not self.master_instance.iam_instance_profile:
             instance_profile_arn = ''
