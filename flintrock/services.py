@@ -115,9 +115,9 @@ class FlintrockService:
         """
         raise NotImplementedError
 
-    def create_security_group_rules(self, flintrock_client_cidr: str):
+    def get_security_group_rules(self, flintrock_client_cidr: str):
         """
-        Create and return the EC2 SecurityGroupRules required by this service.
+        Return the EC2 SecurityGroupRules required by this service.
         """
         raise NotImplementedError
 
@@ -256,7 +256,7 @@ class HDFS(FlintrockService):
         except Exception as e:
             raise Exception("HDFS health check failed.") from e
 
-    def create_security_group_rules(self, flintrock_client_cidr: str):
+    def get_security_group_rules(self, flintrock_client_cidr: str):
         return [
             SecurityGroupRule(
                 ip_protocol='tcp',
@@ -450,7 +450,7 @@ class Spark(FlintrockService):
             #       dump a large stack trace on the user.
             raise Exception("Spark health check failed.") from e
 
-    def create_security_group_rules(self, flintrock_client_cidr: str):
+    def get_security_group_rules(self, flintrock_client_cidr: str):
         return [
             SecurityGroupRule(
                 ip_protocol='tcp',

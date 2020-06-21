@@ -559,7 +559,7 @@ def get_or_create_flintrock_security_groups(
             src_group=None)
     ]
     for service in services:
-        client_rules += service.create_security_group_rules(flintrock_client_cidr)
+        client_rules += service.get_security_group_rules(flintrock_client_cidr)
 
     # TODO: Don't try adding rules that already exist.
     # TODO: Add rules in one shot.
