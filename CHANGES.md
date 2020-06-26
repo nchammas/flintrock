@@ -4,7 +4,7 @@
 
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v1.0.0...master
 
-Nothing notable yet.
+* [#311] Move access rules to the individual cluster security group
 
 ## [1.0.0] - 2020-01-11
 
