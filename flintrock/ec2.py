@@ -561,11 +561,18 @@ def get_or_create_flintrock_security_groups(
     for service in services:
         client_rules += service.get_security_group_rules(flintrock_client_cidr)
 
+    # Rules for internal cluster communication.
+    if not cluster_group:
+        cluster_group = ec2.create_security_group(
+            GroupName=cluster_group_name,
+            Description="Flintrock cluster group",
+            VpcId=vpc_id)
+
     # TODO: Don't try adding rules that already exist.
     # TODO: Add rules in one shot.
     for rule in client_rules:
         try:
-            flintrock_group.authorize_ingress(
+            cluster_group.authorize_ingress(
                 IpProtocol=rule.ip_protocol,
                 FromPort=rule.from_port,
                 ToPort=rule.to_port,
@@ -573,13 +580,6 @@ def get_or_create_flintrock_security_groups(
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] != 'InvalidPermission.Duplicate':
                 raise Exception("Error adding rule: {r}".format(r=rule))
-
-    # Rules for internal cluster communication.
-    if not cluster_group:
-        cluster_group = ec2.create_security_group(
-            GroupName=cluster_group_name,
-            Description="Flintrock cluster group",
-            VpcId=vpc_id)
 
     try:
         cluster_group.authorize_ingress(
