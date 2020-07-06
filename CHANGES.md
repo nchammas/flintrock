@@ -4,7 +4,11 @@
 
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v1.0.0...master
 
-* [#311] Move access rules to the individual cluster security group
+### Changed
+
+* [#311]: Fixed a bug that could cause the security group to exceed the predefined limit by placing security group rules in the cluster security group.
+
+[#311]: https://github.com/nchammas/flintrock/pull/311
 
 ## [1.0.0] - 2020-01-11
 
