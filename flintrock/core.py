@@ -506,42 +506,66 @@ def get_java_major_version(client: paramiko.client.SSHClient):
                 client=client,
                 command=command)
             tokens = output.split()
-            # First line of the output is like: 'java version "1.8.0_20"'
+            # First line of the output is like: 'openjdk version "1.8.0_252"' or 'openjdk version "11.0.7" 2020-04-14'
             # Get the version string and strip out the first two parts of the
             # version as a tuple: (1, 8)
             if len(tokens) >= 3:
                 version_parts = tokens[2].strip('"').split(".")
                 if len(version_parts) >= 2:
-                    return tuple(int(part) for part in version_parts[:2])
+                    if version_parts[0] == "1":
+                        # Java 6, 7 or 8
+                        return version_parts[1]
+                    else:
+                        # Java 9+
+                        return version_parts[0]
         except SSHError:
             pass
 
     return None
 
 
-def ensure_java8(client: paramiko.client.SSHClient):
+def ensure_java(client: paramiko.client.SSHClient, jdk: str):
     host = client.get_transport().getpeername()[0]
     java_major_version = get_java_major_version(client)
 
-    if not java_major_version or java_major_version < (1, 8):
-        logger.info("[{h}] Installing Java 1.8...".format(h=host))
+    # sudo yum install -y java-1.8.0-openjdk
+    # sudo amazon-linux-extras install -y java-openjdk11
+    if not java_major_version or java_major_version < jdk:
+        logger.info("[{h}] Installing Java {j}...".format(h=host, j=jdk))
 
+        install_adoptopenjdk_repo(client)
+        java_package = "adoptopenjdk-{j}-hotspot".format(j=jdk)
         ssh_check_output(
             client=client,
             command="""
                 set -e
 
-                # Install Java 1.8 first to protect packages that depend on Java from being removed.
-                sudo yum install -y java-1.8.0-openjdk
+                # Set up the AdoptOpenJDK yum repo
+                sudo mv /tmp/adoptopenjdk.repo /etc/yum.repos.d/
+                
+                # Install Java first to protect packages that depend on Java from being removed.
+                sudo yum install -q -y {jp}
 
                 # Remove any older versions of Java to force the default Java to 1.8.
                 # We don't use /etc/alternatives because it does not seem to update links in /usr/lib/jvm correctly,
                 # and we don't just rely on JAVA_HOME because some programs use java directly in the PATH.
                 sudo yum remove -y java-1.6.0-openjdk java-1.7.0-openjdk
 
-                sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/jre >> /etc/environment"
+                # sudo alternatives --set java {jp}.x86_64
+                sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/{jp} >> /etc/environment"
                 source /etc/environment
-            """)
+            """.format(jp=java_package))
+
+
+def install_adoptopenjdk_repo(client):
+    """
+    Copies the adoptopenjdk.repo file to the /tmp directory on the client.
+    It must be sudo mv'd to /etc/yum.repos.d/ later.
+    """
+    with client.open_sftp() as sftp:
+        sftp.put(
+            localpath=os.path.join(SCRIPTS_DIR, 'adoptopenjdk.repo'),
+            remotepath='/tmp/adoptopenjdk.repo')
 
 
 def setup_node(
@@ -551,6 +575,7 @@ def setup_node(
         # can be looked up by host and reused?
         ssh_client: paramiko.client.SSHClient,
         services: list,
+        jdk: str,
         cluster: FlintrockCluster):
     """
     Setup a new node.
@@ -592,7 +617,7 @@ def setup_node(
     cluster.storage_dirs.root = storage_dirs['root']
     cluster.storage_dirs.ephemeral = storage_dirs['ephemeral']
 
-    ensure_java8(ssh_client)
+    ensure_java(ssh_client, jdk)
 
     for service in services:
         try:
@@ -610,6 +635,7 @@ def setup_node(
 def provision_cluster(
         *,
         cluster: FlintrockCluster,
+        jdk: str,
         services: list,
         user: str,
         identity_file: str):
@@ -618,6 +644,7 @@ def provision_cluster(
     """
     partial_func = functools.partial(
         provision_node,
+        jdk=jdk,
         services=services,
         user=user,
         identity_file=identity_file,
@@ -658,6 +685,7 @@ def provision_cluster(
 
 def provision_node(
         *,
+        jdk: str,
         services: list,
         user: str,
         host: str,
@@ -680,6 +708,7 @@ def provision_node(
         setup_node(
             ssh_client=client,
             services=services,
+            jdk=jdk,
             cluster=cluster)
         for service in services:
             service.configure(
@@ -750,10 +779,7 @@ def add_slaves_node(
 
     with client:
         if is_new_host:
-            setup_node(
-                ssh_client=client,
-                services=services,
-                cluster=cluster)
+            setup_node(ssh_client=client, services=services, cluster=cluster)
 
         for service in services:
             service.configure(
