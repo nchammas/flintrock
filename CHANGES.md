@@ -4,7 +4,11 @@
 
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v1.0.0...master
 
-Nothing notable yet.
+### Changed
+
+* [#311]: Changed how Flintrock manages its own security groups to reduce the likelihood of hitting any limits on the number of rules per security group.
+
+[#311]: https://github.com/nchammas/flintrock/pull/311
 
 ## [1.0.0] - 2020-01-11
 
