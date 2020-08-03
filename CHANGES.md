@@ -6,7 +6,7 @@
 
 ### Changed
 
-* [#311]: Fixed a bug that could cause the security group to exceed the predefined limit by placing security group rules in the cluster security group.
+* [#311]: Changed how Flintrock manages its own security groups to reduce the likelihood of hitting any limits on the number of rules per security group.
 
 [#311]: https://github.com/nchammas/flintrock/pull/311
 
