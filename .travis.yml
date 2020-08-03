@@ -11,6 +11,8 @@ matrix:
       sudo: true
 install:
   - "pip install -r requirements/maintainer.pip"
+  # Fix for PyInstaller: https://stackoverflow.com/q/61574984/
+  - "pip install setuptools==49.2.1"
 script:
   - "pytest"
 addons:
