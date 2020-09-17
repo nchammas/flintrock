@@ -300,7 +300,7 @@ def cli(cli_context, config, provider, debug):
                    "You can specify this option multiple times.")
 @click.option('--ec2-spot-price', type=float)
 @click.option('--ec2-spot-request-duration', default='7d',
-              help="Duration a spot request is valid util (e.g. 3d 2h 1m).")
+              help="Duration a spot request is valid (e.g. 3d 2h 1m).")
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-subnet-id', default='')
