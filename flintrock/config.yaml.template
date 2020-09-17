@@ -31,7 +31,7 @@ providers:
     # ami: ami-61bbf104  # CentOS 7, us-east-1
     # user: centos
     # spot-price: <price>
-    # spot-request-valid-until: 7d  # duration a spot request is valid, supports d/h/m/s (e.g. 4d 3h 2m 1s)
+    # spot-request-duration: 7d  # duration a spot request is valid, supports d/h/m/s (e.g. 4d 3h 2m 1s)
     # vpc-id: <id>
     # subnet-id: <id>
     # placement-group: <name>

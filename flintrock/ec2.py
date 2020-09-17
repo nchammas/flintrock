@@ -798,7 +798,7 @@ def launch(
         user,
         security_groups,
         spot_price=None,
-        spot_request_valid_until=None,
+        spot_request_duration=None,
         min_root_ebs_size_gb,
         vpc_id,
         subnet_id,
@@ -868,10 +868,10 @@ def launch(
     else:
         user_data = ''
 
-    if spot_request_valid_until is None:
+    if spot_request_duration is None:
         spot_request_valid_until = datetime.utcnow() + timedelta(days=7)
     else:
-        spot_request_valid_until = datetime.utcnow() + duration_to_timedelta(spot_request_valid_until)
+        spot_request_valid_until = datetime.utcnow() + duration_to_timedelta(spot_request_duration)
 
     try:
         cluster_instances = _create_instances(
