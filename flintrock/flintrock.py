@@ -299,6 +299,8 @@ def cli(cli_context, config, provider, debug):
               help="Additional security groups names to assign to the instances. "
                    "You can specify this option multiple times.")
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-spot-request-valid-until', default='7d',
+              help="Duration a spot request is valid util (e.g. 3d 2h 1m).")
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-subnet-id', default='')
@@ -340,6 +342,7 @@ def launch(
         ec2_user,
         ec2_security_groups,
         ec2_spot_price,
+        ec2_spot_request_valid_until,
         ec2_min_root_ebs_size_gb,
         ec2_vpc_id,
         ec2_subnet_id,
@@ -444,6 +447,7 @@ def launch(
             user=ec2_user,
             security_groups=ec2_security_groups,
             spot_price=ec2_spot_price,
+            spot_request_valid_until=ec2_spot_request_valid_until,
             min_root_ebs_size_gb=ec2_min_root_ebs_size_gb,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
