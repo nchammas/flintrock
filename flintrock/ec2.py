@@ -5,7 +5,7 @@ import time
 import urllib.request
 import base64
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # External modules
 import boto3
@@ -869,9 +869,9 @@ def launch(
         user_data = ''
 
     if spot_request_duration is None:
-        spot_request_valid_until = datetime.utcnow() + timedelta(days=7)
+        spot_request_valid_until = datetime.now(tz=timezone.utc) + timedelta(days=7)
     else:
-        spot_request_valid_until = datetime.utcnow() + duration_to_timedelta(spot_request_duration)
+        spot_request_valid_until = datetime.now(tz=timezone.utc) + duration_to_timedelta(spot_request_duration)
 
     try:
         cluster_instances = _create_instances(
