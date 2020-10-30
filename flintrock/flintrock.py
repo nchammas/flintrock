@@ -253,7 +253,7 @@ def cli(cli_context, config, provider, debug):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
-@click.option('--jdk', type=click.IntRange(min=8), default=8)
+@click.option('--java-version', type=click.IntRange(min=8), default=8)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version', default='2.8.5')
 @click.option('--hdfs-download-source',
@@ -324,7 +324,7 @@ def launch(
         cli_context,
         cluster_name,
         num_slaves,
-        jdk,
+        java_version,
         install_hdfs,
         hdfs_version,
         hdfs_download_source,
@@ -438,7 +438,7 @@ def launch(
         cluster = ec2.launch(
             cluster_name=cluster_name,
             num_slaves=num_slaves,
-            jdk=jdk,
+            java_version=java_version,
             services=services,
             assume_yes=assume_yes,
             key_name=ec2_key_name,

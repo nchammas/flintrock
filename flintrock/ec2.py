@@ -787,7 +787,7 @@ def launch(
         *,
         cluster_name,
         num_slaves,
-        jdk,
+        java_version,
         services,
         assume_yes,
         key_name,
@@ -934,7 +934,7 @@ def launch(
 
         provision_cluster(
             cluster=cluster,
-            jdk=jdk,
+            java_version=java_version,
             services=services,
             user=user,
             identity_file=identity_file)
