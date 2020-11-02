@@ -268,7 +268,7 @@ class FlintrockCluster:
     def add_slaves_check(self):
         pass
 
-    def add_slaves(self, *, user: str, identity_file: str, new_hosts: list):
+    def add_slaves(self, *, user: str, identity_file: str, java_version: int, new_hosts: list):
         """
         Add new slaves to the cluster.
 
@@ -285,6 +285,7 @@ class FlintrockCluster:
             services=self.services,
             user=user,
             identity_file=identity_file,
+            java_version=java_version,
             cluster=self,
             new_hosts=new_hosts)
         run_against_hosts(partial_func=partial_func, hosts=hosts)
@@ -544,7 +545,7 @@ def ensure_java(client: paramiko.client.SSHClient, java_version: int):
             client=client,
             command="""
                 set -e
-                
+
                 # Install Java first to protect packages that depend on Java from being removed.
                 sudo yum install -q -y {jp}
 
@@ -553,7 +554,6 @@ def ensure_java(client: paramiko.client.SSHClient, java_version: int):
                 # and we don't just rely on JAVA_HOME because some programs use java directly in the PATH.
                 sudo yum remove -y java-1.6.0-openjdk java-1.7.0-openjdk
 
-                # sudo alternatives --set java {jp}.x86_64
                 sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/{jp} >> /etc/environment"
                 source /etc/environment
             """.format(jp=java_package))
@@ -571,7 +571,7 @@ def install_adoptopenjdk_repo(client):
         client=client,
         command="""
             # Use sudo to install the repo file
-            sudo mv /tmp/adoptopenjdk.repo /etc/yum.repos.d/        
+            sudo mv /tmp/adoptopenjdk.repo /etc/yum.repos.d/
         """
     )
 
@@ -767,6 +767,7 @@ def add_slaves_node(
         user: str,
         host: str,
         identity_file: str,
+        java_version: int,
         services: list,
         cluster: FlintrockCluster,
         new_hosts: list):
@@ -790,6 +791,7 @@ def add_slaves_node(
             setup_node(
                 ssh_client=client,
                 services=services,
+                java_version=java_version,
                 cluster=cluster)
 
         for service in services:
