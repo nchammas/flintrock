@@ -495,7 +495,10 @@ def run_against_hosts(*, partial_func: functools.partial, hosts: list):
             future.result()
 
 
-def get_java_major_version(client: paramiko.client.SSHClient):
+def get_installed_java_version(client: paramiko.client.SSHClient):
+    """
+    :return: the major version (5,6,7,8...) of the currently installed Java or None if not installed
+    """
     possible_cmds = [
         "$JAVA_HOME/bin/java -version",
         "java -version"
@@ -526,37 +529,60 @@ def get_java_major_version(client: paramiko.client.SSHClient):
 
 
 def ensure_java(client: paramiko.client.SSHClient, java_version: int):
+    """
+    Ensures that Java is available on the machine and that it has a
+    version of at least java_version.
+
+    The specified version of Java will be installed if it does not
+    exist or the existing version has a major version lower than java_version.
+
+    :param client:
+    :param java_version:
+        minimum version of Java required
+    :return:
+    """
     host = client.get_transport().getpeername()[0]
-    java_major_version = get_java_major_version(client)
+    installed_java_version = get_installed_java_version(client)
 
-    if java_major_version and java_major_version == java_version:
-        logger.info("Java {j} is already installed, skipping Java install".format(j=java_major_version))
-    elif java_major_version and java_major_version > java_version:
-        logger.warning("Downgrading existing Java {j} installation".format(j=java_major_version))
+    if installed_java_version == java_version:
+        logger.info("Java {j} is already installed, skipping Java install".format(j=installed_java_version))
+        return
 
-    # sudo yum install -y java-1.8.0-openjdk
-    # sudo amazon-linux-extras install -y java-openjdk11
-    elif not java_major_version or java_major_version < java_version:
-        logger.info("[{h}] Installing Java {j}...".format(h=host, j=java_version))
+    if installed_java_version and installed_java_version > java_version:
+        logger.warning("""
+            Existing Java {j} installation is newer than the configured version {java_version}.
+            Your applications will be executed with Java {j}.
+            Please choose a different AMI if this does not work for you.
+            """.format(j=installed_java_version, java_version=java_version))
+        return
 
-        install_adoptopenjdk_repo(client)
-        java_package = "adoptopenjdk-{j}-hotspot".format(j=java_version)
-        ssh_check_output(
-            client=client,
-            command="""
-                set -e
+    if installed_java_version and installed_java_version < java_version:
+        logger.info("""
+                Existing Java {j} will be upgraded to AdoptOpenJDK {java_version}
+                """.format(j=installed_java_version, java_version=java_version))
 
-                # Install Java first to protect packages that depend on Java from being removed.
-                sudo yum install -q -y {jp}
+    # We will install AdoptOpenJDK because it gives us access to Java 8 through 15
+    # Right now, Amazon Extras only provides Corretto Java 8, 11 and 15
+    logger.info("[{h}] Installing AdoptOpenJDK Java {j}...".format(h=host, j=java_version))
 
-                # Remove any older versions of Java to force the default Java to 1.8.
-                # We don't use /etc/alternatives because it does not seem to update links in /usr/lib/jvm correctly,
-                # and we don't just rely on JAVA_HOME because some programs use java directly in the PATH.
-                sudo yum remove -y java-1.6.0-openjdk java-1.7.0-openjdk
+    install_adoptopenjdk_repo(client)
+    java_package = "adoptopenjdk-{j}-hotspot".format(j=java_version)
+    ssh_check_output(
+        client=client,
+        command="""
+            set -e
 
-                sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/{jp} >> /etc/environment"
-                source /etc/environment
-            """.format(jp=java_package))
+            # Install Java first to protect packages that depend on Java from being removed.
+            sudo yum install -q -y {jp}
+
+            # Remove any older versions of Java to force the default Java to 1.8.
+            # We don't use /etc/alternatives because it does not seem to update links in /usr/lib/jvm correctly,
+            # and we don't just rely on JAVA_HOME because some programs use java directly in the PATH.
+            sudo yum remove -y java-1.6.0-openjdk java-1.7.0-openjdk
+
+            sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/{jp} >> /etc/environment"
+            source /etc/environment
+        """.format(jp=java_package))
 
 
 def install_adoptopenjdk_repo(client):
