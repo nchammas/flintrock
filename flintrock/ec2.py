@@ -252,7 +252,8 @@ class EC2Cluster(FlintrockCluster):
             spot_price: float,
             min_root_ebs_size_gb: int,
             tags: list,
-            assume_yes: bool):
+            assume_yes: bool,
+            spot_request_duration: str = None):
         security_group_ids = [
             group['GroupId']
             for group in self.master_instance.security_groups]
@@ -288,6 +289,11 @@ class EC2Cluster(FlintrockCluster):
         else:
             instance_profile_arn = self.master_instance.iam_instance_profile['Arn']
 
+        if spot_request_duration is None:
+            spot_request_valid_until = datetime.now(tz=timezone.utc) + timedelta(days=7)
+        else:
+            spot_request_valid_until = datetime.now(tz=timezone.utc) + duration_to_timedelta(spot_request_duration)
+
         self.add_slaves_check()
         try:
             new_slave_instances = _create_instances(
@@ -296,6 +302,7 @@ class EC2Cluster(FlintrockCluster):
                 spot_price=spot_price,
                 ami=self.master_instance.image_id,
                 assume_yes=assume_yes,
+                spot_request_valid_until=spot_request_valid_until,
                 key_name=self.master_instance.key_name,
                 instance_type=self.master_instance.instance_type,
                 block_device_mappings=block_device_mappings,
