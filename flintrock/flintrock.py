@@ -722,6 +722,8 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-spot-request-duration', default='7d',
+              help="Duration a spot request is valid (e.g. 3d 2h 1m).")
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-tag', 'ec2_tags',
@@ -739,6 +741,7 @@ def add_slaves(
         ec2_identity_file,
         ec2_user,
         ec2_spot_price,
+        ec2_spot_request_duration,
         ec2_min_root_ebs_size_gb,
         ec2_tags,
         assume_yes):
@@ -769,6 +772,7 @@ def add_slaves(
         provider_options = {
             'min_root_ebs_size_gb': ec2_min_root_ebs_size_gb,
             'spot_price': ec2_spot_price,
+            'spot_request_duration': ec2_spot_request_duration,
             'tags': ec2_tags
         }
     else:
