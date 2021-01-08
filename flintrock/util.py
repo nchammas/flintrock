@@ -48,3 +48,20 @@ def duration_to_timedelta(duration_string):
             prev_num.append(character)
 
     return timedelta(seconds=float(total_seconds))
+
+
+def spark_hadoop_build_version(hadoop_version: str) -> str:
+    """
+    Given a Hadoop version, determine the Hadoop build of Spark to use.
+    """
+    print(hadoop_version)
+    try:
+        hadoop_version = tuple(map(int, hadoop_version.split('.')))
+    except ValueError as e:
+        return 'without-hadoop'
+    if hadoop_version < (2, 7):
+        return 'hadoop2.6'
+    elif (2, 7) <= hadoop_version < (3, 0):
+        return 'hadoop2.7'
+    elif (3, 0) <= hadoop_version:
+        return 'hadoop3.2'

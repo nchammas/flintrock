@@ -29,6 +29,7 @@ from .exceptions import (
     NothingToDo,
     Error)
 from flintrock import __version__
+from .util import spark_hadoop_build_version
 from .services import HDFS, Spark  # TODO: Remove this dependency.
 
 FROZEN = getattr(sys, 'frozen', False)
@@ -174,12 +175,19 @@ def configure_log(debug: bool):
 
 
 def build_hdfs_download_url(ctx, param, value):
-    hdfs_download_url = value.format(v=ctx.params['hdfs_version'])
+    hdfs_version = ctx.params['hdfs_version']
+    hdfs_download_url = (value.rstrip('/') + '/hadoop-{v}.tar.gz').format(v=hdfs_version)
     return hdfs_download_url
 
 
 def build_spark_download_url(ctx, param, value):
-    spark_download_url = value.format(v=ctx.params['spark_version'])
+    spark_version = ctx.params['spark_version']
+    hadoop_version = ctx.params['hdfs_version']
+    hadoop_build_version = spark_hadoop_build_version(hadoop_version)
+    spark_download_url = (value.rstrip('/') + '/spark-{v}-bin-{hv}.tgz').format(
+        v=spark_version,
+        hv=hadoop_build_version,
+    )
     return spark_download_url
 
 
@@ -255,10 +263,12 @@ def cli(cli_context, config, provider, debug):
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--java-version', type=click.IntRange(min=8), default=8)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
-@click.option('--hdfs-version', default='2.8.5')
+@click.option('--hdfs-version', default='3.3.0')
 @click.option('--hdfs-download-source',
-              help="URL to download Hadoop from.",
-              default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz',
+              help=
+                "URL to download Hadoop from. Flintrock will append the appropriate file "
+                "name to the end of the URL based on the Apache release file names.",
+              default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/',
               show_default=True,
               callback=build_hdfs_download_url)
 @click.option('--install-spark/--no-install-spark', default=True)
@@ -271,8 +281,11 @@ def cli(cli_context, config, provider, debug):
               # default=,
               help="Spark release version to install.")
 @click.option('--spark-download-source',
-              help="URL to download a release of Spark from.",
-              default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop2.7.tgz',
+              help=
+                "URL to download Spark from. Flintrock will append the appropriate file "
+                "name to the end of the URL based on the selected Hadoop version and "
+                "Apache release file names.",
+              default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/',
               show_default=True,
               callback=build_spark_download_url)
 @click.option('--spark-git-commit',
