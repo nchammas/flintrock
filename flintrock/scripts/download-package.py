@@ -34,7 +34,10 @@ if __name__ == '__main__':
     tries = 0
     while True:
         try:
-            subprocess.check_call(['curl', '--location', '--output', download_path, url])
+            if url.startswith('s3://'):
+                subprocess.check_call(['aws', 's3', 'cp', url, download_path])
+            else:
+                subprocess.check_call(['curl', '--location', '--output', download_path, url])
             subprocess.check_call(['gzip', '--test', download_path])
             subprocess.check_call(['tar', 'xzf', download_path, '-C', destination_dir, '--strip-components=1'])
             subprocess.check_call(['rm', download_path])
