@@ -575,7 +575,7 @@ def ensure_java(client: paramiko.client.SSHClient, java_version: int):
             # Install Java first to protect packages that depend on Java from being removed.
             sudo yum install -q -y {jp}
 
-            # Remove any older versions of Java to force the default Java to 1.8.
+            # Remove any older versions of Java to force the default Java to the requested version.
             # We don't use /etc/alternatives because it does not seem to update links in /usr/lib/jvm correctly,
             # and we don't just rely on JAVA_HOME because some programs use java directly in the PATH.
             sudo yum remove -y java-1.6.0-openjdk java-1.7.0-openjdk
