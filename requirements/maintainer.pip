@@ -123,7 +123,7 @@ pyparsing==2.4.7
     #   packaging
 pytest-cov==2.11.1
     # via -r requirements/developer.pip
-pytest==6.2.2
+pytest==6.1.2
     # via
     #   -r requirements/developer.pip
     #   pytest-cov
