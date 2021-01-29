@@ -12,7 +12,7 @@ attrs==20.3.0
     # via
     #   -r requirements/developer.pip
     #   pytest
-bcrypt==3.2.0
+bcrypt==3.1.7
     # via
     #   -r requirements/developer.pip
     #   paramiko
