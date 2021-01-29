@@ -147,7 +147,7 @@ s3transfer==0.2.1
     # via
     #   -r requirements/developer.pip
     #   boto3
-secretstorage==3.3.0
+secretstorage==3.2.0
     # via keyring
 six==1.15.0
     # via
