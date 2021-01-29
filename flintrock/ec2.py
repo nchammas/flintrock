@@ -533,11 +533,11 @@ def get_ssh_security_group_rules(
         flintrock_client_cidr,
         flintrock_client_group) -> "boto3.resource('ec2').SecurityGroup":
     return SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=22,
-            to_port=22,
-            cidr_ip=flintrock_client_cidr,
-            src_group=flintrock_client_group)
+        ip_protocol='tcp',
+        from_port=22,
+        to_port=22,
+        cidr_ip=flintrock_client_cidr,
+        src_group=flintrock_client_group)
 
 
 def get_or_create_flintrock_security_groups(
@@ -593,16 +593,15 @@ def get_or_create_flintrock_security_groups(
     else:
         flintrock_client_sources = ec2_authorize_access_from
 
-
     # Initial security group for SSH is always required
     client_rules = []
 
     for client_source in flintrock_client_sources:
         # SSH
         if client_source.startswith('sg-'):
-            get_ssh_security_group_rules(None, client_source)
+            client_rules.appends(get_ssh_security_group_rules(None, client_source))
         else:
-            get_ssh_security_group_rules(str(IPv4Network(client_source)), None)
+            client_rules.appends(get_ssh_security_group_rules(str(IPv4Network(client_source)), None))
         # Services
         for service in services:
             if client_source.startswith('sg-'):
