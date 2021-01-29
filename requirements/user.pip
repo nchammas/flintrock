@@ -22,7 +22,7 @@ cffi==1.14.4
     #   pynacl
 click==7.0
     # via flintrock
-cryptography==3.3.1
+cryptography==3.2.1
     # via
     #   flintrock
     #   paramiko

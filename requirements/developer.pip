@@ -34,7 +34,7 @@ click==7.0
     #   flintrock
 coverage==5.4
     # via pytest-cov
-cryptography==3.3.1
+cryptography==3.2.1
     # via
     #   -r requirements/user.pip
     #   flintrock
