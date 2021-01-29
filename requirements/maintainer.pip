@@ -65,7 +65,7 @@ iniconfig==1.1.1
     # via
     #   -r requirements/developer.pip
     #   pytest
-jeepney==0.6.0
+jeepney==0.4.3
     # via secretstorage
 jmespath==0.10.0
     # via
