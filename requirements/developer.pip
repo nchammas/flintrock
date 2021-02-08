@@ -6,9 +6,9 @@
 #
 -e file:.#egg=Flintrock
     # via -r requirements/user.pip
-attrs==19.3.0
+attrs==20.3.0
     # via pytest
-bcrypt==3.1.7
+bcrypt==3.2.0
     # via
     #   -r requirements/user.pip
     #   paramiko
@@ -22,7 +22,7 @@ botocore==1.13.45
     #   boto3
     #   flintrock
     #   s3transfer
-cffi==1.13.2
+cffi==1.14.4
     # via
     #   -r requirements/user.pip
     #   bcrypt
@@ -32,9 +32,9 @@ click==7.0
     # via
     #   -r requirements/user.pip
     #   flintrock
-coverage==5.0.1
+coverage==5.4
     # via pytest-cov
-cryptography==2.8
+cryptography==3.4.2
     # via
     #   -r requirements/user.pip
     #   flintrock
@@ -47,20 +47,20 @@ flake8==3.5.0
     # via -r requirements/developer.in
 freezegun==1.1.0
     # via -r requirements/developer.in
-importlib-metadata==1.3.0
+importlib-metadata==3.4.0
     # via
     #   pluggy
     #   pytest
-jmespath==0.9.4
+iniconfig==1.1.1
+    # via pytest
+jmespath==0.10.0
     # via
     #   -r requirements/user.pip
     #   boto3
     #   botocore
 mccabe==0.6.1
     # via flake8
-more-itertools==8.0.2
-    # via pytest
-packaging==19.2
+packaging==20.9
     # via pytest
 paramiko==2.7.1
     # via
@@ -68,25 +68,25 @@ paramiko==2.7.1
     #   flintrock
 pluggy==0.13.1
     # via pytest
-py==1.8.0
+py==1.10.0
     # via pytest
 pycodestyle==2.3.1
     # via flake8
-pycparser==2.19
+pycparser==2.20
     # via
     #   -r requirements/user.pip
     #   cffi
 pyflakes==1.6.0
     # via flake8
-pynacl==1.3.0
+pynacl==1.4.0
     # via
     #   -r requirements/user.pip
     #   paramiko
-pyparsing==2.4.6
+pyparsing==2.4.7
     # via packaging
-pytest-cov==2.8.1
+pytest-cov==2.11.1
     # via -r requirements/developer.in
-pytest==5.3.2
+pytest==6.2.2
     # via
     #   -r requirements/developer.in
     #   pytest-cov
@@ -103,19 +103,19 @@ s3transfer==0.2.1
     # via
     #   -r requirements/user.pip
     #   boto3
-six==1.13.0
+six==1.15.0
     # via
     #   -r requirements/user.pip
     #   bcrypt
-    #   cryptography
-    #   packaging
     #   pynacl
     #   python-dateutil
-urllib3==1.25.7
+toml==0.10.2
+    # via pytest
+typing-extensions==3.7.4.3
+    # via importlib-metadata
+urllib3==1.25.11
     # via
     #   -r requirements/user.pip
     #   botocore
-wcwidth==0.1.7
-    # via pytest
-zipp==0.6.0
+zipp==3.4.0
     # via importlib-metadata
