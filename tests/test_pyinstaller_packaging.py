@@ -2,7 +2,6 @@ import glob
 import os
 import shutil
 import subprocess
-import sys
 
 from conftest import aws_credentials_required
 
@@ -29,7 +28,6 @@ def pyinstaller_flintrock():
     return flintrock_executable_path
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="Python 3.5+ is required")
 @pytest.mark.skipif(not pyinstaller_exists(), reason="PyInstaller is required")
 def test_pyinstaller_flintrock_help(pyinstaller_flintrock):
     p = subprocess.run(
@@ -46,7 +44,6 @@ def test_pyinstaller_flintrock_help(pyinstaller_flintrock):
     assert p.returncode == 0
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="Python 3.5+ is required")
 @pytest.mark.skipif(not pyinstaller_exists(), reason="PyInstaller is required")
 @aws_credentials_required
 def test_pyinstaller_flintrock_describe(pyinstaller_flintrock):
