@@ -154,7 +154,7 @@ class HDFS(FlintrockService):
 
                 echo "export HADOOP_LIBEXEC_DIR='$(pwd)/hadoop/libexec'" >> .bashrc
             """.format(
-                version=self.version,
+                # version=self.version,
                 download_source=self.download_source.format(v=self.version),
             ))
 
@@ -317,7 +317,7 @@ class Spark(FlintrockService):
                 command="""
                     python /tmp/download-package.py "{download_source}" "spark"
                 """.format(
-                    version=self.version,
+                    # version=self.version,
                     download_source=self.download_source.format(v=self.version),
                 ))
 

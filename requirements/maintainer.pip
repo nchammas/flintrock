@@ -58,7 +58,7 @@ docutils==0.15.2
     #   -r requirements/developer.pip
     #   botocore
     #   readme-renderer
-flake8==3.5.0
+flake8==3.8.4
     # via -r requirements/developer.pip
 freezegun==1.1.0
     # via -r requirements/developer.pip
@@ -67,6 +67,7 @@ idna==2.10
 importlib-metadata==3.4.0
     # via
     #   -r requirements/developer.pip
+    #   flake8
     #   pluggy
     #   pytest
 iniconfig==1.1.1
@@ -103,7 +104,7 @@ py==1.10.0
     # via
     #   -r requirements/developer.pip
     #   pytest
-pycodestyle==2.3.1
+pycodestyle==2.6.0
     # via
     #   -r requirements/developer.pip
     #   flake8
@@ -111,7 +112,7 @@ pycparser==2.20
     # via
     #   -r requirements/developer.pip
     #   cffi
-pyflakes==1.6.0
+pyflakes==2.2.0
     # via
     #   -r requirements/developer.pip
     #   flake8

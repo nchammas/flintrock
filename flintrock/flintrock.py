@@ -1073,9 +1073,9 @@ def config_to_click(config: dict) -> dict:
 
     click_map = {
         'launch': dict(
-            list(config['launch'].items()) +
-            list(ec2_configs.items()) +
-            list(service_configs.items())),
+            list(config['launch'].items())
+            + list(ec2_configs.items())
+            + list(service_configs.items())),
         'describe': ec2_configs,
         'destroy': ec2_configs,
         'login': ec2_configs,
