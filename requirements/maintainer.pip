@@ -69,6 +69,7 @@ importlib-metadata==3.4.0
     #   -r requirements/developer.pip
     #   flake8
     #   pluggy
+    #   pyinstaller
     #   pytest
 iniconfig==1.1.1
     # via
@@ -118,7 +119,9 @@ pyflakes==2.2.0
     #   flake8
 pygments==2.7.4
     # via readme-renderer
-pyinstaller==3.5
+pyinstaller-hooks-contrib==2020.11
+    # via pyinstaller
+pyinstaller==4.2
     # via -r requirements/maintainer.in
 pynacl==1.4.0
     # via
