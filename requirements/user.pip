@@ -32,7 +32,7 @@ jmespath==0.10.0
     # via
     #   boto3
     #   botocore
-paramiko==2.7.1
+paramiko==2.7.2
     # via flintrock
 pycparser==2.20
     # via cffi

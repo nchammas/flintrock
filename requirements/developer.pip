@@ -63,7 +63,7 @@ mccabe==0.6.1
     # via flake8
 packaging==20.9
     # via pytest
-paramiko==2.7.1
+paramiko==2.7.2
     # via
     #   -r requirements/user.pip
     #   flintrock

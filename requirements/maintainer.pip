@@ -91,7 +91,7 @@ packaging==20.9
     #   -r requirements/developer.pip
     #   bleach
     #   pytest
-paramiko==2.7.1
+paramiko==2.7.2
     # via
     #   -r requirements/developer.pip
     #   flintrock
