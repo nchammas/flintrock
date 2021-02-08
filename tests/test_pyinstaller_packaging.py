@@ -2,7 +2,6 @@ import glob
 import os
 import shutil
 import subprocess
-import sys
 
 from conftest import aws_credentials_required
 
