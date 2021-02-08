@@ -5,7 +5,7 @@ import time
 import urllib.request
 import base64
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 # External modules
 import boto3
@@ -25,7 +25,7 @@ from .exceptions import (
 )
 from .ssh import generate_ssh_key_pair
 from .services import SecurityGroupRule
-from .util import duration_to_timedelta
+from .util import duration_to_expiration
 
 logger = logging.getLogger('flintrock.ec2')
 
@@ -251,7 +251,7 @@ class EC2Cluster(FlintrockCluster):
             num_slaves: int,
             java_version: int,
             spot_price: float,
-            spot_request_valid_until: str,
+            spot_request_duration: str,
             min_root_ebs_size_gb: int,
             tags: list,
             assume_yes: bool):
@@ -296,7 +296,7 @@ class EC2Cluster(FlintrockCluster):
                 num_instances=num_slaves,
                 region=self.region,
                 spot_price=spot_price,
-                spot_request_valid_until=spot_request_valid_until,
+                spot_request_valid_until=duration_to_expiration(spot_request_duration),
                 ami=self.master_instance.image_id,
                 assume_yes=assume_yes,
                 key_name=self.master_instance.key_name,
@@ -873,17 +873,12 @@ def launch(
     else:
         user_data = ''
 
-    if spot_request_duration is None:
-        spot_request_valid_until = datetime.now(tz=timezone.utc) + timedelta(days=7)
-    else:
-        spot_request_valid_until = datetime.now(tz=timezone.utc) + duration_to_timedelta(spot_request_duration)
-
     try:
         cluster_instances = _create_instances(
             num_instances=num_instances,
             region=region,
             spot_price=spot_price,
-            spot_request_valid_until=spot_request_valid_until,
+            spot_request_valid_until=duration_to_expiration(spot_request_duration),
             ami=ami,
             assume_yes=assume_yes,
             key_name=key_name,
