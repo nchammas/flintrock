@@ -25,7 +25,7 @@ from .exceptions import (
 )
 from .ssh import generate_ssh_key_pair
 from .services import SecurityGroupRule
-from .util import duration_to_timedelta, duration_to_expiration
+from .util import duration_to_expiration
 
 logger = logging.getLogger('flintrock.ec2')
 
