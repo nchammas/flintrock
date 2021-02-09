@@ -16,7 +16,7 @@ setuptools.setup(
     author='Nicholas Chammas',
     author_email='nicholas.chammas@gmail.com',
     license='Apache License 2.0',
-    python_requires='>= 3.5',
+    python_requires='>= 3.6',
 
     # See: https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
@@ -50,7 +50,7 @@ setuptools.setup(
         'boto3 == 1.10.45',
         'botocore == 1.13.45',
         'click == 7.0',
-        'paramiko == 2.7.1',
+        'paramiko == 2.7.2',
         'PyYAML == 5.2',
         # This is to address reports that PyInstaller-packaged versions
         # of Flintrock intermittently fail due to an out-of-date version

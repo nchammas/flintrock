@@ -7,16 +7,18 @@
 -e file:.#egg=Flintrock
     # via -r requirements/developer.pip
 altgraph==0.17
-    # via pyinstaller
+    # via
+    #   macholib
+    #   pyinstaller
 attrs==20.3.0
     # via
     #   -r requirements/developer.pip
     #   pytest
-bcrypt==3.1.7
+bcrypt==3.2.0
     # via
     #   -r requirements/developer.pip
     #   paramiko
-bleach==3.2.3
+bleach==3.3.0
     # via readme-renderer
 boto3==1.10.45
     # via
@@ -46,44 +48,50 @@ coverage==5.4
     # via
     #   -r requirements/developer.pip
     #   pytest-cov
-cryptography==3.2.1
+cryptography==3.4.2
     # via
     #   -r requirements/developer.pip
     #   flintrock
     #   paramiko
-    #   secretstorage
 docutils==0.15.2
     # via
     #   -r requirements/developer.pip
     #   botocore
     #   readme-renderer
-flake8==3.5.0
+flake8==3.8.4
+    # via -r requirements/developer.pip
+freezegun==1.1.0
     # via -r requirements/developer.pip
 idna==2.10
     # via requests
+importlib-metadata==3.4.0
+    # via
+    #   -r requirements/developer.pip
+    #   flake8
+    #   pluggy
+    #   pyinstaller
+    #   pytest
 iniconfig==1.1.1
     # via
     #   -r requirements/developer.pip
     #   pytest
-jeepney==0.4.3
-    # via secretstorage
 jmespath==0.10.0
     # via
     #   -r requirements/developer.pip
     #   boto3
     #   botocore
-keyring==20.0.1
-    # via -r requirements/maintainer.in
+macholib==1.14
+    # via pyinstaller
 mccabe==0.6.1
     # via
     #   -r requirements/developer.pip
     #   flake8
-packaging==20.8
+packaging==20.9
     # via
     #   -r requirements/developer.pip
     #   bleach
     #   pytest
-paramiko==2.7.1
+paramiko==2.7.2
     # via
     #   -r requirements/developer.pip
     #   flintrock
@@ -97,7 +105,7 @@ py==1.10.0
     # via
     #   -r requirements/developer.pip
     #   pytest
-pycodestyle==2.3.1
+pycodestyle==2.6.0
     # via
     #   -r requirements/developer.pip
     #   flake8
@@ -105,13 +113,15 @@ pycparser==2.20
     # via
     #   -r requirements/developer.pip
     #   cffi
-pyflakes==1.6.0
+pyflakes==2.2.0
     # via
     #   -r requirements/developer.pip
     #   flake8
 pygments==2.7.4
     # via readme-renderer
-pyinstaller==3.5
+pyinstaller-hooks-contrib==2020.11
+    # via pyinstaller
+pyinstaller==4.2
     # via -r requirements/maintainer.in
 pynacl==1.4.0
     # via
@@ -123,7 +133,7 @@ pyparsing==2.4.7
     #   packaging
 pytest-cov==2.11.1
     # via -r requirements/developer.pip
-pytest==6.1.2
+pytest==6.2.2
     # via
     #   -r requirements/developer.pip
     #   pytest-cov
@@ -131,6 +141,7 @@ python-dateutil==2.8.1
     # via
     #   -r requirements/developer.pip
     #   botocore
+    #   freezegun
 pyyaml==5.2
     # via
     #   -r requirements/developer.pip
@@ -147,14 +158,11 @@ s3transfer==0.2.1
     # via
     #   -r requirements/developer.pip
     #   boto3
-secretstorage==3.2.0
-    # via keyring
 six==1.15.0
     # via
     #   -r requirements/developer.pip
     #   bcrypt
     #   bleach
-    #   cryptography
     #   pynacl
     #   python-dateutil
     #   readme-renderer
@@ -166,6 +174,10 @@ tqdm==4.56.0
     # via twine
 twine==1.15.0
     # via -r requirements/maintainer.in
+typing-extensions==3.7.4.3
+    # via
+    #   -r requirements/developer.pip
+    #   importlib-metadata
 urllib3==1.25.11
     # via
     #   -r requirements/developer.pip
@@ -175,6 +187,10 @@ webencodings==0.5.1
     # via bleach
 wheel==0.36.2
     # via -r requirements/maintainer.in
+zipp==3.4.0
+    # via
+    #   -r requirements/developer.pip
+    #   importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
