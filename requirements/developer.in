@@ -1,0 +1,6 @@
+-r user.pip
+pytest >= 3.5.0
+pytest-cov >= 2.5.1
+flake8 == 3.8.4
+freezegun == 1.1.0
+# PyYAML  # requirement already covered by setup.py

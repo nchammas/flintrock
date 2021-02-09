@@ -10,9 +10,9 @@ from flintrock.core import StorageDirs
 # External
 import pytest
 
-HADOOP_VERSION = '2.7.5'
-SPARK_VERSION = '2.2.0'
-SPARK_GIT_COMMIT = '584354eaac02531c9584188b143367ba694b0c34'  # 2.0.2
+HADOOP_VERSION = '2.8.5'
+SPARK_VERSION = '2.4.5'
+SPARK_GIT_COMMIT = '7955b3962ac46b89564e0613db7bea98a1478bf2'  # 2.4.4
 
 
 class Dummy():
@@ -23,6 +23,15 @@ aws_credentials_required = (
     pytest.mark.skipif(
         not bool(os.environ.get('USE_AWS_CREDENTIALS')),
         reason="USE_AWS_CREDENTIALS not set"))
+
+
+@pytest.fixture(scope='session')
+def project_root_dir():
+    return os.path.dirname(
+        os.path.dirname(
+            os.path.realpath(__file__)
+        )
+    )
 
 
 @pytest.fixture(scope='session')
@@ -38,8 +47,10 @@ def dummy_cluster():
     cluster.storage_dirs = storage_dirs
     cluster.master_ip = '10.0.0.1'
     cluster.master_host = 'master.hostname'
+    cluster.master_private_host = 'master.privatehostname'
     cluster.slave_ips = ['10.0.0.2']
     cluster.slave_hosts = ['slave1.hostname']
+    cluster.slave_private_hosts = ['slave1.privatehostname']
 
     return cluster
 
@@ -98,15 +109,15 @@ class ClusterConfig:
 
 
 cluster_configs = [
-    ClusterConfig(restarted=False, instance_type='t2.small'),
-    ClusterConfig(restarted=True, instance_type='t2.small'),
-    ClusterConfig(restarted=False, instance_type='m3.medium'),
-    ClusterConfig(restarted=True, instance_type='m3.medium'),
+    ClusterConfig(restarted=False, instance_type='t3.small'),
+    ClusterConfig(restarted=True, instance_type='t3.small'),
+    ClusterConfig(restarted=False, instance_type='m5.large'),
+    ClusterConfig(restarted=True, instance_type='m5.large'),
     # We don't test all cluster states when building Spark because
     # it takes a very long time.
     ClusterConfig(
         restarted=True,
-        instance_type='m3.xlarge',
+        instance_type='m5.xlarge',
         spark_version='',
         spark_git_commit=SPARK_GIT_COMMIT)]
 
@@ -148,7 +159,7 @@ def stopped_cluster(request):
         '--no-install-hdfs',
         '--no-install-spark',
         '--assume-yes',
-        '--ec2-instance-type', 't2.small'])
+        '--ec2-instance-type', 't3.small'])
     assert p.returncode == 0
 
     p = subprocess.run([

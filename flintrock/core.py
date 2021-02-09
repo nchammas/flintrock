@@ -268,7 +268,7 @@ class FlintrockCluster:
     def add_slaves_check(self):
         pass
 
-    def add_slaves(self, *, user: str, identity_file: str, new_hosts: list):
+    def add_slaves(self, *, user: str, identity_file: str, java_version: int, new_hosts: list):
         """
         Add new slaves to the cluster.
 
@@ -285,6 +285,7 @@ class FlintrockCluster:
             services=self.services,
             user=user,
             identity_file=identity_file,
+            java_version=java_version,
             cluster=self,
             new_hosts=new_hosts)
         run_against_hosts(partial_func=partial_func, hosts=hosts)
@@ -441,8 +442,10 @@ def generate_template_mapping(
     template_mapping = {
         'master_ip': cluster.master_ip,
         'master_host': cluster.master_host,
+        'master_private_host': cluster.master_private_host,
         'slave_ips': '\n'.join(cluster.slave_ips),
         'slave_hosts': '\n'.join(cluster.slave_hosts),
+        'slave_private_hosts': '\n'.join(cluster.slave_private_hosts),
 
         'hadoop_version': hadoop_version,
         'hadoop_short_version': '.'.join(hadoop_version.split('.')[:2]),
@@ -492,7 +495,10 @@ def run_against_hosts(*, partial_func: functools.partial, hosts: list):
             future.result()
 
 
-def get_java_major_version(client: paramiko.client.SSHClient):
+def get_installed_java_version(client: paramiko.client.SSHClient):
+    """
+    :return: the major version (5,6,7,8...) of the currently installed Java or None if not installed
+    """
     possible_cmds = [
         "$JAVA_HOME/bin/java -version",
         "java -version"
@@ -504,42 +510,96 @@ def get_java_major_version(client: paramiko.client.SSHClient):
                 client=client,
                 command=command)
             tokens = output.split()
-            # First line of the output is like: 'java version "1.8.0_20"'
+            # First line of the output is like: 'openjdk version "1.8.0_252"' or 'openjdk version "11.0.7" 2020-04-14'
             # Get the version string and strip out the first two parts of the
-            # version as a tuple: (1, 8)
+            # version as an int: 7, 8, 9, 10...
             if len(tokens) >= 3:
                 version_parts = tokens[2].strip('"').split(".")
                 if len(version_parts) >= 2:
-                    return tuple(int(part) for part in version_parts[:2])
+                    if version_parts[0] == "1":
+                        # Java 6, 7 or 8
+                        return int(version_parts[1])
+                    else:
+                        # Java 9+
+                        return int(version_parts[0])
         except SSHError:
             pass
 
     return None
 
 
-def ensure_java8(client: paramiko.client.SSHClient):
+def ensure_java(client: paramiko.client.SSHClient, java_version: int):
+    """
+    Ensures that Java is available on the machine and that it has a
+    version of at least java_version.
+
+    The specified version of Java will be installed if it does not
+    exist or the existing version has a major version lower than java_version.
+
+    :param client:
+    :param java_version:
+        minimum version of Java required
+    :return:
+    """
     host = client.get_transport().getpeername()[0]
-    java_major_version = get_java_major_version(client)
+    installed_java_version = get_installed_java_version(client)
 
-    if not java_major_version or java_major_version < (1, 8):
-        logger.info("[{h}] Installing Java 1.8...".format(h=host))
+    if installed_java_version == java_version:
+        logger.info("Java {j} is already installed, skipping Java install".format(j=installed_java_version))
+        return
 
-        ssh_check_output(
-            client=client,
-            command="""
-                set -e
+    if installed_java_version and installed_java_version > java_version:
+        logger.warning("""
+            Existing Java {j} installation is newer than the configured version {java_version}.
+            Your applications will be executed with Java {j}.
+            Please choose a different AMI if this does not work for you.
+            """.format(j=installed_java_version, java_version=java_version))
+        return
 
-                # Install Java 1.8 first to protect packages that depend on Java from being removed.
-                sudo yum install -y java-1.8.0-openjdk
+    if installed_java_version and installed_java_version < java_version:
+        logger.info("""
+                Existing Java {j} will be upgraded to AdoptOpenJDK {java_version}
+                """.format(j=installed_java_version, java_version=java_version))
 
-                # Remove any older versions of Java to force the default Java to 1.8.
-                # We don't use /etc/alternatives because it does not seem to update links in /usr/lib/jvm correctly,
-                # and we don't just rely on JAVA_HOME because some programs use java directly in the PATH.
-                sudo yum remove -y java-1.6.0-openjdk java-1.7.0-openjdk
+    # We will install AdoptOpenJDK because it gives us access to Java 8 through 15
+    # Right now, Amazon Extras only provides Corretto Java 8, 11 and 15
+    logger.info("[{h}] Installing AdoptOpenJDK Java {j}...".format(h=host, j=java_version))
 
-                sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/jre >> /etc/environment"
-                source /etc/environment
-            """)
+    install_adoptopenjdk_repo(client)
+    java_package = "adoptopenjdk-{j}-hotspot".format(j=java_version)
+    ssh_check_output(
+        client=client,
+        command="""
+            set -e
+
+            # Install Java first to protect packages that depend on Java from being removed.
+            sudo yum install -q -y {jp}
+
+            # Remove any older versions of Java to force the default Java to the requested version.
+            # We don't use /etc/alternatives because it does not seem to update links in /usr/lib/jvm correctly,
+            # and we don't just rely on JAVA_HOME because some programs use java directly in the PATH.
+            sudo yum remove -y java-1.6.0-openjdk java-1.7.0-openjdk
+
+            sudo sh -c "echo export JAVA_HOME=/usr/lib/jvm/{jp} >> /etc/environment"
+            source /etc/environment
+        """.format(jp=java_package))
+
+
+def install_adoptopenjdk_repo(client):
+    """
+    Installs the adoptopenjdk.repo file into /etc/yum.repos.d/
+    """
+    with client.open_sftp() as sftp:
+        sftp.put(
+            localpath=os.path.join(SCRIPTS_DIR, 'adoptopenjdk.repo'),
+            remotepath='/tmp/adoptopenjdk.repo')
+    ssh_check_output(
+        client=client,
+        command="""
+            # Use sudo to install the repo file
+            sudo mv /tmp/adoptopenjdk.repo /etc/yum.repos.d/
+        """
+    )
 
 
 def setup_node(
@@ -549,6 +609,7 @@ def setup_node(
         # can be looked up by host and reused?
         ssh_client: paramiko.client.SSHClient,
         services: list,
+        java_version: int,
         cluster: FlintrockCluster):
     """
     Setup a new node.
@@ -590,17 +651,25 @@ def setup_node(
     cluster.storage_dirs.root = storage_dirs['root']
     cluster.storage_dirs.ephemeral = storage_dirs['ephemeral']
 
-    ensure_java8(ssh_client)
+    ensure_java(ssh_client, java_version)
 
     for service in services:
-        service.install(
-            ssh_client=ssh_client,
-            cluster=cluster)
+        try:
+            service.install(
+                ssh_client=ssh_client,
+                cluster=cluster,
+            )
+        except Exception as e:
+            raise Exception(
+                "Failed to install {}."
+                .format(type(service).__name__)
+            ) from e
 
 
 def provision_cluster(
         *,
         cluster: FlintrockCluster,
+        java_version: int,
         services: list,
         user: str,
         identity_file: str):
@@ -609,6 +678,7 @@ def provision_cluster(
     """
     partial_func = functools.partial(
         provision_node,
+        java_version=java_version,
         services=services,
         user=user,
         identity_file=identity_file,
@@ -649,6 +719,7 @@ def provision_cluster(
 
 def provision_node(
         *,
+        java_version: int,
         services: list,
         user: str,
         host: str,
@@ -671,6 +742,7 @@ def provision_node(
         setup_node(
             ssh_client=client,
             services=services,
+            java_version=java_version,
             cluster=cluster)
         for service in services:
             service.configure(
@@ -721,6 +793,7 @@ def add_slaves_node(
         user: str,
         host: str,
         identity_file: str,
+        java_version: int,
         services: list,
         cluster: FlintrockCluster,
         new_hosts: list):
@@ -744,6 +817,7 @@ def add_slaves_node(
             setup_node(
                 ssh_client=client,
                 services=services,
+                java_version=java_version,
                 cluster=cluster)
 
         for service in services:

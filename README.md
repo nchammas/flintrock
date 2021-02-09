@@ -5,8 +5,6 @@
 
 Flintrock is a command-line tool for launching [Apache Spark](http://spark.apache.org/) clusters.
 
-Though Flintrock hasn't made a 1.0 release yet, it's fairly stable. Expect some minor but nonethless backwards incompatible changes as Flintrock reaches formal stability via a 1.0 release.
-
 
 ## Flintrock around the web
 
@@ -27,15 +25,15 @@ Flintrock has been featured in a few talks, guides, and papers around the web.
 
 ## Usage
 
-Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS account set up](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/get-set-up-for-amazon-ec2.html).
+Here's a quick way to launch a cluster on EC2, assuming you already have an [AWS account set up](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/get-set-up-for-amazon-ec2.html). Flintrock works best with Amazon Linux. You can get the latest AMI IDs [from here](https://aws.amazon.com/amazon-linux-2/release-notes/).
 
 ```sh
 flintrock launch test-cluster \
     --num-slaves 1 \
-    --spark-version 2.2.0 \
+    --spark-version 2.4.5 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
-    --ec2-ami ami-97785bed \
+    --ec2-ami ami-00b882ac5193044e4 \
     --ec2-user ec2-user
 ```
 
@@ -89,8 +87,19 @@ these steps:
    better performance.
 3. Make sure Flintrock is configured to use Hadoop/HDFS 2.7+. Earlier
    versions of Hadoop do not have solid implementations of `s3a://`.
-   Flintrock's default is Hadoop 2.7.5, so you don't need to do anything
+   Flintrock's default is Hadoop 2.8.5, so you don't need to do anything
    here if you're using a vanilla configuration.
+4. Call Spark with the hadoop-aws package to enable `s3a://`. For example:
+   ```sh
+   spark-submit --packages org.apache.hadoop:hadoop-aws:2.7.6 my-app.py
+   pyspark --packages org.apache.hadoop:hadoop-aws:2.7.6
+   ```
+   If you have issues using the package, consult the [hadoop-aws troubleshooting
+   guide](http://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html)
+   and try adjusting the version. As a rule of thumb, you should match the version
+   of hadoop-aws to the version of Hadoop that Spark was built against (which is
+   typically Hadoop 2.7), even if the version of Hadoop that you're deploying to
+   your Flintrock cluster is different.
 
 With this approach you don't need to copy around your AWS credentials
 or pass them into your Spark programs. As long as the assigned IAM role
@@ -105,7 +114,7 @@ Before using Flintrock, take a quick look at the
 notice and [license](https://github.com/nchammas/flintrock/blob/master/LICENSE)
 and make sure you're OK with their terms.
 
-**Flintrock requires Python 3.4 or newer**, unless you are using one
+**Flintrock requires Python 3.6 or newer**, unless you are using one
 of our **standalone packages**. Flintrock has been thoroughly tested
 only on OS X, but it should run on all POSIX systems.
 A motivated contributor should be able to add
@@ -141,10 +150,10 @@ unzip it to a location of your choice, and run the `flintrock` executable inside
 For example:
 
 ```sh
-flintrock_version="0.8.0"
+flintrock_version="1.0.0"
 
-curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
-unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-OSX-x86_64.zip"
+curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-macOS-x86_64.zip"
+unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-macOS-x86_64.zip"
 cd flintrock/
 
 # You're good to go!
@@ -159,7 +168,7 @@ Flintrock is also available via the following package managers:
 
 * [Homebrew](https://brew.sh): `brew install flintrock`
 
-These packages are not supported by the core contributors and may be out of date. Please reach out to the relevant communities directly if you have trouble using these distributions to install Flintrock.
+These packages are not supported by the core contributors and **may be out of date**. Please reach out to the relevant communities directly if you have trouble using these distributions to install Flintrock. You can always find the latest release of Flintrock [on GitHub](https://github.com/nchammas/flintrock/releases/latest) and [on PyPI](https://pypi.org/project/Flintrock/).
 
 ### Development version
 
@@ -243,7 +252,7 @@ provider: ec2
 
 services:
   spark:
-    version: 2.2.0
+    version: 2.4.5
 
 launch:
   num-slaves: 1
@@ -252,9 +261,9 @@ providers:
   ec2:
     key-name: key_name
     identity-file: /path/to/.ssh/key.pem
-    instance-type: m3.medium
+    instance-type: m5.large
     region: us-east-1
-    ami: ami-97785bed
+    ami: ami-00b882ac5193044e4
     user: ec2-user
 ```
 
@@ -269,7 +278,7 @@ And if you want, you can even override individual options in your config file at
 ```sh
 flintrock launch test-cluster \
     --num-slaves 10 \
-    --ec2-instance-type r3.xlarge
+    --ec2-instance-type r5.xlarge
 ```
 
 ### Fast Launches
@@ -283,6 +292,7 @@ Flintrock is really fast. This is how quickly it can launch fully operational cl
 * AMI:
     * Flintrock: [Default Amazon Linux AMI](https://aws.amazon.com/amazon-linux-ami/)
     * spark-ec2: [Custom spark-ec2 AMI](https://github.com/amplab/spark-ec2/tree/a990752575cd8b0ab25731d7820a55c714798ec3/ami-list)
+* Spark/Hadoop download source: S3
 * Launch time: Best of 6 tries
 
 #### Results

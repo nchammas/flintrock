@@ -1,6 +1,6 @@
 services:
   spark:
-    version: 2.2.0
+    version: 2.4.5
     # git-commit: latest  # if not 'latest', provide a full commit SHA; e.g. d6dc12ef0146ae409834c78737c116050961f350
     # git-repository:  # optional; defaults to https://github.com/apache/spark
     # optional; defaults to download from from the official Spark S3 bucket
@@ -10,7 +10,7 @@ services:
     # download-source: "https://www.example.com/files/spark/{v}/spark-{v}.tar.gz"
     # executor-instances: 1
   hdfs:
-    version: 2.7.5
+    version: 2.8.5
     # optional; defaults to download from a dynamically selected Apache mirror
     #   - must contain a {v} template corresponding to the version
     #   - must be a .tar.gz file
@@ -23,14 +23,15 @@ providers:
   ec2:
     key-name: key_name
     identity-file: /path/to/key.pem
-    instance-type: m3.medium
+    instance-type: m5.large
     region: us-east-1
     # availability-zone: <name>
-    ami: ami-97785bed   # Amazon Linux, us-east-1
+    ami: ami-00b882ac5193044e4  # Amazon Linux 2, us-east-1
     user: ec2-user
-    # ami: ami-61bbf104   # CentOS 7, us-east-1
+    # ami: ami-61bbf104  # CentOS 7, us-east-1
     # user: centos
     # spot-price: <price>
+    # spot-request-duration: 7d  # duration a spot request is valid, supports d/h/m/s (e.g. 4d 3h 2m 1s)
     # vpc-id: <id>
     # subnet-id: <id>
     # placement-group: <name>
@@ -52,5 +53,6 @@ launch:
   num-slaves: 1
   # install-hdfs: True
   # install-spark: False
+  # java-version: 8
 
 debug: false

@@ -1,0 +1,24 @@
+name: test-infra
+
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  terraform-lint:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: Check Terraform Formatting
+      run: |
+        cd test-infra
+        terraform fmt -check -diff
+    - name: Validate Terraform Templates
+      run: |
+        cd test-infra
+        terraform init
+        terraform validate

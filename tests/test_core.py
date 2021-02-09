@@ -16,7 +16,7 @@ FLINTROCK_ROOT_DIR = (
 @pytest.mark.parametrize(
     'spark_version', [
         (''),
-        ('2.2.0'),
+        ('2.4.5'),
         ('0626b11147133b67b26a04b4819f61a33dd958d3'),
     ])
 def test_templates(dummy_cluster, spark_version):

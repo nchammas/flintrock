@@ -6,6 +6,7 @@ import sys
 import urllib.error
 import urllib.request
 import logging
+from collections import namedtuple
 
 # External modules
 import paramiko
@@ -29,6 +30,14 @@ SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
 
 
 logger = logging.getLogger('flintrock.services')
+
+SecurityGroupRule = namedtuple(
+    'SecurityGroupRule', [
+        'ip_protocol',
+        'from_port',
+        'to_port',
+        'src_group',
+        'cidr_ip'])
 
 
 class FlintrockService:
@@ -106,11 +115,18 @@ class FlintrockService:
         """
         raise NotImplementedError
 
+    def get_security_group_rules(self, flintrock_client_cidr: str):
+        """
+        Return the EC2 SecurityGroupRules required by this service.
+        """
+        raise NotImplementedError
+
 
 class HDFS(FlintrockService):
     def __init__(self, *, version, download_source):
         self.version = version
         self.download_source = download_source
+        self.name_node_ui_port = 50070 if version < '3.0' else 9870
         self.manifest = {'version': version, 'download_source': download_source}
 
     def install(
@@ -122,27 +138,25 @@ class HDFS(FlintrockService):
 
         with ssh_client.open_sftp() as sftp:
             sftp.put(
-                localpath=os.path.join(SCRIPTS_DIR, 'download-hadoop.py'),
-                remotepath='/tmp/download-hadoop.py')
+                localpath=os.path.join(SCRIPTS_DIR, 'download-package.py'),
+                remotepath='/tmp/download-package.py')
 
         ssh_check_output(
             client=ssh_client,
             command="""
                 set -e
 
-                python /tmp/download-hadoop.py "{version}" "{download_source}"
-
-                mkdir "hadoop"
-                mkdir "hadoop/conf"
-
-                tar xzf "hadoop-{version}.tar.gz" -C "hadoop" --strip-components=1
-                rm "hadoop-{version}.tar.gz"
+                python /tmp/download-package.py "{download_source}" "hadoop"
 
                 for f in $(find hadoop/bin -type f -executable -not -name '*.cmd'); do
                     sudo ln -s "$(pwd)/$f" "/usr/local/bin/$(basename $f)"
                 done
+
                 echo "export HADOOP_LIBEXEC_DIR='$(pwd)/hadoop/libexec'" >> .bashrc
-            """.format(version=self.version, download_source=self.download_source))
+            """.format(
+                # version=self.version,
+                download_source=self.download_source.format(v=self.version),
+            ))
 
     def configure(
             self,
@@ -156,6 +170,11 @@ class HDFS(FlintrockService):
             'hadoop/conf/core-site.xml',
             'hadoop/conf/hdfs-site.xml',
         ]
+
+        ssh_check_output(
+            client=ssh_client,
+            command="mkdir -p hadoop/conf",
+        )
 
         for template_path in template_paths:
             ssh_check_output(
@@ -207,10 +226,10 @@ class HDFS(FlintrockService):
                             sleep 1
                             master_ui_response_code="$(
                                 curl --head --silent --output /dev/null \
-                                    --write-out "%{{http_code}}" {m}:50070
+                                    --write-out "%{{http_code}}" {m}:{p}
                             )"
                         done
-                    """.format(m=shlex.quote(cluster.master_host)),
+                    """.format(m=shlex.quote(cluster.master_private_host), p=self.name_node_ui_port),
                     timeout_seconds=90
                 )
                 break
@@ -225,7 +244,7 @@ class HDFS(FlintrockService):
     def health_check(self, master_host: str):
         # This info is not helpful as a detailed health check, but it gives us
         # an up / not up signal.
-        hdfs_master_ui = 'http://{m}:50070/webhdfs/v1/?op=GETCONTENTSUMMARY'.format(m=master_host)
+        hdfs_master_ui = 'http://{m}:{p}/webhdfs/v1/?op=GETCONTENTSUMMARY'.format(m=master_host, p=self.name_node_ui_port)
 
         try:
             json.loads(
@@ -236,6 +255,16 @@ class HDFS(FlintrockService):
             logger.info("HDFS online.")
         except Exception as e:
             raise Exception("HDFS health check failed.") from e
+
+    def get_security_group_rules(self, flintrock_client_cidr: str):
+        return [
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=self.name_node_ui_port,
+                to_port=self.name_node_ui_port,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None)
+        ]
 
 
 class Spark(FlintrockService):
@@ -274,64 +303,60 @@ class Spark(FlintrockService):
             self,
             ssh_client: paramiko.client.SSHClient,
             cluster: FlintrockCluster):
-
         logger.info("[{h}] Installing Spark...".format(
             h=ssh_client.get_transport().getpeername()[0]))
 
-        try:
-            if self.version:
-                with ssh_client.open_sftp() as sftp:
-                    sftp.put(
-                        localpath=os.path.join(SCRIPTS_DIR, 'install-spark.sh'),
-                        remotepath='/tmp/install-spark.sh')
-                    sftp.chmod(path='/tmp/install-spark.sh', mode=0o755)
-                url = self.download_source.format(v=self.version)
-                ssh_check_output(
-                    client=ssh_client,
-                    command="""
-                        set -e
-                        /tmp/install-spark.sh {url}
-                        rm -f /tmp/install-spark.sh
-                    """.format(url=shlex.quote(url)))
-            else:
-                ssh_check_output(
-                    client=ssh_client,
-                    command="""
-                        set -e
-                        sudo yum install -y git
-                        sudo yum install -y java-devel
-                        """)
-                ssh_check_output(
-                    client=ssh_client,
-                    command="""
-                        set -e
-                        git clone {repo} spark
-                        cd spark
-                        git reset --hard {commit}
-                        if [ -e "make-distribution.sh" ]; then
-                            ./make-distribution.sh -Phadoop-{hadoop_short_version}
-                        else
-                            ./dev/make-distribution.sh -Phadoop-{hadoop_short_version}
-                        fi
-                    """.format(
-                        repo=shlex.quote(self.git_repository),
-                        commit=shlex.quote(self.git_commit),
-                        hadoop_short_version='.'.join(self.hadoop_version.split('.')[:2]),
-                    ))
+        if self.version:
+            with ssh_client.open_sftp() as sftp:
+                sftp.put(
+                    localpath=os.path.join(SCRIPTS_DIR, 'download-package.py'),
+                    remotepath='/tmp/download-package.py')
+
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    python /tmp/download-package.py "{download_source}" "spark"
+                """.format(
+                    # version=self.version,
+                    download_source=self.download_source.format(v=self.version),
+                ))
+
+        else:
             ssh_check_output(
                 client=ssh_client,
                 command="""
                     set -e
-                    for f in $(find spark/bin -type f -executable -not -name '*.cmd'); do
-                        sudo ln -s "$(pwd)/$f" "/usr/local/bin/$(basename $f)"
-                    done
-                    echo "export SPARK_HOME='$(pwd)/spark'" >> .bashrc
-                """)
-        except Exception as e:
-            # TODO: This should be a more specific exception.
-            print("Error: Failed to install Spark.", file=sys.stderr)
-            print(e, file=sys.stderr)
-            raise
+                    sudo yum install -y git
+                    sudo yum install -y java-devel
+                    """)
+            ssh_check_output(
+                client=ssh_client,
+                command="""
+                    set -e
+                    git clone {repo} spark
+                    cd spark
+                    git reset --hard {commit}
+                    if [ -e "make-distribution.sh" ]; then
+                        ./make-distribution.sh -Phadoop-{hadoop_short_version}
+                    else
+                        ./dev/make-distribution.sh -Phadoop-{hadoop_short_version}
+                    fi
+                """.format(
+                    repo=shlex.quote(self.git_repository),
+                    commit=shlex.quote(self.git_commit),
+                    # Hardcoding this here until we figure out a better way to handle
+                    # the supported build profiles.
+                    hadoop_short_version='2.7',
+                ))
+        ssh_check_output(
+            client=ssh_client,
+            command="""
+                set -e
+                for f in $(find spark/bin -type f -executable -not -name '*.cmd'); do
+                    sudo ln -s "$(pwd)/$f" "/usr/local/bin/$(basename $f)"
+                done
+                echo "export SPARK_HOME='$(pwd)/spark'" >> .bashrc
+            """)
 
     def configure(
             self,
@@ -341,8 +366,13 @@ class Spark(FlintrockService):
         template_paths = [
             'spark/conf/spark-env.sh',
             'spark/conf/slaves',
-            'spark/conf/spark-defaults.conf',
         ]
+
+        ssh_check_output(
+            client=ssh_client,
+            command="mkdir -p spark/conf",
+        )
+
         for template_path in template_paths:
             ssh_check_output(
                 client=ssh_client,
@@ -390,7 +420,7 @@ class Spark(FlintrockService):
                                     --write-out "%{{http_code}}" {m}:8080
                             )"
                         done
-                    """.format(m=shlex.quote(cluster.master_host)),
+                    """.format(m=shlex.quote(cluster.master_private_host)),
                     timeout_seconds=90
                 )
                 break
@@ -419,3 +449,32 @@ class Spark(FlintrockService):
             #       being up; provide a slightly better error message, and don't
             #       dump a large stack trace on the user.
             raise Exception("Spark health check failed.") from e
+
+    def get_security_group_rules(self, flintrock_client_cidr: str):
+        return [
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=8080,
+                to_port=8081,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=4040,
+                to_port=4050,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=7077,
+                to_port=7077,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            # Spark REST Server
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=6066,
+                to_port=6066,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None)
+        ]

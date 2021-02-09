@@ -1,5 +1,7 @@
 import os
 import sys
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 FROZEN = getattr(sys, 'frozen', False)
 
@@ -16,3 +18,44 @@ def get_subprocess_env() -> dict:
     if FROZEN:
         env['LD_LIBRARY_PATH'] = env.get('LD_LIBRARY_PATH_ORIG', '')
     return env
+
+
+def duration_to_timedelta(duration_string):
+    """
+    Convert a time duration string (e.g. 3h 4m 10s) into a timedelta
+    """
+
+    duration_string = duration_string.lower()
+
+    total_seconds = Decimal('0')
+
+    prev_num = []
+    for character in duration_string:
+        if character.isalpha():
+            if prev_num:
+                num = Decimal(''.join(prev_num))
+                if character == 'd':
+                    total_seconds += num * 60 * 60 * 24
+                elif character == 'h':
+                    total_seconds += num * 60 * 60
+                elif character == 'm':
+                    total_seconds += num * 60
+                elif character == 's':
+                    total_seconds += num
+                prev_num = []
+
+        elif character.isnumeric() or character == '.':
+            prev_num.append(character)
+
+    return timedelta(seconds=float(total_seconds))
+
+
+def duration_to_expiration(duration_string):
+    default_duration = timedelta(days=7)
+
+    if not duration_string:
+        expiration = datetime.now(tz=timezone.utc) + default_duration
+    else:
+        expiration = datetime.now(tz=timezone.utc) + duration_to_timedelta(duration_string)
+
+    return expiration

@@ -5,7 +5,6 @@ import time
 import urllib.request
 import base64
 import logging
-from collections import namedtuple
 from datetime import datetime
 
 # External modules
@@ -25,7 +24,8 @@ from .exceptions import (
     NothingToDo,
 )
 from .ssh import generate_ssh_key_pair
-
+from .services import SecurityGroupRule
+from .util import duration_to_expiration
 
 logger = logging.getLogger('flintrock.ec2')
 
@@ -88,12 +88,20 @@ class EC2Cluster(FlintrockCluster):
         return self.master_instance.public_dns_name
 
     @property
+    def master_private_host(self):
+        return self.master_instance.private_dns_name
+
+    @property
     def slave_ips(self):
         return [i.public_ip_address for i in self.slave_instances]
 
     @property
     def slave_hosts(self):
         return [i.public_dns_name for i in self.slave_instances]
+
+    @property
+    def slave_private_hosts(self):
+        return [i.private_dns_name for i in self.slave_instances]
 
     @property
     def num_masters(self):
@@ -241,7 +249,9 @@ class EC2Cluster(FlintrockCluster):
             user: str,
             identity_file: str,
             num_slaves: int,
+            java_version: int,
             spot_price: float,
+            spot_request_duration: str,
             min_root_ebs_size_gb: int,
             tags: list,
             assume_yes: bool):
@@ -270,7 +280,10 @@ class EC2Cluster(FlintrockCluster):
         if not response['UserData']:
             user_data = ''
         else:
-            user_data = response['UserData']['Value']
+            user_data = (
+                base64.b64decode(response['UserData']['Value'])
+                .decode('utf-8')
+            )
 
         if not self.master_instance.iam_instance_profile:
             instance_profile_arn = ''
@@ -283,6 +296,7 @@ class EC2Cluster(FlintrockCluster):
                 num_instances=num_slaves,
                 region=self.region,
                 spot_price=spot_price,
+                spot_request_valid_until=duration_to_expiration(spot_request_duration),
                 ami=self.master_instance.image_id,
                 assume_yes=assume_yes,
                 key_name=self.master_instance.key_name,
@@ -320,6 +334,7 @@ class EC2Cluster(FlintrockCluster):
             super().add_slaves(
                 user=user,
                 identity_file=identity_file,
+                java_version=java_version,
                 new_hosts=new_slaves)
         except (Exception, KeyboardInterrupt) as e:
             if isinstance(e, InterruptedEC2Operation):
@@ -493,20 +508,13 @@ def get_or_create_flintrock_security_groups(
         *,
         cluster_name,
         vpc_id,
-        region) -> "List[boto3.resource('ec2').SecurityGroup]":
+        region,
+        services) -> "List[boto3.resource('ec2').SecurityGroup]":
     """
     If they do not already exist, create all the security groups needed for a
     Flintrock cluster.
     """
     ec2 = boto3.resource(service_name='ec2', region_name=region)
-
-    SecurityGroupRule = namedtuple(
-        'SecurityGroupRule', [
-            'ip_protocol',
-            'from_port',
-            'to_port',
-            'src_group',
-            'cidr_ip'])
 
     # TODO: Make these into methods, since we need this logic (though simple)
     #       in multiple places. (?)
@@ -541,11 +549,11 @@ def get_or_create_flintrock_security_groups(
 
     # Rules for the client interacting with the cluster.
     flintrock_client_ip = (
-        urllib.request.urlopen('http://checkip.amazonaws.com/')
+        urllib.request.urlopen('https://checkip.amazonaws.com/')
         .read().decode('utf-8').strip())
     flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
 
-    # TODO: Services should be responsible for registering what ports they want exposed.
+    # Initial security group for SSH is always required
     client_rules = [
         # SSH
         SecurityGroupRule(
@@ -553,54 +561,10 @@ def get_or_create_flintrock_security_groups(
             from_port=22,
             to_port=22,
             cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # HDFS
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=50070,
-            to_port=50070,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # Spark
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=8080,
-            to_port=8081,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=4040,
-            to_port=4050,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=7077,
-            to_port=7077,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # Spark REST Server
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=6066,
-            to_port=6066,
-            cidr_ip=flintrock_client_cidr,
             src_group=None)
     ]
-
-    # TODO: Don't try adding rules that already exist.
-    # TODO: Add rules in one shot.
-    for rule in client_rules:
-        try:
-            flintrock_group.authorize_ingress(
-                IpProtocol=rule.ip_protocol,
-                FromPort=rule.from_port,
-                ToPort=rule.to_port,
-                CidrIp=rule.cidr_ip)
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] != 'InvalidPermission.Duplicate':
-                raise Exception("Error adding rule: {r}".format(r=rule))
+    for service in services:
+        client_rules += service.get_security_group_rules(flintrock_client_cidr)
 
     # Rules for internal cluster communication.
     if not cluster_group:
@@ -608,6 +572,19 @@ def get_or_create_flintrock_security_groups(
             GroupName=cluster_group_name,
             Description="Flintrock cluster group",
             VpcId=vpc_id)
+
+    # TODO: Don't try adding rules that already exist.
+    # TODO: Add rules in one shot.
+    for rule in client_rules:
+        try:
+            cluster_group.authorize_ingress(
+                IpProtocol=rule.ip_protocol,
+                FromPort=rule.from_port,
+                ToPort=rule.to_port,
+                CidrIp=rule.cidr_ip)
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] != 'InvalidPermission.Duplicate':
+                raise Exception("Error adding rule: {r}".format(r=rule))
 
     try:
         cluster_group.authorize_ingress(
@@ -681,6 +658,7 @@ def _create_instances(
         num_instances,
         region,
         spot_price,
+        spot_request_valid_until,
         ami,
         assume_yes,
         key_name,
@@ -709,6 +687,7 @@ def _create_instances(
             spot_requests = client.request_spot_instances(
                 SpotPrice=str(spot_price),
                 InstanceCount=num_instances,
+                ValidUntil=spot_request_valid_until,
                 LaunchSpecification={
                     'ImageId': ami,
                     'KeyName': key_name,
@@ -812,6 +791,7 @@ def launch(
         *,
         cluster_name,
         num_slaves,
+        java_version,
         services,
         assume_yes,
         key_name,
@@ -823,6 +803,7 @@ def launch(
         user,
         security_groups,
         spot_price=None,
+        spot_request_duration=None,
         min_root_ebs_size_gb,
         vpc_id,
         subnet_id,
@@ -863,7 +844,8 @@ def launch(
     flintrock_security_groups = get_or_create_flintrock_security_groups(
         cluster_name=cluster_name,
         vpc_id=vpc_id,
-        region=region)
+        region=region,
+        services=services)
     user_security_groups = get_security_groups(
         vpc_id=vpc_id,
         region=region,
@@ -896,6 +878,7 @@ def launch(
             num_instances=num_instances,
             region=region,
             spot_price=spot_price,
+            spot_request_valid_until=duration_to_expiration(spot_request_duration),
             ami=ami,
             assume_yes=assume_yes,
             key_name=key_name,
@@ -950,6 +933,7 @@ def launch(
 
         provision_cluster(
             cluster=cluster,
+            java_version=java_version,
             services=services,
             user=user,
             identity_file=identity_file)

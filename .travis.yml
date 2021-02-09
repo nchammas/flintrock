@@ -1,17 +1,27 @@
 language: python
 python:
-  - "3.4"
-  - "3.5"
-  - "3.6"
+# Work-around for Python 3.7 on Travis CI pulled from here:
+# https://github.com/travis-ci/travis-ci/issues/9815#issue-336465122
+matrix:
+  include:
+    - python: "3.6"
+      dist: "xenial"
+      sudo: true
+    - python: "3.7"
+      dist: "xenial"
+      sudo: true
+    - python: "3.8"
+      dist: "xenial"
+      sudo: true
+    - python: "3.9"
+      dist: "xenial"
+      sudo: true
 install:
-  - "pip install -r requirements/developer.pip"
-  - "curl -L -o pandoc.deb https://github.com/jgm/pandoc/releases/download/2.0.1.1/pandoc-2.0.1.1-1-amd64.deb && sudo dpkg -i pandoc.deb"
-script:
-  - "pytest ./tests/test_static.py"
-  - "pytest ./tests/test_flintrock.py"
-  - "pytest ./tests/test_core.py"
   - "pip install -r requirements/maintainer.pip"
-  - "pytest ./tests/test_pyinstaller_packaging.py"
+  # Fix for PyInstaller: https://stackoverflow.com/q/61574984/
+  - "pip install setuptools==49.2.1"
+script:
+  - "pytest"
 addons:
   artifacts:
     paths:

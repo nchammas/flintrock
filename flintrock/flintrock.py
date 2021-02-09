@@ -173,6 +173,52 @@ def configure_log(debug: bool):
     root_logger.addHandler(handler)
 
 
+def build_hdfs_download_url(ctx, param, value):
+    hdfs_download_url = value.format(v=ctx.params['hdfs_version'])
+    return hdfs_download_url
+
+
+def build_spark_download_url(ctx, param, value):
+    spark_download_url = value.format(v=ctx.params['spark_version'])
+    return spark_download_url
+
+
+def validate_download_source(url):
+    if 'spark' in url:
+        software = 'Spark'
+    elif 'hadoop' in url:
+        software = 'Hadoop'
+    else:
+        software = 'software'
+
+    parsed_url = urllib.parse.urlparse(url)
+
+    if parsed_url.netloc == 'www.apache.org' and parsed_url.path == '/dyn/closer.lua':
+        logger.warning(
+            "Warning: "
+            "Downloading {software} from an Apache mirror. Apache mirrors are "
+            "often slow and unreliable, and typically only serve the most recent releases. "
+            "We strongly recommend you specify a custom download source. "
+            "For more background on this issue, please see: https://github.com/nchammas/flintrock/issues/238"
+            .format(
+                software=software,
+            )
+        )
+        try:
+            urllib.request.urlopen(url)
+        except urllib.error.HTTPError as e:
+            raise Error(
+                "Error: Could not access {software} download. Maybe try a more recent release?\n"
+                "  - Automatically redirected to: {url}\n"
+                "  - HTTP error: {code}"
+                .format(
+                    software=software,
+                    url=e.url,
+                    code=e.code,
+                )
+            )
+
+
 @click.group()
 @click.option(
     '--config',
@@ -207,12 +253,14 @@ def cli(cli_context, config, provider, debug):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
+@click.option('--java-version', type=click.IntRange(min=8), default=8)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
-@click.option('--hdfs-version', default='2.7.5')
+@click.option('--hdfs-version', default='2.8.5')
 @click.option('--hdfs-download-source',
               help="URL to download Hadoop from.",
-              default='http://www.apache.org/dyn/closer.lua/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz?as_json',
-              show_default=True)
+              default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz',
+              show_default=True,
+              callback=build_hdfs_download_url)
 @click.option('--install-spark/--no-install-spark', default=True)
 @click.option('--spark-executor-instances', default=1,
               help="How many executor instances per worker.")
@@ -224,8 +272,9 @@ def cli(cli_context, config, provider, debug):
               help="Spark release version to install.")
 @click.option('--spark-download-source',
               help="URL to download a release of Spark from.",
-              default='https://s3.amazonaws.com/spark-related-packages/spark-{v}-bin-hadoop2.6.tgz',
-              show_default=True)
+              default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop2.7.tgz',
+              show_default=True,
+              callback=build_spark_download_url)
 @click.option('--spark-git-commit',
               help="Git commit to build Spark from. "
                    "Set to 'latest' to build Spark from the latest commit on the "
@@ -239,7 +288,7 @@ def cli(cli_context, config, provider, debug):
 @click.option('--ec2-identity-file',
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
-@click.option('--ec2-instance-type', default='m3.medium', show_default=True)
+@click.option('--ec2-instance-type', default='m5.medium', show_default=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 # We set some of these defaults to empty strings because of boto3's parameter validation.
 # See: https://github.com/boto/boto3/issues/400
@@ -251,6 +300,8 @@ def cli(cli_context, config, provider, debug):
               help="Additional security groups names to assign to the instances. "
                    "You can specify this option multiple times.")
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-spot-request-duration', default='7d',
+              help="Duration a spot request is valid (e.g. 3d 2h 1m).")
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-subnet-id', default='')
@@ -273,6 +324,7 @@ def launch(
         cli_context,
         cluster_name,
         num_slaves,
+        java_version,
         install_hdfs,
         hdfs_version,
         hdfs_download_source,
@@ -292,6 +344,7 @@ def launch(
         ec2_user,
         ec2_security_groups,
         ec2_spot_price,
+        ec2_spot_request_duration,
         ec2_min_root_ebs_size_gb,
         ec2_vpc_id,
         ec2_subnet_id,
@@ -351,10 +404,15 @@ def launch(
     check_external_dependency('ssh-keygen')
 
     if install_hdfs:
-        hdfs = HDFS(version=hdfs_version, download_source=hdfs_download_source)
+        validate_download_source(hdfs_download_source)
+        hdfs = HDFS(
+            version=hdfs_version,
+            download_source=hdfs_download_source,
+        )
         services += [hdfs]
     if install_spark:
         if spark_version:
+            validate_download_source(spark_download_source)
             spark = Spark(
                 spark_executor_instances=spark_executor_instances,
                 version=spark_version,
@@ -364,7 +422,7 @@ def launch(
         elif spark_git_commit:
             logger.warning(
                 "Warning: Building Spark takes a long time. "
-                "e.g. 15-20 minutes on an m3.xlarge instance on EC2.")
+                "e.g. 15-20 minutes on an m5.xlarge instance on EC2.")
             if spark_git_commit == 'latest':
                 spark_git_commit = get_latest_commit(spark_git_repository)
                 logger.info("Building Spark at latest commit: {c}".format(c=spark_git_commit))
@@ -380,6 +438,7 @@ def launch(
         cluster = ec2.launch(
             cluster_name=cluster_name,
             num_slaves=num_slaves,
+            java_version=java_version,
             services=services,
             assume_yes=assume_yes,
             key_name=ec2_key_name,
@@ -391,6 +450,7 @@ def launch(
             user=ec2_user,
             security_groups=ec2_security_groups,
             spot_price=ec2_spot_price,
+            spot_request_duration=ec2_spot_request_duration,
             min_root_ebs_size_gb=ec2_min_root_ebs_size_gb,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
@@ -520,7 +580,7 @@ def describe(
     else:
         if master_hostname_only:
             for cluster in sorted(clusters, key=lambda x: x.name):
-                logger.info(cluster.name + ':', cluster.master_host)
+                logger.info("{}: {}".format(cluster.name, cluster.master_host))
         else:
             logger.info("Found {n} cluster{s}{space}{search_area}.".format(
                 n=len(clusters),
@@ -657,6 +717,7 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 
 @cli.command(name='add-slaves')
 @click.argument('cluster-name')
+@click.option('--java-version', type=click.IntRange(min=8), default=8)
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
@@ -665,6 +726,8 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-spot-request-duration', default='7d',
+              help="Duration a spot request is valid (e.g. 3d 2h 1m).")
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-tag', 'ec2_tags',
@@ -676,12 +739,14 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 def add_slaves(
         cli_context,
         cluster_name,
+        java_version,
         num_slaves,
         ec2_region,
         ec2_vpc_id,
         ec2_identity_file,
         ec2_user,
         ec2_spot_price,
+        ec2_spot_request_duration,
         ec2_min_root_ebs_size_gb,
         ec2_tags,
         assume_yes):
@@ -712,6 +777,7 @@ def add_slaves(
         provider_options = {
             'min_root_ebs_size_gb': ec2_min_root_ebs_size_gb,
             'spot_price': ec2_spot_price,
+            'spot_request_duration': ec2_spot_request_duration,
             'tags': ec2_tags
         }
     else:
@@ -733,6 +799,7 @@ def add_slaves(
         cluster.add_slaves(
             user=user,
             identity_file=identity_file,
+            java_version=java_version,
             num_slaves=num_slaves,
             assume_yes=assume_yes,
             **provider_options)
@@ -1006,9 +1073,9 @@ def config_to_click(config: dict) -> dict:
 
     click_map = {
         'launch': dict(
-            list(config['launch'].items()) +
-            list(ec2_configs.items()) +
-            list(service_configs.items())),
+            list(config['launch'].items())
+            + list(ec2_configs.items())
+            + list(service_configs.items())),
         'describe': ec2_configs,
         'destroy': ec2_configs,
         'login': ec2_configs,
@@ -1118,9 +1185,11 @@ def check_external_dependency(executable_name: str):
 
 
 def main() -> int:
-    if flintrock_is_in_development_mode():
-        warnings.simplefilter(action='always', category=DeprecationWarning)
-        # warnings.simplefilter(action='always', category=ResourceWarning)
+    # Starting in Python 3.7, deprecation warnings are shown by default. We
+    # don't want to show these to end-users.
+    # See: https://docs.python.org/3/library/warnings.html#default-warning-filter
+    if not flintrock_is_in_development_mode():
+        warnings.simplefilter(action='ignore', category=DeprecationWarning)
 
     set_open_files_limit(4096)
 
@@ -1133,7 +1202,7 @@ def main() -> int:
         except botocore.exceptions.NoCredentialsError:
             raise Error(
                 "Flintrock could not find your AWS credentials. "
-                "You can fix this is by providing your credentials "
+                "You can fix this by providing your credentials "
                 "via environment variables or by creating a shared "
                 "credentials file.\n"
                 "For more information see:\n"

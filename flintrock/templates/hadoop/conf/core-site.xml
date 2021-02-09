@@ -9,6 +9,6 @@
 
   <property>
     <name>fs.defaultFS</name>
-    <value>hdfs://{master_host}:9000</value>
+    <value>hdfs://{master_private_host}:9000</value>
   </property>
 </configuration>
