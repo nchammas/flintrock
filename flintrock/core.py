@@ -77,7 +77,7 @@ class FlintrockCluster:
         raise NotImplementedError
 
     @property
-    def private_net(self) -> bool:
+    def private_network(self) -> bool:
         """
         Indicate if this cluster run into a private network
 

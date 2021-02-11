@@ -81,21 +81,20 @@ class EC2Cluster(FlintrockCluster):
             return self.slave_instances
 
     @property
-    def private_net(self):
-        # check private mode
+    def private_network(self):
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
         return not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
 
     @property
     def master_ip(self):
-        if not self.private_net:
+        if not self.private_network:
             return self.master_instance.public_ip_address
         else:
             return self.master_instance.private_ip_address
 
     @property
     def master_host(self):
-        if not self.private_net:
+        if not self.private_network:
             return self.master_instance.public_dns_name
         else:
             return self.master_instance.private_dns_name
@@ -106,14 +105,14 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def slave_ips(self):
-        if not self.private_net:
+        if not self.private_network:
             return [i.public_ip_address for i in self.slave_instances]
         else:
             return [i.private_ip_address for i in self.slave_instances]
 
     @property
     def slave_hosts(self):
-        if not self.private_net:
+        if not self.private_network:
             return [i.public_dns_name for i in self.slave_instances]
         else:
             return [i.private_dns_name for i in self.slave_instances]
@@ -343,7 +342,7 @@ class EC2Cluster(FlintrockCluster):
                     ])
                 .create_tags(Tags=slave_tags))
 
-            if not self.private_net:
+            if not self.private_network:
                 existing_slaves = {i.public_ip_address for i in self.slave_instances}
             else:
                 existing_slaves = {i.private_ip_address for i in self.slave_instances}
@@ -351,7 +350,7 @@ class EC2Cluster(FlintrockCluster):
             self.slave_instances += new_slave_instances
             self.wait_for_state('running')
 
-            if not self.private_net:
+            if not self.private_network:
                 new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
             else:
                 new_slaves = {i.private_ip_address for i in self.slave_instances} - existing_slaves
