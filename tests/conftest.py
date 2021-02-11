@@ -135,48 +135,50 @@ def running_cluster(request):
     Return the name of a running Flintrock cluster.
     """
     cluster_name = 'running-cluster-' + random_string()
-    launch_cluster(
-        cluster_name=cluster_name,
-        instance_type=request.param.instance_type,
-        spark_version=request.param.spark_version,
-        spark_git_commit=request.param.spark_git_commit)
 
-    if request.param.restarted:
-        stop_cluster(cluster_name)
-        start_cluster(cluster_name)
+    try:
+        launch_cluster(
+            cluster_name=cluster_name,
+            instance_type=request.param.instance_type,
+            spark_version=request.param.spark_version,
+            spark_git_commit=request.param.spark_git_commit)
 
-    def destroy():
+        if request.param.restarted:
+            stop_cluster(cluster_name)
+            start_cluster(cluster_name)
+
+        yield cluster_name
+    finally:
         p = subprocess.run([
-            'flintrock', 'destroy', cluster_name, '--assume-yes'])
+            'flintrock', 'destroy', cluster_name, '--assume-yes',
+        ])
         assert p.returncode == 0
-    request.addfinalizer(destroy)
-
-    return cluster_name
 
 
 @pytest.fixture(scope='module')
 def stopped_cluster(request):
     cluster_name = 'running-cluster-' + random_string()
-    p = subprocess.run([
-        'flintrock', 'launch', cluster_name,
-        '--num-slaves', '1',
-        '--no-install-hdfs',
-        '--no-install-spark',
-        '--assume-yes',
-        '--ec2-instance-type', 't3.small'])
-    assert p.returncode == 0
 
-    p = subprocess.run([
-        'flintrock', 'stop', cluster_name, '--assume-yes'])
-    assert p.returncode == 0
-
-    def destroy():
+    try:
         p = subprocess.run([
-            'flintrock', 'destroy', cluster_name, '--assume-yes'])
+            'flintrock', 'launch', cluster_name,
+            '--num-slaves', '1',
+            '--no-install-hdfs',
+            '--no-install-spark',
+            '--assume-yes',
+            '--ec2-instance-type', 't3.small'])
         assert p.returncode == 0
-    request.addfinalizer(destroy)
 
-    return cluster_name
+        p = subprocess.run([
+            'flintrock', 'stop', cluster_name, '--assume-yes'])
+        assert p.returncode == 0
+
+        yield cluster_name
+    finally:
+        p = subprocess.run([
+            'flintrock', 'destroy', cluster_name, '--assume-yes',
+        ])
+        assert p.returncode == 0
 
 
 @pytest.fixture(scope='module')
@@ -185,21 +187,22 @@ def remote_file(request, running_cluster):
     Return the path to a remote dummy file on a running Flintrock cluster.
     """
     file_path = '/tmp/remote_dummy_file_for_testing'
-    p = subprocess.run([
-        'flintrock', 'run-command', running_cluster, '--',
-        'echo -e "{data}" > {path}'.format(
-            data='test\n' * 3,
-            path=file_path)])
-    assert p.returncode == 0
 
-    def destroy():
+    try:
         p = subprocess.run([
             'flintrock', 'run-command', running_cluster, '--',
-            'rm', '-f', file_path])
+            'echo -e "{data}" > {path}'.format(
+                data='test\n' * 3,
+                path=file_path)])
         assert p.returncode == 0
-    request.addfinalizer(destroy)
 
-    return file_path
+        yield file_path
+    finally:
+        p = subprocess.run([
+            'flintrock', 'run-command', running_cluster, '--',
+            'rm', '-f', file_path,
+        ])
+        assert p.returncode == 0
 
 
 @pytest.fixture(scope='module')
@@ -208,11 +211,10 @@ def local_file(request):
     Return the path to a local dummy file.
     """
     file = tempfile.NamedTemporaryFile(delete=False)
-    with open(file.name, 'wb') as f:
-        f.truncate(1024)
+    try:
+        with open(file.name, 'wb') as f:
+            f.truncate(1024)
 
-    def destroy():
+        yield file.name
+    finally:
         os.remove(file.name)
-    request.addfinalizer(destroy)
-
-    return file.name
