@@ -225,8 +225,11 @@ class HDFS(FlintrockService):
                         while [ "$master_ui_response_code" -ne 200 ]; do
                             sleep 1
                             master_ui_response_code="$(
-                                curl --head --silent --output /dev/null \
-                                    --write-out "%{{http_code}}" {m}:{p}
+                                curl \
+                                    --location --head --silent \
+                                    --output /dev/null \
+                                    --write-out "%{{http_code}}" \
+                                    {m}:{p}
                             )"
                         done
                     """.format(m=shlex.quote(cluster.master_private_host), p=self.name_node_ui_port),
