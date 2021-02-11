@@ -9,6 +9,8 @@ flintrock-logo/
 *.prf
 .DS_Store
 .pytest_cache/
+/resources/
+.python-version
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
