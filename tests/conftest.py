@@ -10,9 +10,10 @@ from flintrock.core import StorageDirs
 # External
 import pytest
 
-HADOOP_VERSION = '2.8.5'
-SPARK_VERSION = '2.4.5'
-SPARK_GIT_COMMIT = '7955b3962ac46b89564e0613db7bea98a1478bf2'  # 2.4.4
+HADOOP_VERSION = '3.3.0'
+SPARK_VERSION = '3.0.1'
+SPARK_GIT_COMMIT = '2b147c4cd50da32fe2b4167f97c8142102a0510d'  # 3.0.1
+JAVA_VERSION = '11'
 
 
 class Dummy():
@@ -73,6 +74,7 @@ def launch_cluster(
         '--install-spark',
         '--spark-version', spark_version,
         '--spark-git-commit', spark_git_commit,
+        '--java-version', JAVA_VERSION,
         '--assume-yes',
         '--ec2-instance-type', instance_type])
     assert p.returncode == 0
@@ -119,7 +121,9 @@ cluster_configs = [
         restarted=True,
         instance_type='m5.xlarge',
         spark_version='',
-        spark_git_commit=SPARK_GIT_COMMIT)]
+        spark_git_commit=SPARK_GIT_COMMIT,
+    ),
+]
 
 
 @pytest.fixture(
