@@ -582,29 +582,44 @@ def get_or_create_flintrock_security_groups(
             VpcId=vpc_id)
 
     # Rules for the client interacting with the cluster.
-    if not ec2_authorize_access_from:
+    if ec2_authorize_access_from:
+        flintrock_client_sources = ec2_authorize_access_from
+    else:
         flintrock_client_ip = (
             urllib.request.urlopen('https://checkip.amazonaws.com/')
-            .read().decode('utf-8').strip())
+            .read().decode('utf-8').strip()
+        )
         flintrock_client_sources = [flintrock_client_ip]
-    else:
-        flintrock_client_sources = ec2_authorize_access_from
 
-    # Initial security group for SSH is always required
     client_rules = []
-
     for client_source in flintrock_client_sources:
-        # SSH
+        # Security group for SSH is always required
         if client_source.startswith('sg-'):
-            client_rules.appends(get_ssh_security_group_rules(None, client_source))
+            client_rules.append(
+                get_ssh_security_group_rules(
+                    flintrock_client_cidr=None,
+                    flintrock_client_group=client_source,
+                )
+            )
         else:
-            client_rules.appends(get_ssh_security_group_rules(str(IPv4Network(client_source)), None))
-        # Services
+            client_rules.append(
+                get_ssh_security_group_rules(
+                    flintrock_client_cidr=str(IPv4Network(client_source)),
+                    flintrock_client_group=None,
+                )
+            )
+        # Service-specific security group rules
         for service in services:
             if client_source.startswith('sg-'):
-                client_rules += service.get_security_group_rules(None, client_source)
+                client_rules += service.get_security_group_rules(
+                    flintrock_client_cidr=None,
+                    flintrock_client_group=client_source,
+                )
             else:
-                client_rules += service.get_security_group_rules(str(IPv4Network(client_source)), None)
+                client_rules += service.get_security_group_rules(
+                    flintrock_client_cidr=str(IPv4Network(client_source)),
+                    flintrock_client_group=None,
+                )
 
     # Rules for internal cluster communication.
     if not cluster_group:
