@@ -342,24 +342,21 @@ class EC2Cluster(FlintrockCluster):
                     ])
                 .create_tags(Tags=slave_tags))
 
-            if not self.private_network:
-                existing_slaves = {i.public_ip_address for i in self.slave_instances}
-            else:
-                existing_slaves = {i.private_ip_address for i in self.slave_instances}
+            existing_slaves = self.slave_ips
 
             self.slave_instances += new_slave_instances
             self.wait_for_state('running')
 
-            if not self.private_network:
-                new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
-            else:
-                new_slaves = {i.private_ip_address for i in self.slave_instances} - existing_slaves
+            # We wait for the new instances to start running so they all have assigned
+            # IP addresses.
+            new_slaves = set(self.slave_ips) - set(existing_slaves)
 
             super().add_slaves(
                 user=user,
                 identity_file=identity_file,
                 java_version=java_version,
-                new_hosts=new_slaves)
+                new_hosts=new_slaves,
+            )
         except (Exception, KeyboardInterrupt) as e:
             if isinstance(e, InterruptedEC2Operation):
                 cleanup_instances = e.instances
