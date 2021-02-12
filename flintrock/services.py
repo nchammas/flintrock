@@ -115,7 +115,7 @@ class FlintrockService:
         """
         raise NotImplementedError
 
-    def get_security_group_rules(self, flintrock_client_cidr: str, get_security_group_rules: str):
+    def get_security_group_rules(self, flintrock_client_cidr: str, flintrock_client_group: str):
         """
         Return the EC2 SecurityGroupRules required by this service.
         """
@@ -266,7 +266,8 @@ class HDFS(FlintrockService):
                 from_port=self.name_node_ui_port,
                 to_port=self.name_node_ui_port,
                 cidr_ip=flintrock_client_cidr,
-                src_group=flintrock_client_group)
+                src_group=flintrock_client_group,
+            )
         ]
 
 
@@ -460,24 +461,28 @@ class Spark(FlintrockService):
                 from_port=8080,
                 to_port=8081,
                 cidr_ip=flintrock_client_cidr,
-                src_group=flintrock_client_group),
+                src_group=flintrock_client_group,
+            ),
             SecurityGroupRule(
                 ip_protocol='tcp',
                 from_port=4040,
                 to_port=4050,
                 cidr_ip=flintrock_client_cidr,
-                src_group=flintrock_client_group),
+                src_group=flintrock_client_group,
+            ),
             SecurityGroupRule(
                 ip_protocol='tcp',
                 from_port=7077,
                 to_port=7077,
                 cidr_ip=flintrock_client_cidr,
-                src_group=flintrock_client_group),
+                src_group=flintrock_client_group,
+            ),
             # Spark REST Server
             SecurityGroupRule(
                 ip_protocol='tcp',
                 from_port=6066,
                 to_port=6066,
                 cidr_ip=flintrock_client_cidr,
-                src_group=flintrock_client_group)
+                src_group=flintrock_client_group,
+            ),
         ]
