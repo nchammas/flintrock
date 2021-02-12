@@ -321,15 +321,15 @@ def cli(cli_context, config, provider, debug):
                    "You can specify this option multiple times.")
 @click.option('--ec2-authorize-access-from',
               callback=ec2.cli_validate_ec2_authorize_access,
-              type=str,
               default=None,
               multiple=True,
-              help="Authorize cluster access from a private source"
-                   "(To be used in VPC context, behind a nat gateway for instance)"
-                   "which can be either a plain IP,"
-                   "an IP network in CIDR notation, or an EC2 SecurityGroup."
-                   "For security concerns, this options disable client configuration "
-                   "using automatic detection of client public IP")
+              help=(
+                  "Authorize cluster access from a specific source (e.g. on a private "
+                  "network). The source can be a) a plain IP address, b) an IP "
+                  "address in CIDR notation, or c) an EC2 Security Group ID. "
+                  "Using this option disables automatic detection of client's public IP "
+                  "address."
+              ))
 @click.pass_context
 def launch(
         cli_context,
