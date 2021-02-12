@@ -87,17 +87,17 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def master_ip(self):
-        if not self.private_network:
-            return self.master_instance.public_ip_address
-        else:
+        if self.private_network:
             return self.master_instance.private_ip_address
+        else:
+            return self.master_instance.public_ip_address
 
     @property
     def master_host(self):
-        if not self.private_network:
-            return self.master_instance.public_dns_name
-        else:
+        if self.private_network:
             return self.master_instance.private_dns_name
+        else:
+            return self.master_instance.public_dns_name
 
     @property
     def master_private_host(self):
@@ -105,17 +105,17 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def slave_ips(self):
-        if not self.private_network:
-            return [i.public_ip_address for i in self.slave_instances]
-        else:
+        if self.private_network:
             return [i.private_ip_address for i in self.slave_instances]
+        else:
+            return [i.public_ip_address for i in self.slave_instances]
 
     @property
     def slave_hosts(self):
-        if not self.private_network:
-            return [i.public_dns_name for i in self.slave_instances]
-        else:
+        if self.private_network:
             return [i.private_dns_name for i in self.slave_instances]
+        else:
+            return [i.public_dns_name for i in self.slave_instances]
 
     @property
     def slave_private_hosts(self):
