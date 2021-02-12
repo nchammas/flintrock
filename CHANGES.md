@@ -4,6 +4,12 @@
 
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v1.0.0...master
 
+### Added
+
+* [#296]: Added support for launching clusters into private VPCs.
+
+[#296]: https://github.com/nchammas/flintrock/pull/296
+
 ### Changed
 
 * [#311]: Changed how Flintrock manages its own security groups to reduce the likelihood of hitting any limits on the number of rules per security group.
