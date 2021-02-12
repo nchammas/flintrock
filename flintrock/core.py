@@ -79,10 +79,10 @@ class FlintrockCluster:
     @property
     def private_network(self) -> bool:
         """
-        Indicate if this cluster run into a private network
+        Indicate if this cluster runs on a private network.
 
         Providers must override this property since it is typically derived from
-        an underlying object, like a VPC subnet of an EC2 Instance.
+        an underlying object, like the VPC subnet of an EC2 Instance.
         """
         raise NotImplementedError
 
