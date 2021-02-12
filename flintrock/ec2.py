@@ -481,8 +481,6 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
     """
     Check that the VPC and subnet are configured to allow Flintrock to create
     clusters.
-
-    Currently, Flintrock requires DNS names and public IPs to be enabled.
     """
     ec2 = boto3.resource(service_name='ec2', region_name=region_name)
 
@@ -494,11 +492,11 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
             .format(v=vpc_id)
         )
     if not ec2.Subnet(subnet_id).map_public_ip_on_launch:
-        logger.info("{s} does not auto-assign public IP addresses. "
-                    "Flintrock will run into private mode.\n"
-                    "See: https://github.com/nchammas/flintrock/issues/14"
-                    .format(s=subnet_id)
-                    )
+        logger.info(
+            "{s} does not auto-assign public IP addresses. "
+            "Flintrock will configure the cluster for private network access."
+            .format(s=subnet_id)
+        )
 
 
 def get_security_groups(
@@ -528,15 +526,17 @@ def get_security_groups(
 
 
 def get_ssh_security_group_rules(
-        *,
-        flintrock_client_cidr,
-        flintrock_client_group) -> "boto3.resource('ec2').SecurityGroup":
+    *,
+    flintrock_client_cidr,
+    flintrock_client_group,
+) -> "boto3.resource('ec2').SecurityGroup":
     return SecurityGroupRule(
         ip_protocol='tcp',
         from_port=22,
         to_port=22,
         cidr_ip=flintrock_client_cidr,
-        src_group=flintrock_client_group)
+        src_group=flintrock_client_group,
+    )
 
 
 def get_or_create_flintrock_security_groups(
@@ -545,7 +545,8 @@ def get_or_create_flintrock_security_groups(
         vpc_id,
         region,
         services,
-        ec2_authorize_access_from) -> "List[boto3.resource('ec2').SecurityGroup]":
+        ec2_authorize_access_from,
+) -> "List[boto3.resource('ec2').SecurityGroup]":
     """
     If they do not already exist, create all the security groups needed for a
     Flintrock cluster.
@@ -1087,13 +1088,14 @@ def cli_validate_ec2_authorize_access(ctx, param, value):
 
 def validate_ec2_authorize_access(value):
     """
-    Validate and parse optional EC2 Security/CIDR
-    authorized to connect to cluster
+    Validate and parse optional EC2 security groups or CIDRs
+    authorized to connect to cluster.
     """
-    err_msg = ("This option accept only a plain IP, "
-               "IP(s) in CIDR notation "
-               "or an EC2 Security Group id")
-    if value is not None:
+    err_msg = (
+        "This option accepts a) a plain IP address, b) an IP "
+        "address in CIDR notation, or c) an EC2 Security Group ID."
+    )
+    if value:
         try:
             ipv4_network = IPv4Network(value)
             return str(ipv4_network)
@@ -1102,8 +1104,6 @@ def validate_ec2_authorize_access(value):
                 return value
             else:
                 raise click.BadParameter(err_msg)
-    else:
-        return value
 
 
 def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:
