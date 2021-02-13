@@ -46,14 +46,16 @@ class StorageDirs:
 #       See: http://www.dalkescientific.com/writings/diary/archive/2012/01/19/concurrent.futures.html
 class FlintrockCluster:
     def __init__(
-            self,
-            *,
-            name,
-            ssh_key_pair=None,
-            storage_dirs=StorageDirs(root=None, ephemeral=None, persistent=None)):
+        self,
+        *,
+        name,
+        ssh_key_pair=None,
+        storage_dirs=StorageDirs(root=None, ephemeral=None, persistent=None),
+    ):
         self.name = name
         self.ssh_key_pair = ssh_key_pair
         self.storage_dirs = storage_dirs
+        self.java_version = None
         self.services = []
 
     @property
@@ -162,7 +164,10 @@ class FlintrockCluster:
 
         self.ssh_key_pair = SSHKeyPair(
             public=manifest['ssh_key_pair']['public'],
-            private=manifest['ssh_key_pair']['private'])
+            private=manifest['ssh_key_pair']['private'],
+        )
+
+        self.java_version = manifest['java_version']
 
         services = []
         for [service_name, manifest] in manifest['services']:
@@ -268,7 +273,7 @@ class FlintrockCluster:
     def add_slaves_check(self):
         pass
 
-    def add_slaves(self, *, user: str, identity_file: str, java_version: int, new_hosts: list):
+    def add_slaves(self, *, user: str, identity_file: str, new_hosts: list):
         """
         Add new slaves to the cluster.
 
@@ -282,10 +287,10 @@ class FlintrockCluster:
         hosts = [self.master_ip] + self.slave_ips
         partial_func = functools.partial(
             add_slaves_node,
+            java_version=self.java_version,
             services=self.services,
             user=user,
             identity_file=identity_file,
-            java_version=java_version,
             cluster=self,
             new_hosts=new_hosts)
         run_against_hosts(partial_func=partial_func, hosts=hosts)
@@ -694,6 +699,7 @@ def provision_cluster(
 
     with master_ssh_client:
         manifest = {
+            'java_version': java_version,
             'services': [[type(m).__name__, m.manifest] for m in services],
             'ssh_key_pair': cluster.ssh_key_pair._asdict(),
         }
