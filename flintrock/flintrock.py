@@ -257,7 +257,10 @@ def cli(cli_context, config, provider, debug):
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version', default='2.8.5')
 @click.option('--hdfs-download-source',
-              help="URL to download Hadoop from.",
+              help=(
+                  "URL to download Hadoop from. If an S3 URL, Flintrock will use the "
+                  "AWS CLI from the cluster nodes to download it."
+              ),
               default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz',
               show_default=True,
               callback=build_hdfs_download_url)
@@ -271,7 +274,10 @@ def cli(cli_context, config, provider, debug):
               # default=,
               help="Spark release version to install.")
 @click.option('--spark-download-source',
-              help="URL to download a release of Spark from.",
+              help=(
+                  "URL to download Spark from. If an S3 URL, Flintrock will use the "
+                  "AWS CLI from the cluster nodes to download it."
+              ),
               default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop2.7.tgz',
               show_default=True,
               callback=build_spark_download_url)

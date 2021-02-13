@@ -3,19 +3,23 @@ services:
     version: 2.4.5
     # git-commit: latest  # if not 'latest', provide a full commit SHA; e.g. d6dc12ef0146ae409834c78737c116050961f350
     # git-repository:  # optional; defaults to https://github.com/apache/spark
-    # optional; defaults to download from from the official Spark S3 bucket
+    # optional; defaults to download from a dynamically selected Apache mirror
+    #   - can be http, https, or s3 URL
     #   - must contain a {v} template corresponding to the version
     #   - Spark must be pre-built
     #   - must be a tar.gz file
-    # download-source: "https://www.example.com/files/spark/{v}/spark-{v}.tar.gz"
+    # download-source: "https://www.example.com/files/spark/{v}/spark-{v}.tgz"
+    # download-source: "s3://some-bucket/spark/{v}/spark-{v}.tgz"
     # executor-instances: 1
   hdfs:
     version: 2.8.5
     # optional; defaults to download from a dynamically selected Apache mirror
+    #   - can be http, https, or s3 URL
     #   - must contain a {v} template corresponding to the version
     #   - must be a .tar.gz file
     # download-source: "https://www.example.com/files/hadoop/{v}/hadoop-{v}.tar.gz"
     # download-source: "http://www-us.apache.org/dist/hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz"
+    # download-source: "s3://some-bucket/hadoop/{v}/hadoop-{v}.tar.gz"
 
 provider: ec2
 
