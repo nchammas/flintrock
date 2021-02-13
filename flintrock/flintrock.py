@@ -286,7 +286,7 @@ def cli(cli_context, config, provider, debug):
 @click.option('--spark-download-source',
               help=(
                   "URL to download Spark from. If an S3 URL, Flintrock will use the "
-                  "AWS CLI from the cluster nodes to download it."
+                  "AWS CLI from the cluster nodes to download it. "
                   "Flintrock will append the appropriate file "
                   "name to the end of the URL based on the selected Hadoop version and "
                   "Apache release file names."
