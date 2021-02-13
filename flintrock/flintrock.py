@@ -278,7 +278,7 @@ def cli(cli_context, config, provider, debug):
                   "URL to download Spark from. If an S3 URL, Flintrock will use the "
                   "AWS CLI from the cluster nodes to download it."
               ),
-              default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop2.7.tgz',
+              default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop3.2.tgz',
               show_default=True,
               callback=build_spark_download_url)
 @click.option('--spark-git-commit',
