@@ -31,13 +31,32 @@ SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
 
 logger = logging.getLogger('flintrock.services')
 
-SecurityGroupRule = namedtuple(
-    'SecurityGroupRule', [
-        'ip_protocol',
-        'from_port',
-        'to_port',
-        'src_group',
-        'cidr_ip'])
+# TODO: Move this back to ec2.py. EC2-specific login should not live here.
+class SecurityGroupRule:
+    def __init__(
+        self,
+        ip_protocol,
+        from_port,
+        to_port,
+        src_group,
+        cidr_ip,
+    ):
+        if src_group and cidr_ip:
+            raise ValueError(
+                "src_group and cidr_ip are mutually exclusive. Specify one or the other. "
+                "See: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.SecurityGroup.authorize_ingress"
+            )
+
+        self.ip_protocol = ip_protocol
+        self.from_port = from_port
+        self.to_port = to_port
+        # We set the default values to empty string so calls to boto3 accept unset parameters.
+        # See: https://github.com/boto/boto3/issues/331
+        self.src_group = src_group if src_group else ''
+        self.cidr_ip = cidr_ip if cidr_ip else ''
+
+    def __str__(self):
+        return str(vars(self))
 
 
 class FlintrockService:
