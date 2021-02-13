@@ -267,7 +267,6 @@ class EC2Cluster(FlintrockCluster):
             user: str,
             identity_file: str,
             num_slaves: int,
-            java_version: int,
             spot_price: float,
             spot_request_duration: str,
             min_root_ebs_size_gb: int,
@@ -354,7 +353,6 @@ class EC2Cluster(FlintrockCluster):
             super().add_slaves(
                 user=user,
                 identity_file=identity_file,
-                java_version=java_version,
                 new_hosts=new_slaves,
             )
         except (Exception, KeyboardInterrupt) as e:
