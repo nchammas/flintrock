@@ -1103,19 +1103,21 @@ def validate_ec2_authorize_access(value):
     Validate and parse optional EC2 security groups or CIDRs
     authorized to connect to cluster.
     """
-    err_msg = (
-        "This option accepts a) a plain IP address, b) an IP "
-        "address in CIDR notation, or c) an EC2 Security Group ID."
-    )
-    if value:
-        try:
-            ipv4_network = IPv4Network(value)
-            return str(ipv4_network)
-        except ValueError:
-            if value.startswith('sg-'):
-                return value
-            else:
-                raise click.BadParameter(err_msg)
+    validated_addresses = []
+    for address in value:
+        if address.startswith('sg-'):
+            validated_addresses.append(address)
+            continue
+        else:
+            try:
+                ipv4_network = IPv4Network(address)
+                validated_addresses.append(str(ipv4_network))
+            except ValueError:
+                raise click.BadParameter(
+                    "'{}' appears to be neither an IP address nor a Security Group ID."
+                    .format(address)
+                )
+    return validated_addresses
 
 
 def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:
