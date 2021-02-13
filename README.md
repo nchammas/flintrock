@@ -87,18 +87,18 @@ these steps:
    better performance.
 3. Make sure Flintrock is configured to use Hadoop/HDFS 2.7+. Earlier
    versions of Hadoop do not have solid implementations of `s3a://`.
-   Flintrock's default is Hadoop 2.8.5, so you don't need to do anything
+   Flintrock's default is Hadoop 3.3.0, so you don't need to do anything
    here if you're using a vanilla configuration.
 4. Call Spark with the hadoop-aws package to enable `s3a://`. For example:
    ```sh
-   spark-submit --packages org.apache.hadoop:hadoop-aws:2.7.6 my-app.py
-   pyspark --packages org.apache.hadoop:hadoop-aws:2.7.6
+   spark-submit --packages org.apache.hadoop:hadoop-aws:3.3.0 my-app.py
+   pyspark --packages org.apache.hadoop:hadoop-aws:3.3.0
    ```
    If you have issues using the package, consult the [hadoop-aws troubleshooting
    guide](http://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html)
    and try adjusting the version. As a rule of thumb, you should match the version
    of hadoop-aws to the version of Hadoop that Spark was built against (which is
-   typically Hadoop 2.7), even if the version of Hadoop that you're deploying to
+   typically Hadoop 3.2 or 2.7), even if the version of Hadoop that you're deploying to
    your Flintrock cluster is different.
 
 With this approach you don't need to copy around your AWS credentials
