@@ -33,7 +33,7 @@ flintrock launch test-cluster \
     --spark-version 3.0.1 \
     --ec2-key-name key_name \
     --ec2-identity-file /path/to/key.pem \
-    --ec2-ami ami-00b882ac5193044e4 \
+    --ec2-ami ami-0beafb294c86717a8 \
     --ec2-user ec2-user
 ```
 
@@ -263,7 +263,7 @@ providers:
     identity-file: /path/to/.ssh/key.pem
     instance-type: m5.large
     region: us-east-1
-    ami: ami-00b882ac5193044e4
+    ami: ami-0beafb294c86717a8
     user: ec2-user
 ```
 
