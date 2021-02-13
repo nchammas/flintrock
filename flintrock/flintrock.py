@@ -321,7 +321,10 @@ def cli(cli_context, config, provider, debug):
                    "You can specify this option multiple times.")
 @click.option('--ec2-authorize-access-from',
               callback=ec2.cli_validate_ec2_authorize_access,
-              default=None,
+              # If the default is not a list or tuple, an input string will be
+              # interpreted as a list of single characters.
+              # See: https://click.palletsprojects.com/en/7.x/options/#multiple-options
+              default=tuple(),
               multiple=True,
               help=(
                   "Authorize cluster access from a specific source (e.g. on a private "
