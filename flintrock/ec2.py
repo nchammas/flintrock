@@ -491,7 +491,7 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
     if not ec2.Subnet(subnet_id).map_public_ip_on_launch:
         logger.info(
             "{s} does not auto-assign public IP addresses. "
-            "Flintrock will configure the cluster for private network access."
+            "Flintrock will configure this cluster for private network access."
             .format(s=subnet_id)
         )
 
