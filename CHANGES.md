@@ -7,8 +7,10 @@
 ### Changed
 
 * [#311]: Changed how Flintrock manages its own security groups to reduce the likelihood of hitting any limits on the number of rules per security group.
+* [#329]: Dropped support for Python 3.5 and added automated testing for Python 3.8 and 3.9.
 
 [#311]: https://github.com/nchammas/flintrock/pull/311
+[#329]: https://github.com/nchammas/flintrock/pull/329
 
 ## [1.0.0] - 2020-01-11
 

@@ -777,7 +777,7 @@ def add_slaves(
         provider_options = {
             'min_root_ebs_size_gb': ec2_min_root_ebs_size_gb,
             'spot_price': ec2_spot_price,
-            'spot_request_valid_until': ec2_spot_request_duration,
+            'spot_request_duration': ec2_spot_request_duration,
             'tags': ec2_tags
         }
     else:
@@ -1073,9 +1073,9 @@ def config_to_click(config: dict) -> dict:
 
     click_map = {
         'launch': dict(
-            list(config['launch'].items()) +
-            list(ec2_configs.items()) +
-            list(service_configs.items())),
+            list(config['launch'].items())
+            + list(ec2_configs.items())
+            + list(service_configs.items())),
         'describe': ec2_configs,
         'destroy': ec2_configs,
         'login': ec2_configs,
