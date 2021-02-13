@@ -253,9 +253,9 @@ def cli(cli_context, config, provider, debug):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
-@click.option('--java-version', type=click.IntRange(min=8), default=8)
+@click.option('--java-version', type=click.IntRange(min=8), default=11)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
-@click.option('--hdfs-version', default='2.8.5')
+@click.option('--hdfs-version', default='3.3.0')
 @click.option('--hdfs-download-source',
               help=(
                   "URL to download Hadoop from. If an S3 URL, Flintrock will use the "
@@ -278,7 +278,7 @@ def cli(cli_context, config, provider, debug):
                   "URL to download Spark from. If an S3 URL, Flintrock will use the "
                   "AWS CLI from the cluster nodes to download it."
               ),
-              default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop2.7.tgz',
+              default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop3.2.tgz',
               show_default=True,
               callback=build_spark_download_url)
 @click.option('--spark-git-commit',
@@ -735,7 +735,7 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 
 @cli.command(name='add-slaves')
 @click.argument('cluster-name')
-@click.option('--java-version', type=click.IntRange(min=8), default=8)
+@click.option('--java-version', type=click.IntRange(min=8), default=11)
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
