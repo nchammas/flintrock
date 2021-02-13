@@ -636,7 +636,9 @@ def get_or_create_flintrock_security_groups(
                 IpProtocol=rule.ip_protocol,
                 FromPort=rule.from_port,
                 ToPort=rule.to_port,
-                CidrIp=rule.cidr_ip)
+                CidrIp=rule.cidr_ip,
+                SourceSecurityGroupName=rule.src_group,
+            )
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] != 'InvalidPermission.Duplicate':
                 raise Exception("Error adding rule: {r}".format(r=rule))
