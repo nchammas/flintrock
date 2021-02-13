@@ -38,14 +38,17 @@ class SecurityGroupRule:
         ip_protocol,
         from_port,
         to_port,
-        src_group,
-        cidr_ip,
+        src_group=None,
+        cidr_ip=None,
     ):
         if src_group and cidr_ip:
             raise ValueError(
                 "src_group and cidr_ip are mutually exclusive. Specify one or the other. "
                 "See: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.SecurityGroup.authorize_ingress"
             )
+
+        if not src_group and not cidr_ip:
+            raise ValueError("One of src_group or cidr_ip must be specified.")
 
         self.ip_protocol = ip_protocol
         self.from_port = from_port
@@ -278,7 +281,7 @@ class HDFS(FlintrockService):
         except Exception as e:
             raise Exception("HDFS health check failed.") from e
 
-    def get_security_group_rules(self, flintrock_client_cidr: str, flintrock_client_group: str):
+    def get_security_group_rules(self, flintrock_client_cidr: str=None, flintrock_client_group: str=None):
         return [
             SecurityGroupRule(
                 ip_protocol='tcp',
@@ -473,7 +476,7 @@ class Spark(FlintrockService):
             #       dump a large stack trace on the user.
             raise Exception("Spark health check failed.") from e
 
-    def get_security_group_rules(self, flintrock_client_cidr: str, flintrock_client_group: str):
+    def get_security_group_rules(self, flintrock_client_cidr: str=None, flintrock_client_group: str=None):
         return [
             SecurityGroupRule(
                 ip_protocol='tcp',

@@ -524,8 +524,8 @@ def get_security_groups(
 
 def get_ssh_security_group_rules(
     *,
-    flintrock_client_cidr,
-    flintrock_client_group,
+    flintrock_client_cidr=None,
+    flintrock_client_group=None,
 ) -> "boto3.resource('ec2').SecurityGroup":
     return SecurityGroupRule(
         ip_protocol='tcp',
@@ -596,29 +596,21 @@ def get_or_create_flintrock_security_groups(
         # Security group for SSH is always required
         if client_source.startswith('sg-'):
             client_rules.append(
-                get_ssh_security_group_rules(
-                    flintrock_client_cidr=None,
-                    flintrock_client_group=client_source,
-                )
+                get_ssh_security_group_rules(flintrock_client_group=client_source)
             )
         else:
             client_rules.append(
-                get_ssh_security_group_rules(
-                    flintrock_client_cidr=str(IPv4Network(client_source)),
-                    flintrock_client_group=None,
-                )
+                get_ssh_security_group_rules(flintrock_client_cidr=str(IPv4Network(client_source)))
             )
         # Service-specific security group rules
         for service in services:
             if client_source.startswith('sg-'):
                 client_rules += service.get_security_group_rules(
-                    flintrock_client_cidr=None,
                     flintrock_client_group=client_source,
                 )
             else:
                 client_rules += service.get_security_group_rules(
                     flintrock_client_cidr=str(IPv4Network(client_source)),
-                    flintrock_client_group=None,
                 )
 
     # Rules for internal cluster communication.
