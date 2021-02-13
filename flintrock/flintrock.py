@@ -723,7 +723,6 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 
 @cli.command(name='add-slaves')
 @click.argument('cluster-name')
-@click.option('--java-version', type=click.IntRange(min=8), default=11)
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
@@ -745,7 +744,6 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 def add_slaves(
         cli_context,
         cluster_name,
-        java_version,
         num_slaves,
         ec2_region,
         ec2_vpc_id,
@@ -805,7 +803,6 @@ def add_slaves(
         cluster.add_slaves(
             user=user,
             identity_file=identity_file,
-            java_version=java_version,
             num_slaves=num_slaves,
             assume_yes=assume_yes,
             **provider_options)
