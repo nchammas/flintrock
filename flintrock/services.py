@@ -6,7 +6,6 @@ import sys
 import urllib.error
 import urllib.request
 import logging
-from collections import namedtuple
 
 # External modules
 import paramiko
@@ -30,6 +29,7 @@ SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
 
 
 logger = logging.getLogger('flintrock.services')
+
 
 # TODO: Move this back to ec2.py. EC2-specific login should not live here.
 class SecurityGroupRule:
