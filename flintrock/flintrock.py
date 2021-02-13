@@ -269,7 +269,7 @@ def cli(cli_context, config, provider, debug):
                   "URL to download Hadoop from. If an S3 URL, Flintrock will use the "
                   "AWS CLI from the cluster nodes to download it. "
                   "Flintrock will append the appropriate file name to the end "
-                  "of the URL based on the Apache release file names."
+                  "of the URL based on the Apache release file names on dist.apache.org."
               ),
               default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/',
               show_default=True,
@@ -289,7 +289,7 @@ def cli(cli_context, config, provider, debug):
                   "AWS CLI from the cluster nodes to download it. "
                   "Flintrock will append the appropriate file "
                   "name to the end of the URL based on the selected Hadoop version and "
-                  "Apache release file names."
+                  "Apache release file names on dist.apache.org."
               ),
               default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/',
               show_default=True,
