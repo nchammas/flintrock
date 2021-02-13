@@ -253,7 +253,7 @@ def cli(cli_context, config, provider, debug):
 @cli.command()
 @click.argument('cluster-name')
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
-@click.option('--java-version', type=click.IntRange(min=8), default=8)
+@click.option('--java-version', type=click.IntRange(min=8), default=11)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version', default='3.3.0')
 @click.option('--hdfs-download-source',
@@ -723,7 +723,7 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 
 @cli.command(name='add-slaves')
 @click.argument('cluster-name')
-@click.option('--java-version', type=click.IntRange(min=8), default=8)
+@click.option('--java-version', type=click.IntRange(min=8), default=11)
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
