@@ -1,6 +1,6 @@
 import os
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 FROZEN = getattr(sys, 'frozen', False)
@@ -48,6 +48,17 @@ def duration_to_timedelta(duration_string):
             prev_num.append(character)
 
     return timedelta(seconds=float(total_seconds))
+
+
+def duration_to_expiration(duration_string):
+    default_duration = timedelta(days=7)
+
+    if not duration_string:
+        expiration = datetime.now(tz=timezone.utc) + default_duration
+    else:
+        expiration = datetime.now(tz=timezone.utc) + duration_to_timedelta(duration_string)
+
+    return expiration
 
 
 def spark_hadoop_build_version(hadoop_version: str) -> str:

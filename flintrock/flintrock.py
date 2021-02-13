@@ -265,9 +265,12 @@ def cli(cli_context, config, provider, debug):
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
 @click.option('--hdfs-version', default='2.8.5')
 @click.option('--hdfs-download-source',
-              help=
-                "URL to download Hadoop from. Flintrock will append the appropriate file "
-                "name to the end of the URL based on the Apache release file names.",
+              help=(
+                  "URL to download Hadoop from. If an S3 URL, Flintrock will use the "
+                  "AWS CLI from the cluster nodes to download it. "
+                  "Flintrock will append the appropriate file name to the end "
+                  "of the URL based on the Apache release file names."
+              ),
               default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/',
               show_default=True,
               callback=build_hdfs_download_url)
@@ -281,10 +284,13 @@ def cli(cli_context, config, provider, debug):
               # default=,
               help="Spark release version to install.")
 @click.option('--spark-download-source',
-              help=
-                "URL to download Spark from. Flintrock will append the appropriate file "
-                "name to the end of the URL based on the selected Hadoop version and "
-                "Apache release file names.",
+              help=(
+                  "URL to download Spark from. If an S3 URL, Flintrock will use the "
+                  "AWS CLI from the cluster nodes to download it."
+                  "Flintrock will append the appropriate file "
+                  "name to the end of the URL based on the selected Hadoop version and "
+                  "Apache release file names."
+              ),
               default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/',
               show_default=True,
               callback=build_spark_download_url)
@@ -790,7 +796,7 @@ def add_slaves(
         provider_options = {
             'min_root_ebs_size_gb': ec2_min_root_ebs_size_gb,
             'spot_price': ec2_spot_price,
-            'spot_request_valid_until': ec2_spot_request_duration,
+            'spot_request_duration': ec2_spot_request_duration,
             'tags': ec2_tags
         }
     else:
@@ -1086,9 +1092,9 @@ def config_to_click(config: dict) -> dict:
 
     click_map = {
         'launch': dict(
-            list(config['launch'].items()) +
-            list(ec2_configs.items()) +
-            list(service_configs.items())),
+            list(config['launch'].items())
+            + list(ec2_configs.items())
+            + list(service_configs.items())),
         'describe': ec2_configs,
         'destroy': ec2_configs,
         'login': ec2_configs,
