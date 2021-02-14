@@ -177,7 +177,7 @@ def configure_log(debug: bool):
 def build_hdfs_download_url(ctx, param, value):
     hdfs_version = ctx.params['hdfs_version']
     if value.endswith('.gz') or value.endswith('.tgz'):
-        logger.debug(
+        logger.warning(
             "Hadoop download source appears to point to a file, not a directory. "
             "Flintrock will not try to determine the correct file to download based on "
             "the Hadoop version."
@@ -193,7 +193,7 @@ def build_spark_download_url(ctx, param, value):
     hadoop_version = ctx.params['hdfs_version']
     hadoop_build_version = spark_hadoop_build_version(hadoop_version)
     if value.endswith('.gz') or value.endswith('.tgz'):
-        logger.debug(
+        logger.warning(
             "Spark download source appears to point to a file, not a directory. "
             "Flintrock will not try to determine the correct file to download based on "
             "the Spark and Hadoop versions."
