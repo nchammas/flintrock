@@ -65,7 +65,6 @@ def spark_hadoop_build_version(hadoop_version: str) -> str:
     """
     Given a Hadoop version, determine the Hadoop build of Spark to use.
     """
-    print(hadoop_version)
     try:
         hadoop_version = tuple(map(int, hadoop_version.split('.')))
     except ValueError as e:
