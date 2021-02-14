@@ -130,16 +130,27 @@ class HDFS(FlintrockService):
         self.manifest = {'version': version, 'download_source': download_source}
 
     def install(
-            self,
-            ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster):
-        logger.info("[{h}] Installing HDFS...".format(
-            h=ssh_client.get_transport().getpeername()[0]))
+        self,
+        ssh_client: paramiko.client.SSHClient,
+        cluster: FlintrockCluster,
+    ):
+        logger.info(
+            "[{h}] Installing HDFS..."
+            .format(h=ssh_client.get_transport().getpeername()[0])
+        )
 
         with ssh_client.open_sftp() as sftp:
             sftp.put(
                 localpath=os.path.join(SCRIPTS_DIR, 'download-package.py'),
                 remotepath='/tmp/download-package.py')
+
+        logger.debug(
+            "[{h}] Downloading Hadoop from: {s}"
+            .format(
+                h=ssh_client.get_transport().getpeername()[0],
+                s=self.download_source,
+            )
+        )
 
         ssh_check_output(
             client=ssh_client,
@@ -303,17 +314,28 @@ class Spark(FlintrockService):
             'git_repository': git_repository}
 
     def install(
-            self,
-            ssh_client: paramiko.client.SSHClient,
-            cluster: FlintrockCluster):
-        logger.info("[{h}] Installing Spark...".format(
-            h=ssh_client.get_transport().getpeername()[0]))
+        self,
+        ssh_client: paramiko.client.SSHClient,
+        cluster: FlintrockCluster,
+    ):
+        logger.info(
+            "[{h}] Installing Spark..."
+            .format(h=ssh_client.get_transport().getpeername()[0])
+        )
 
         if self.version:
             with ssh_client.open_sftp() as sftp:
                 sftp.put(
                     localpath=os.path.join(SCRIPTS_DIR, 'download-package.py'),
                     remotepath='/tmp/download-package.py')
+
+            logger.debug(
+                "[{h}] Downloading Spark from: {s}"
+                .format(
+                    h=ssh_client.get_transport().getpeername()[0],
+                    s=self.download_source,
+                )
+            )
 
             ssh_check_output(
                 client=ssh_client,
@@ -323,7 +345,6 @@ class Spark(FlintrockService):
                     # version=self.version,
                     download_source=self.download_source.format(v=self.version),
                 ))
-
         else:
             ssh_check_output(
                 client=ssh_client,
@@ -332,6 +353,16 @@ class Spark(FlintrockService):
                     sudo yum install -y git
                     sudo yum install -y java-devel
                     """)
+
+            logger.debug(
+                "[{h}] Cloning Spark at {c} from: {s}"
+                .format(
+                    h=ssh_client.get_transport().getpeername()[0],
+                    c=self.git_commit,
+                    s=self.git_repository,
+                )
+            )
+
             ssh_check_output(
                 client=ssh_client,
                 command="""
