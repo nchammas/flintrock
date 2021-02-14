@@ -176,19 +176,35 @@ def configure_log(debug: bool):
 
 def build_hdfs_download_url(ctx, param, value):
     hdfs_version = ctx.params['hdfs_version']
-    hdfs_download_url = (value.rstrip('/') + '/hadoop-{v}.tar.gz').format(v=hdfs_version)
-    return hdfs_download_url
+    if value.endswith('.gz') or value.endswith('.tgz'):
+        logger.debug(
+            "Hadoop download source appears to point to a file, not a directory. "
+            "Flintrock will not try to determine the correct file to download based on "
+            "the Hadoop version."
+        )
+        hdfs_download_url = value
+    else:
+        hdfs_download_url = (value.rstrip('/') + '/hadoop-{v}.tar.gz')
+    return hdfs_download_url.format(v=hdfs_version)
 
 
 def build_spark_download_url(ctx, param, value):
     spark_version = ctx.params['spark_version']
     hadoop_version = ctx.params['hdfs_version']
     hadoop_build_version = spark_hadoop_build_version(hadoop_version)
-    spark_download_url = (value.rstrip('/') + '/spark-{v}-bin-{hv}.tgz').format(
+    if value.endswith('.gz') or value.endswith('.tgz'):
+        logger.debug(
+            "Spark download source appears to point to a file, not a directory. "
+            "Flintrock will not try to determine the correct file to download based on "
+            "the Spark and Hadoop versions."
+        )
+        spark_download_url = value
+    else:
+        spark_download_url = (value.rstrip('/') + '/spark-{v}-bin-{hv}.tgz')
+    return spark_download_url.format(
         v=spark_version,
         hv=hadoop_build_version,
     )
-    return spark_download_url
 
 
 def validate_download_source(url):
