@@ -6,7 +6,6 @@ import sys
 import urllib.error
 import urllib.request
 import logging
-from collections import namedtuple
 
 # External modules
 import paramiko
@@ -31,13 +30,36 @@ SCRIPTS_DIR = os.path.join(THIS_DIR, 'scripts')
 
 logger = logging.getLogger('flintrock.services')
 
-SecurityGroupRule = namedtuple(
-    'SecurityGroupRule', [
-        'ip_protocol',
-        'from_port',
-        'to_port',
-        'src_group',
-        'cidr_ip'])
+
+# TODO: Move this back to ec2.py. EC2-specific login should not live here.
+class SecurityGroupRule:
+    def __init__(
+        self,
+        ip_protocol,
+        from_port,
+        to_port,
+        src_group=None,
+        cidr_ip=None,
+    ):
+        if src_group and cidr_ip:
+            raise ValueError(
+                "src_group and cidr_ip are mutually exclusive. Specify one or the other. "
+                "See: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.SecurityGroup.authorize_ingress"
+            )
+
+        if not src_group and not cidr_ip:
+            raise ValueError("One of src_group or cidr_ip must be specified.")
+
+        self.ip_protocol = ip_protocol
+        self.from_port = from_port
+        self.to_port = to_port
+        # We set the default values to empty string so calls to boto3 accept unset parameters.
+        # See: https://github.com/boto/boto3/issues/331
+        self.src_group = src_group if src_group else ''
+        self.cidr_ip = cidr_ip if cidr_ip else ''
+
+    def __str__(self):
+        return str(vars(self))
 
 
 class FlintrockService:
@@ -115,7 +137,7 @@ class FlintrockService:
         """
         raise NotImplementedError
 
-    def get_security_group_rules(self, flintrock_client_cidr: str):
+    def get_security_group_rules(self, flintrock_client_cidr: str, flintrock_client_group: str):
         """
         Return the EC2 SecurityGroupRules required by this service.
         """
@@ -259,14 +281,15 @@ class HDFS(FlintrockService):
         except Exception as e:
             raise Exception("HDFS health check failed.") from e
 
-    def get_security_group_rules(self, flintrock_client_cidr: str):
+    def get_security_group_rules(self, flintrock_client_cidr: str=None, flintrock_client_group: str=None):
         return [
             SecurityGroupRule(
                 ip_protocol='tcp',
                 from_port=self.name_node_ui_port,
                 to_port=self.name_node_ui_port,
                 cidr_ip=flintrock_client_cidr,
-                src_group=None)
+                src_group=flintrock_client_group,
+            )
         ]
 
 
@@ -453,31 +476,35 @@ class Spark(FlintrockService):
             #       dump a large stack trace on the user.
             raise Exception("Spark health check failed.") from e
 
-    def get_security_group_rules(self, flintrock_client_cidr: str):
+    def get_security_group_rules(self, flintrock_client_cidr: str=None, flintrock_client_group: str=None):
         return [
             SecurityGroupRule(
                 ip_protocol='tcp',
                 from_port=8080,
                 to_port=8081,
                 cidr_ip=flintrock_client_cidr,
-                src_group=None),
+                src_group=flintrock_client_group,
+            ),
             SecurityGroupRule(
                 ip_protocol='tcp',
                 from_port=4040,
                 to_port=4050,
                 cidr_ip=flintrock_client_cidr,
-                src_group=None),
+                src_group=flintrock_client_group,
+            ),
             SecurityGroupRule(
                 ip_protocol='tcp',
                 from_port=7077,
                 to_port=7077,
                 cidr_ip=flintrock_client_cidr,
-                src_group=None),
+                src_group=flintrock_client_group,
+            ),
             # Spark REST Server
             SecurityGroupRule(
                 ip_protocol='tcp',
                 from_port=6066,
                 to_port=6066,
                 cidr_ip=flintrock_client_cidr,
-                src_group=None)
+                src_group=flintrock_client_group,
+            ),
         ]

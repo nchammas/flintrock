@@ -52,6 +52,9 @@ providers:
     ebs-optimized: no  # yes | no
     instance-initiated-shutdown-behavior: terminate  # terminate | stop
     # user-data: /path/to/userdata/script
+    # authorize-access-from:
+    #   - 10.0.0.42/32
+    #   - sg-xyz4654564xyz
 
 launch:
   num-slaves: 1

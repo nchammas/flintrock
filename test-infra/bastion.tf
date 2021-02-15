@@ -91,7 +91,7 @@ resource "aws_instance" "bastion" {
         config['providers']['ec2']['identity-file'] = '/home/ec2-user/.ssh/${var.ec2_key_name}.pem'
         config['providers']['ec2']['vpc-id'] = '${aws_vpc.main.id}'
         config['providers']['ec2']['subnet-id'] = '${aws_subnet.private.id}'
-        config['providers']['ec2']['authorize-access-from'] = '${self.private_ip}'
+        config['providers']['ec2']['authorize-access-from'] = ['${self.private_ip}']
         with open('/home/ec2-user/.config/flintrock/config.yaml', 'w') as f:
             yaml.dump(config, f, indent=2)
         EO_PYTHON
