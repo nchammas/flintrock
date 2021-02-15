@@ -5,6 +5,7 @@ import time
 import urllib.request
 import base64
 import logging
+from ipaddress import IPv4Network
 from datetime import datetime
 
 # External modules
@@ -80,12 +81,23 @@ class EC2Cluster(FlintrockCluster):
             return self.slave_instances
 
     @property
+    def private_network(self):
+        ec2 = boto3.resource(service_name='ec2', region_name=self.region)
+        return not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
+
+    @property
     def master_ip(self):
-        return self.master_instance.public_ip_address
+        if self.private_network:
+            return self.master_instance.private_ip_address
+        else:
+            return self.master_instance.public_ip_address
 
     @property
     def master_host(self):
-        return self.master_instance.public_dns_name
+        if self.private_network:
+            return self.master_instance.private_dns_name
+        else:
+            return self.master_instance.public_dns_name
 
     @property
     def master_private_host(self):
@@ -93,11 +105,17 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     def slave_ips(self):
-        return [i.public_ip_address for i in self.slave_instances]
+        if self.private_network:
+            return [i.private_ip_address for i in self.slave_instances]
+        else:
+            return [i.public_ip_address for i in self.slave_instances]
 
     @property
     def slave_hosts(self):
-        return [i.public_dns_name for i in self.slave_instances]
+        if self.private_network:
+            return [i.private_dns_name for i in self.slave_instances]
+        else:
+            return [i.public_dns_name for i in self.slave_instances]
 
     @property
     def slave_private_hosts(self):
@@ -323,17 +341,20 @@ class EC2Cluster(FlintrockCluster):
                     ])
                 .create_tags(Tags=slave_tags))
 
-            existing_slaves = {i.public_ip_address for i in self.slave_instances}
+            existing_slaves = self.slave_ips
 
             self.slave_instances += new_slave_instances
             self.wait_for_state('running')
 
-            new_slaves = {i.public_ip_address for i in self.slave_instances} - existing_slaves
+            # We wait for the new instances to start running so they all have assigned
+            # IP addresses.
+            new_slaves = set(self.slave_ips) - set(existing_slaves)
 
             super().add_slaves(
                 user=user,
                 identity_file=identity_file,
-                new_hosts=new_slaves)
+                new_hosts=new_slaves,
+            )
         except (Exception, KeyboardInterrupt) as e:
             if isinstance(e, InterruptedEC2Operation):
                 cleanup_instances = e.instances
@@ -455,8 +476,6 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
     """
     Check that the VPC and subnet are configured to allow Flintrock to create
     clusters.
-
-    Currently, Flintrock requires DNS names and public IPs to be enabled.
     """
     ec2 = boto3.resource(service_name='ec2', region_name=region_name)
 
@@ -468,10 +487,9 @@ def check_network_config(*, region_name: str, vpc_id: str, subnet_id: str):
             .format(v=vpc_id)
         )
     if not ec2.Subnet(subnet_id).map_public_ip_on_launch:
-        raise ConfigurationNotSupported(
+        logger.info(
             "{s} does not auto-assign public IP addresses. "
-            "Flintrock requires public IP addresses.\n"
-            "See: https://github.com/nchammas/flintrock/issues/14"
+            "Flintrock will configure this cluster for private network access."
             .format(s=subnet_id)
         )
 
@@ -502,12 +520,28 @@ def get_security_groups(
     return groups
 
 
+def get_ssh_security_group_rules(
+    *,
+    flintrock_client_cidr=None,
+    flintrock_client_group=None,
+) -> "boto3.resource('ec2').SecurityGroup":
+    return SecurityGroupRule(
+        ip_protocol='tcp',
+        from_port=22,
+        to_port=22,
+        cidr_ip=flintrock_client_cidr,
+        src_group=flintrock_client_group,
+    )
+
+
 def get_or_create_flintrock_security_groups(
         *,
         cluster_name,
         vpc_id,
         region,
-        services) -> "List[boto3.resource('ec2').SecurityGroup]":
+        services,
+        ec2_authorize_access_from,
+) -> "List[boto3.resource('ec2').SecurityGroup]":
     """
     If they do not already exist, create all the security groups needed for a
     Flintrock cluster.
@@ -546,23 +580,36 @@ def get_or_create_flintrock_security_groups(
             VpcId=vpc_id)
 
     # Rules for the client interacting with the cluster.
-    flintrock_client_ip = (
-        urllib.request.urlopen('https://checkip.amazonaws.com/')
-        .read().decode('utf-8').strip())
-    flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+    if ec2_authorize_access_from:
+        flintrock_client_sources = ec2_authorize_access_from
+    else:
+        flintrock_client_ip = (
+            urllib.request.urlopen('https://checkip.amazonaws.com/')
+            .read().decode('utf-8').strip()
+        )
+        flintrock_client_sources = [flintrock_client_ip]
 
-    # Initial security group for SSH is always required
-    client_rules = [
-        # SSH
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=22,
-            to_port=22,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None)
-    ]
-    for service in services:
-        client_rules += service.get_security_group_rules(flintrock_client_cidr)
+    client_rules = []
+    for client_source in flintrock_client_sources:
+        # Security group for SSH is always required
+        if client_source.startswith('sg-'):
+            client_rules.append(
+                get_ssh_security_group_rules(flintrock_client_group=client_source)
+            )
+        else:
+            client_rules.append(
+                get_ssh_security_group_rules(flintrock_client_cidr=str(IPv4Network(client_source)))
+            )
+        # Service-specific security group rules
+        for service in services:
+            if client_source.startswith('sg-'):
+                client_rules += service.get_security_group_rules(
+                    flintrock_client_group=client_source,
+                )
+            else:
+                client_rules += service.get_security_group_rules(
+                    flintrock_client_cidr=str(IPv4Network(client_source)),
+                )
 
     # Rules for internal cluster communication.
     if not cluster_group:
@@ -579,7 +626,9 @@ def get_or_create_flintrock_security_groups(
                 IpProtocol=rule.ip_protocol,
                 FromPort=rule.from_port,
                 ToPort=rule.to_port,
-                CidrIp=rule.cidr_ip)
+                CidrIp=rule.cidr_ip,
+                SourceSecurityGroupName=rule.src_group,
+            )
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] != 'InvalidPermission.Duplicate':
                 raise Exception("Error adding rule: {r}".format(r=rule))
@@ -811,7 +860,8 @@ def launch(
         ebs_optimized=False,
         instance_initiated_shutdown_behavior='stop',
         user_data,
-        tags):
+        tags,
+        ec2_authorize_access_from):
     """
     Launch a cluster.
     """
@@ -843,7 +893,8 @@ def launch(
         cluster_name=cluster_name,
         vpc_id=vpc_id,
         region=region,
-        services=services)
+        services=services,
+        ec2_authorize_access_from=ec2_authorize_access_from)
     user_security_groups = get_security_groups(
         vpc_id=vpc_id,
         region=region,
@@ -1033,6 +1084,32 @@ def validate_tags(value):
         result.append({'Key': key, 'Value': value})
 
     return result
+
+
+def cli_validate_ec2_authorize_access(ctx, param, value):
+    return validate_ec2_authorize_access(value)
+
+
+def validate_ec2_authorize_access(value):
+    """
+    Validate and parse optional EC2 security groups or CIDRs
+    authorized to connect to cluster.
+    """
+    validated_addresses = []
+    for address in value:
+        if address.startswith('sg-'):
+            validated_addresses.append(address)
+            continue
+        else:
+            try:
+                ipv4_network = IPv4Network(address)
+                validated_addresses.append(str(ipv4_network))
+            except ValueError:
+                raise click.BadParameter(
+                    "'{}' appears to be neither an IP address nor a Security Group ID."
+                    .format(address)
+                )
+    return validated_addresses
 
 
 def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:
