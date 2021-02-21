@@ -20,3 +20,6 @@ export SPARK_PUBLIC_DNS="$(curl --silent http://169.254.169.254/latest/meta-data
 # Need to find a way to do this, since "sudo ulimit..." doesn't fly.
 # Probably need to edit some Linux config file.
 # ulimit -n 1000000
+
+# Should this be made part of a Python service somehow?
+export PYSPARK_PYTHON="python3"
