@@ -7,7 +7,7 @@ services:
     #   - can be http, https, or s3 URL
     #   - must contain a {v} template corresponding to the version
     #   - Spark must be pre-built
-    #   - files must be named according to release pattern on dist.apache.org
+    #   - files must be named according to the release pattern shown here: https://dist.apache.org/repos/dist/release/spark/
     # download-source: "https://www.example.com/files/spark/{v}/"
     # download-source: "s3://some-bucket/spark/{v}/"
     # executor-instances: 1
@@ -16,7 +16,7 @@ services:
     # optional; defaults to download from a dynamically selected Apache mirror
     #   - can be http, https, or s3 URL
     #   - must contain a {v} template corresponding to the version
-    #   - files must be named according to release pattern on dist.apache.org
+    #   - files must be named according to the release pattern shown here: https://dist.apache.org/repos/dist/release/hadoop/common/
     # download-source: "https://www.example.com/files/hadoop/{v}/"
     # download-source: "http://www-us.apache.org/dist/hadoop/common/hadoop-{v}/"
     # download-source: "s3://some-bucket/hadoop/{v}/"
