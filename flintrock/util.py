@@ -65,10 +65,7 @@ def spark_hadoop_build_version(hadoop_version: str) -> str:
     """
     Given a Hadoop version, determine the Hadoop build of Spark to use.
     """
-    try:
-        hadoop_version = tuple(map(int, hadoop_version.split('.')))
-    except ValueError as e:
-        return 'without-hadoop'
+    hadoop_version = tuple(map(int, hadoop_version.split('.')))
     if hadoop_version < (2, 7):
         return 'hadoop2.6'
     elif (2, 7) <= hadoop_version < (3, 0):
