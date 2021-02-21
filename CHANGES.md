@@ -18,7 +18,7 @@
 
 * [#311]: Changed how Flintrock manages its own security groups to reduce the likelihood of hitting any limits on the number of rules per security group.
 * [#329]: Dropped support for Python 3.5 and added automated testing for Python 3.8 and 3.9.
-* [#334]: Flintrock ensures that `python3` is available on launched clusters.
+* [#334]: Flintrock now ensures that `python3` is available on launched clusters and sets that as the default Python that PySpark will use.
 
 [#311]: https://github.com/nchammas/flintrock/pull/311
 [#329]: https://github.com/nchammas/flintrock/pull/329
