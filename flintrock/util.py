@@ -59,3 +59,16 @@ def duration_to_expiration(duration_string):
         expiration = datetime.now(tz=timezone.utc) + duration_to_timedelta(duration_string)
 
     return expiration
+
+
+def spark_hadoop_build_version(hadoop_version: str) -> str:
+    """
+    Given a Hadoop version, determine the Hadoop build of Spark to use.
+    """
+    hadoop_version = tuple(map(int, hadoop_version.split('.')))
+    if hadoop_version < (2, 7):
+        return 'hadoop2.6'
+    elif (2, 7) <= hadoop_version < (3, 0):
+        return 'hadoop2.7'
+    elif (3, 0) <= hadoop_version:
+        return 'hadoop3.2'

@@ -8,9 +8,11 @@
 
 * [#296]: Added support for launching clusters into private VPCs.
 * [#324]: Flintrock now supports S3 URLs as a download source for Hadoop or Spark. This makes it easy to host your own copies of the Hadoop and Spark release builds in a private bucket.
+* [#323]: Flintrock now automatically selects the correct build of Spark to use, based on the version of Hadoop/HDFS that you specify.
 
 [#296]: https://github.com/nchammas/flintrock/pull/296
 [#324]: https://github.com/nchammas/flintrock/pull/324
+[#323]: https://github.com/nchammas/flintrock/pull/323
 
 ### Changed
 

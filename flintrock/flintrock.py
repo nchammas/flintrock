@@ -29,6 +29,7 @@ from .exceptions import (
     NothingToDo,
     Error)
 from flintrock import __version__
+from .util import spark_hadoop_build_version
 from .services import HDFS, Spark  # TODO: Remove this dependency.
 
 FROZEN = getattr(sys, 'frozen', False)
@@ -174,13 +175,36 @@ def configure_log(debug: bool):
 
 
 def build_hdfs_download_url(ctx, param, value):
-    hdfs_download_url = value.format(v=ctx.params['hdfs_version'])
-    return hdfs_download_url
+    hdfs_version = ctx.params['hdfs_version']
+    if value.endswith('.gz') or value.endswith('.tgz'):
+        logger.warning(
+            "Hadoop download source appears to point to a file, not a directory. "
+            "Flintrock will not try to determine the correct file to download based on "
+            "the Hadoop version."
+        )
+        hdfs_download_url = value
+    else:
+        hdfs_download_url = (value.rstrip('/') + '/hadoop-{v}.tar.gz')
+    return hdfs_download_url.format(v=hdfs_version)
 
 
 def build_spark_download_url(ctx, param, value):
-    spark_download_url = value.format(v=ctx.params['spark_version'])
-    return spark_download_url
+    spark_version = ctx.params['spark_version']
+    hadoop_version = ctx.params['hdfs_version']
+    hadoop_build_version = spark_hadoop_build_version(hadoop_version)
+    if value.endswith('.gz') or value.endswith('.tgz'):
+        logger.warning(
+            "Spark download source appears to point to a file, not a directory. "
+            "Flintrock will not try to determine the correct file to download based on "
+            "the Spark and Hadoop versions."
+        )
+        spark_download_url = value
+    else:
+        spark_download_url = (value.rstrip('/') + '/spark-{v}-bin-{hv}.tgz')
+    return spark_download_url.format(
+        v=spark_version,
+        hv=hadoop_build_version,
+    )
 
 
 def validate_download_source(url):
@@ -259,9 +283,12 @@ def cli(cli_context, config, provider, debug):
 @click.option('--hdfs-download-source',
               help=(
                   "URL to download Hadoop from. If an S3 URL, Flintrock will use the "
-                  "AWS CLI from the cluster nodes to download it."
+                  "AWS CLI from the cluster nodes to download it. "
+                  "Flintrock will append the appropriate file name to the end "
+                  "of the URL based on the Apache release file names here: "
+                  "https://dist.apache.org/repos/dist/release/hadoop/common/"
               ),
-              default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/hadoop-{v}.tar.gz',
+              default='https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-{v}/',
               show_default=True,
               callback=build_hdfs_download_url)
 @click.option('--install-spark/--no-install-spark', default=True)
@@ -276,9 +303,13 @@ def cli(cli_context, config, provider, debug):
 @click.option('--spark-download-source',
               help=(
                   "URL to download Spark from. If an S3 URL, Flintrock will use the "
-                  "AWS CLI from the cluster nodes to download it."
+                  "AWS CLI from the cluster nodes to download it. "
+                  "Flintrock will append the appropriate file "
+                  "name to the end of the URL based on the selected Hadoop version and "
+                  "Apache release file names here: "
+                  "https://dist.apache.org/repos/dist/release/spark/"
               ),
-              default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/spark-{v}-bin-hadoop3.2.tgz',
+              default='https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-{v}/',
               show_default=True,
               callback=build_spark_download_url)
 @click.option('--spark-git-commit',
