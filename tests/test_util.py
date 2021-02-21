@@ -1,5 +1,9 @@
 from datetime import datetime, timedelta, timezone
-from flintrock.util import duration_to_timedelta, duration_to_expiration
+from flintrock.util import (
+    duration_to_timedelta,
+    duration_to_expiration,
+    spark_hadoop_build_version,
+)
 from freezegun import freeze_time
 
 
@@ -14,3 +18,7 @@ def test_duration_to_timedelta():
 @freeze_time("2012-01-14")
 def test_duration_to_expiration():
     assert duration_to_expiration('5m') == datetime.now(tz=timezone.utc) + timedelta(minutes=5)
+
+
+def test_spark_hadoop_build_version():
+    assert spark_hadoop_build_version('3.1.3') == 'hadoop3.2'
