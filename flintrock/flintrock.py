@@ -326,6 +326,7 @@ def cli(cli_context, config, provider, debug):
               type=click.Path(exists=True, dir_okay=False),
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-instance-type', default='m5.medium', show_default=True)
+@click.option('--ec2-master-instance-type', default='m5.medium', show_default=True)
 @click.option('--ec2-region', default='us-east-1', show_default=True)
 # We set some of these defaults to empty strings because of boto3's parameter validation.
 # See: https://github.com/boto/boto3/issues/400
@@ -337,7 +338,10 @@ def cli(cli_context, config, provider, debug):
               help="Additional security groups names to assign to the instances. "
                    "You can specify this option multiple times.")
 @click.option('--ec2-spot-price', type=float)
+@click.option('--ec2-master-spot-price', type=float)
 @click.option('--ec2-spot-request-duration', default='7d',
+              help="Duration a spot request is valid (e.g. 3d 2h 1m).")
+@click.option('--ec2-master-spot-request-duration', default='7d',
               help="Duration a spot request is valid (e.g. 3d 2h 1m).")
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
@@ -385,13 +389,16 @@ def launch(
         ec2_key_name,
         ec2_identity_file,
         ec2_instance_type,
+        ec2_master_instance_type,
         ec2_region,
         ec2_availability_zone,
         ec2_ami,
         ec2_user,
         ec2_security_groups,
         ec2_spot_price,
+        ec2_master_spot_price,
         ec2_spot_request_duration,
+        ec2_master_spot_request_duration,
         ec2_min_root_ebs_size_gb,
         ec2_vpc_id,
         ec2_subnet_id,
@@ -492,13 +499,16 @@ def launch(
             key_name=ec2_key_name,
             identity_file=ec2_identity_file,
             instance_type=ec2_instance_type,
+            master_instance_type=ec2_master_instance_type,
             region=ec2_region,
             availability_zone=ec2_availability_zone,
             ami=ec2_ami,
             user=ec2_user,
             security_groups=ec2_security_groups,
             spot_price=ec2_spot_price,
+            master_spot_price=ec2_master_spot_price,
             spot_request_duration=ec2_spot_request_duration,
+            master_spot_request_duration=ec2_master_spot_request_duration,
             min_root_ebs_size_gb=ec2_min_root_ebs_size_gb,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
