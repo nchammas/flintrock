@@ -25,7 +25,7 @@ from .exceptions import (
     NothingToDo,
 )
 from .ssh import generate_ssh_key_pair
-
+from ec2_metadata import ec2_metadata
 
 logger = logging.getLogger('flintrock.ec2')
 
@@ -539,55 +539,63 @@ def get_or_create_flintrock_security_groups(
             Description="Flintrock base group",
             VpcId=vpc_id)
 
+    # TODO a quick fix for s21 development
+    # only accommodate to 15719-s21-P2 EC2 machine launching another EC2 spark cluster
+    # because only private ipv4 works for this case
     # Rules for the client interacting with the cluster.
-    flintrock_client_ip = (
+    flintrock_client_public_ip = (
         urllib.request.urlopen('https://checkip.amazonaws.com/')
         .read().decode('utf-8').strip())
-    flintrock_client_cidr = '{ip}/32'.format(ip=flintrock_client_ip)
+    flintrock_client_private_ip = ec2_metadata.private_ipv4
 
-    # TODO: Services should be responsible for registering what ports they want exposed.
-    client_rules = [
-        # SSH
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=22,
-            to_port=22,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # HDFS
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=50070,
-            to_port=50070,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # Spark
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=8080,
-            to_port=8081,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=4040,
-            to_port=4050,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=7077,
-            to_port=7077,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None),
-        # Spark REST Server
-        SecurityGroupRule(
-            ip_protocol='tcp',
-            from_port=6066,
-            to_port=6066,
-            cidr_ip=flintrock_client_cidr,
-            src_group=None)
-    ]
+    flintrock_client_public_cidr  = '{ip}/32'.format(ip=flintrock_client_public_ip)
+    flintrock_client_private_cidr = '{ip}/32'.format(ip=flintrock_client_private_ip)
+
+    client_rules = []
+    for flintrock_client_cidr in [flintrock_client_public_cidr, flintrock_client_private_cidr]:
+        # TODO: Services should be responsible for registering what ports they want exposed.
+        client_rules.extend([
+            # SSH
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=22,
+                to_port=22,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            # HDFS
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=50070,
+                to_port=50070,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            # Spark
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=8080,
+                to_port=8081,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=4040,
+                to_port=4050,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=7077,
+                to_port=7077,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None),
+            # Spark REST Server
+            SecurityGroupRule(
+                ip_protocol='tcp',
+                from_port=6066,
+                to_port=6066,
+                cidr_ip=flintrock_client_cidr,
+                src_group=None)
+        ])
 
     # TODO: Don't try adding rules that already exist.
     # TODO: Add rules in one shot.
@@ -610,20 +618,20 @@ def get_or_create_flintrock_security_groups(
             VpcId=vpc_id)
 
     try:
-        # cluster_group.authorize_ingress(
-        #     IpPermissions=[
-        #         {
-        #             'IpProtocol': '-1',  # -1 means all
-        #             'FromPort': -1,
-        #             'ToPort': -1,
-        #             'UserIdGroupPairs': [{'GroupId': cluster_group.id}]
-        #         }])
-        # Allow all traffic from all ports
         cluster_group.authorize_ingress(
-            IpProtocol='-1',
-            FromPort=-1,
-            ToPort=-1,
-            CidrIp='0.0.0.0/0')
+            IpPermissions=[
+                {
+                    'IpProtocol': '-1',  # -1 means all
+                    'FromPort': -1,
+                    'ToPort': -1,
+                    'UserIdGroupPairs': [{'GroupId': cluster_group.id}]
+                }])
+        # Allow all traffic from all ports
+        # cluster_group.authorize_ingress(
+        #     IpProtocol='-1',
+        #     FromPort=-1,
+        #     ToPort=-1,
+        #     CidrIp='0.0.0.0/0')
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] != 'InvalidPermission.Duplicate':
             raise Exception("Error authorizing cluster ingress to self.") from e
