@@ -163,4 +163,4 @@ def test_validate_valid_download_source():
 
 def test_validate_invalid_download_source():
     with pytest.raises(Error):
-        validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-2.8.3/hadoop-2.8.3.tar.gz")
+        validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-invalid-version/hadoop-invalid-version.tar.gz")
