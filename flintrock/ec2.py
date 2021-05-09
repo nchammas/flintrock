@@ -81,7 +81,7 @@ class EC2Cluster(FlintrockCluster):
             return self.slave_instances
 
     @property
-    @functools.lru_cache
+    @functools.lru_cache()
     def private_network(self):
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
         return not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
