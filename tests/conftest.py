@@ -12,6 +12,7 @@ import pytest
 
 HADOOP_VERSION = '3.3.0'
 SPARK_VERSION = '3.1.2'
+SPARK_GIT_COMMIT = 'de351e30a90dd988b133b3d00fa6218bfcaba8b8'  # 3.1.2
 JAVA_VERSION = '11'
 
 
