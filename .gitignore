@@ -1,6 +1,7 @@
 # Started from: https://github.com/github/gitignore/blob/master/Python.gitignore
 
 .vscode/
+.metals/
 config.yaml
 venv/
 *example.py
