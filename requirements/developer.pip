@@ -6,23 +6,23 @@
 #
 -e file:.#egg=Flintrock
     # via -r requirements/user.pip
-attrs==20.3.0
+attrs==21.2.0
     # via pytest
 bcrypt==3.2.0
     # via
     #   -r requirements/user.pip
     #   paramiko
-boto3==1.10.45
+boto3==1.17.90
     # via
     #   -r requirements/user.pip
     #   flintrock
-botocore==1.13.45
+botocore==1.20.90
     # via
     #   -r requirements/user.pip
     #   boto3
     #   flintrock
     #   s3transfer
-cffi==1.14.4
+cffi==1.14.5
     # via
     #   -r requirements/user.pip
     #   bcrypt
@@ -32,22 +32,18 @@ click==7.0
     # via
     #   -r requirements/user.pip
     #   flintrock
-coverage==5.4
+coverage==5.5
     # via pytest-cov
-cryptography==3.4.2
+cryptography==3.4.7
     # via
     #   -r requirements/user.pip
     #   flintrock
     #   paramiko
-docutils==0.15.2
-    # via
-    #   -r requirements/user.pip
-    #   botocore
 flake8==3.8.4
     # via -r requirements/developer.in
 freezegun==1.1.0
     # via -r requirements/developer.in
-importlib-metadata==3.4.0
+importlib-metadata==4.5.0
     # via
     #   flake8
     #   pluggy
@@ -85,9 +81,9 @@ pynacl==1.4.0
     #   paramiko
 pyparsing==2.4.7
     # via packaging
-pytest-cov==2.11.1
+pytest-cov==2.12.1
     # via -r requirements/developer.in
-pytest==6.2.2
+pytest==6.2.4
     # via
     #   -r requirements/developer.in
     #   pytest-cov
@@ -96,27 +92,29 @@ python-dateutil==2.8.1
     #   -r requirements/user.pip
     #   botocore
     #   freezegun
-pyyaml==5.2
+pyyaml==5.4.1
     # via
     #   -r requirements/user.pip
     #   flintrock
-s3transfer==0.2.1
+s3transfer==0.4.2
     # via
     #   -r requirements/user.pip
     #   boto3
-six==1.15.0
+six==1.16.0
     # via
     #   -r requirements/user.pip
     #   bcrypt
     #   pynacl
     #   python-dateutil
 toml==0.10.2
-    # via pytest
-typing-extensions==3.7.4.3
+    # via
+    #   pytest
+    #   pytest-cov
+typing-extensions==3.10.0.0
     # via importlib-metadata
-urllib3==1.25.11
+urllib3==1.26.5
     # via
     #   -r requirements/user.pip
     #   botocore
-zipp==3.4.0
+zipp==3.4.1
     # via importlib-metadata
