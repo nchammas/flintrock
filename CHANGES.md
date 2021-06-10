@@ -2,25 +2,44 @@
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/nchammas/flintrock/compare/v1.0.0...master
+[Unreleased]: https://github.com/nchammas/flintrock/compare/v2.0.0...master
+
+Nothing notable yet.
+
+## [2.0.0] - 2021-06-10
+
+[2.0.0]: https://github.com/nchammas/flintrock/compare/v1.0.0...v2.0.0
 
 ### Added
 
-* [#296]: Added support for launching clusters into private VPCs.
-* [#324]: Flintrock now supports S3 URLs as a download source for Hadoop or Spark. This makes it easy to host your own copies of the Hadoop and Spark release builds in a private bucket.
+* [#296]: Added support for launching clusters into private VPCs. This includes new infrastructure added in [#302] to support testing against private VPCs.
+* [#307]: Added support for Hadoop/HDFS 3.x.
+* [#315]: Added a new `--ec2-spot-request-duration` option to support setting the EC2 spot request duration.
+* [#316]: Added a new `--java-version` option and support for Java 11.
 * [#323]: Flintrock now automatically selects the correct build of Spark to use, based on the version of Hadoop/HDFS that you specify.
+* [#324]: Flintrock now supports S3 URLs as a download source for Hadoop or Spark. This makes it easy to host your own copies of the Hadoop and Spark release builds in a private bucket.
 
 [#296]: https://github.com/nchammas/flintrock/pull/296
-[#324]: https://github.com/nchammas/flintrock/pull/324
+[#302]: https://github.com/nchammas/flintrock/pull/302
+[#307]: https://github.com/nchammas/flintrock/pull/307
+[#315]: https://github.com/nchammas/flintrock/pull/315
+[#316]: https://github.com/nchammas/flintrock/pull/316
 [#323]: https://github.com/nchammas/flintrock/pull/323
+[#324]: https://github.com/nchammas/flintrock/pull/324
 
 ### Changed
 
+* [#285]: Flintrock now configures cluster nodes to use private IP addresses for internal communication. This should improve the reliability of cluster launches and restarts.
+* [#304]: Fixed a bug in how `UserData` scripts are submitted to new cluster slaves.
 * [#311]: Changed how Flintrock manages its own security groups to reduce the likelihood of hitting any limits on the number of rules per security group.
+* [#326]: Switched some internals from using host names to IP addresses, which should improve Flintrock's behavior when running from an EC2 host.
 * [#329]: Dropped support for Python 3.5 and added automated testing for Python 3.8 and 3.9.
 * [#334]: Flintrock now ensures that `python3` is available on launched clusters and sets that as the default Python that PySpark will use.
 
+[#285]: https://github.com/nchammas/flintrock/pull/285
+[#304]: https://github.com/nchammas/flintrock/pull/304
 [#311]: https://github.com/nchammas/flintrock/pull/311
+[#326]: https://github.com/nchammas/flintrock/pull/326
 [#329]: https://github.com/nchammas/flintrock/pull/329
 [#334]: https://github.com/nchammas/flintrock/pull/334
 
