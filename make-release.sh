@@ -2,6 +2,15 @@
 #   - Default Spark version: https://spark.apache.org/downloads.html
 #   - Default Hadoop version: https://hadoop.apache.org/releases.html
 #   - Default Amazon Linux 2 EBS AMI: https://aws.amazon.com/amazon-linux-2/release-notes/
+aws ec2 describe-images \
+    --owners amazon \
+    --filters \
+        "Name=name,Values=amzn2-ami-hvm-*-gp2" \
+        "Name=root-device-type,Values=ebs" \
+        "Name=virtualization-type,Values=hvm" \
+        "Name=architecture,Values=x86_64" \
+    --query \
+        'reverse(sort_by(Images, &CreationDate))[:100].{CreationDate:CreationDate,ImageId:ImageId,Name:Name,Description:Description}'
 #   - Dependencies: https://requires.io/github/nchammas/flintrock/requirements/?branch=master
 # Run full acceptance tests
 # Update Flintrock version
@@ -31,11 +40,11 @@ open https://pypi.org/project/Flintrock/
 
 python generate-standalone-package.py
 
-# open dist/
 # Upload release builds to GitHub
+open dist/
 #   - Wheel
 #   - OS X standalone package
-#   - Linux standalone package
+#   - Linux standalone package (published to S3 by CI)
 # Update version to next.dev0
 
 # ---
