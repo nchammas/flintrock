@@ -157,8 +157,8 @@ def test_get_latest_commit():
     raises=Error,
 )
 def test_validate_valid_download_source():
-    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-3.3.0/hadoop-3.3.0.tar.gz")
-    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-3.1.2/spark-3.1.2-bin-hadoop3.2.tgz")
+    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-3.3.2/hadoop-3.3.2.tar.gz")
+    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-3.2.1/spark-3.2.1-bin-hadoop3.2.tgz")
 
 
 def test_validate_invalid_download_source():

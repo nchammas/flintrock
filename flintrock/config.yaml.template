@@ -1,6 +1,6 @@
 services:
   spark:
-    version: 3.1.2
+    version: 3.2.1
     # git-commit: latest  # if not 'latest', provide a full commit SHA; e.g. d6dc12ef0146ae409834c78737c116050961f350
     # git-repository:  # optional; defaults to https://github.com/apache/spark
     # optional; defaults to download from a dynamically selected Apache mirror
@@ -12,7 +12,7 @@ services:
     # download-source: "s3://some-bucket/spark/{v}/"
     # executor-instances: 1
   hdfs:
-    version: 3.3.0
+    version: 3.3.2
     # optional; defaults to download from a dynamically selected Apache mirror
     #   - can be http, https, or s3 URL
     #   - must contain a {v} template corresponding to the version
@@ -30,7 +30,7 @@ providers:
     instance-type: m5.large
     region: us-east-1
     # availability-zone: <name>
-    ami: ami-0aeeebd8d2ab47354  # Amazon Linux 2, us-east-1
+    ami: ami-0a3c14e1ddbe7f23c  # Amazon Linux 2, us-east-1
     user: ec2-user
     # ami: ami-61bbf104  # CentOS 7, us-east-1
     # user: centos
