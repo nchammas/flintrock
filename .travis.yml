@@ -4,9 +4,6 @@ python:
 # https://github.com/travis-ci/travis-ci/issues/9815#issue-336465122
 matrix:
   include:
-    - python: "3.6"
-      dist: "xenial"
-      sudo: true
     - python: "3.7"
       dist: "xenial"
       sudo: true
@@ -14,6 +11,9 @@ matrix:
       dist: "xenial"
       sudo: true
     - python: "3.9"
+      dist: "xenial"
+      sudo: true
+    - python: "3.10"
       dist: "xenial"
       sudo: true
 install:
