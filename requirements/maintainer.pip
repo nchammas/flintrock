@@ -20,11 +20,11 @@ bcrypt==3.2.0
     #   paramiko
 bleach==5.0.0
     # via readme-renderer
-boto3==1.17.90
+boto3==1.21.44
     # via
     #   -r requirements/developer.pip
     #   flintrock
-botocore==1.20.90
+botocore==1.24.44
     # via
     #   -r requirements/developer.pip
     #   boto3
@@ -40,7 +40,7 @@ cffi==1.15.0
     #   pynacl
 charset-normalizer==2.0.12
     # via requests
-click==7.0
+click==7.1.2
     # via
     #   -r requirements/developer.pip
     #   flintrock
@@ -72,7 +72,7 @@ iniconfig==1.1.1
     # via
     #   -r requirements/developer.pip
     #   pytest
-jmespath==0.10.0
+jmespath==1.0.0
     # via
     #   -r requirements/developer.pip
     #   boto3
@@ -138,7 +138,7 @@ python-dateutil==2.8.2
     #   -r requirements/developer.pip
     #   botocore
     #   freezegun
-pyyaml==5.4.1
+pyyaml==6.0
     # via
     #   -r requirements/developer.pip
     #   flintrock
@@ -150,7 +150,7 @@ requests==2.27.1
     #   twine
 requests-toolbelt==0.9.1
     # via twine
-s3transfer==0.4.2
+s3transfer==0.5.2
     # via
     #   -r requirements/developer.pip
     #   boto3

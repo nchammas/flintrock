@@ -12,11 +12,11 @@ bcrypt==3.2.0
     # via
     #   -r requirements/user.pip
     #   paramiko
-boto3==1.17.90
+boto3==1.21.44
     # via
     #   -r requirements/user.pip
     #   flintrock
-botocore==1.20.90
+botocore==1.24.44
     # via
     #   -r requirements/user.pip
     #   boto3
@@ -28,7 +28,7 @@ cffi==1.15.0
     #   bcrypt
     #   cryptography
     #   pynacl
-click==7.0
+click==7.1.2
     # via
     #   -r requirements/user.pip
     #   flintrock
@@ -50,7 +50,7 @@ importlib-metadata==4.11.3
     #   pytest
 iniconfig==1.1.1
     # via pytest
-jmespath==0.10.0
+jmespath==1.0.0
     # via
     #   -r requirements/user.pip
     #   boto3
@@ -92,11 +92,11 @@ python-dateutil==2.8.2
     #   -r requirements/user.pip
     #   botocore
     #   freezegun
-pyyaml==5.4.1
+pyyaml==6.0
     # via
     #   -r requirements/user.pip
     #   flintrock
-s3transfer==0.4.2
+s3transfer==0.5.2
     # via
     #   -r requirements/user.pip
     #   boto3
