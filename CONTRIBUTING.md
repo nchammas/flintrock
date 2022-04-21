@@ -81,7 +81,7 @@ There are a few things you should do before diving in to write a new feature or 
 If you are changing anything about Flintrock's dependencies, be sure to update the compiled requirements using [pip-tools]:
 
 ```
-pip install -U "pip-tools<6"
+pip install -U "pip-tools==6.6.0"
 pip-compile -U requirements/user.in -o requirements/user.pip
 pip-compile -U requirements/developer.in -o requirements/developer.pip
 pip-compile -U requirements/maintainer.in -o requirements/maintainer.pip
