@@ -38,7 +38,7 @@ jobs:
           name: Flintrock Standalone - ${{ matrix.os }}
           path: dist/Flintrock-*-standalone-*.zip
       - uses: actions/upload-artifact@v3
-        if: ${{ matrix.python-version == '3.9' }}
+        if: ${{ matrix.os == 'ubuntu-18.04' && matrix.python-version == '3.9' }}
         with:
           name: Flintrock Wheel
           path: dist/Flintrock-*.whl
