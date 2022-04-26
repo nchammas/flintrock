@@ -15,12 +15,12 @@ jobs:
       matrix:
         os:
           - ubuntu-18.04
-          # - macos-11
+          - macos-11
         python-version:
           - "3.7"
           - "3.8"
           - "3.9"
-          # - "3.10"
+          - "3.10"
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
     steps:
       - uses: actions/checkout@v3
