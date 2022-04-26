@@ -1,3 +1,5 @@
+import os
+
 # External modules
 import pytest
 
@@ -131,6 +133,11 @@ def test_mutually_exclusive():
             scope=locals())
 
 
+@pytest.mark.xfail(
+    reason="This may fail on CI with HTTP Error 403: rate limit exceeded.",
+    raises=Exception,
+    condition=(os.environ.get('CI') == 'true'),
+)
 def test_get_latest_commit():
     sha = get_latest_commit("https://github.com/apache/spark")
     assert len(sha) == 40
