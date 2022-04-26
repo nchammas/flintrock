@@ -1,0 +1,30 @@
+name: flintrock
+
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        python-version:
+        - "3.7"
+        - "3.8"
+        - "3.9"
+        - "3.10"
+    name: Python ${{ matrix.python-version }}
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+        architecture: x64
+    - run: "pip install -r requirements/maintainer.pip"
+    - run: "pytest"
