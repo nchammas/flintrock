@@ -33,7 +33,9 @@ jobs:
       - run: "pytest"
       - uses: actions/upload-artifact@v3
         with:
-          name: Flintrock Distribution
-          path: |
-            dist/*.zip
-            dist/*.whl
+          name: Flintrock Standalone Distribution
+          path: dist/Flintrock-*-standalone-*.zip
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Flintrock Wheel
+          path: dist/Flintrock-*.whl
