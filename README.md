@@ -1,7 +1,7 @@
 ![Flintrock logo](https://raw.githubusercontent.com/nchammas/flintrock/master/flintrock-logo.png)
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/nchammas/flintrock/blob/master/LICENSE)
-[![Build Status](https://img.shields.io/travis/nchammas/flintrock/master.svg)](https://travis-ci.org/nchammas/flintrock)
+[![Build Status](https://github.com/nchammas/flintrock/actions/workflows/flintrock.yaml/badge.svg)](https://github.com/nchammas/flintrock/actions)
 
 Flintrock is a command-line tool for launching [Apache Spark](http://spark.apache.org/) clusters.
 
