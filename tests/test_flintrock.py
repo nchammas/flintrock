@@ -133,11 +133,6 @@ def test_mutually_exclusive():
             scope=locals())
 
 
-@pytest.mark.xfail(
-    reason="This test often fails on Travis CI for unknown reasons.",
-    raises=Exception,
-    condition=(os.environ.get('TRAVIS') == 'true'),
-)
 def test_get_latest_commit():
     sha = get_latest_commit("https://github.com/apache/spark")
     assert len(sha) == 40
