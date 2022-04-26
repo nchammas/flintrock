@@ -10,21 +10,24 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os:
+          - ubuntu-18.04
+          - macos-11.6
         python-version:
-        - "3.7"
-        - "3.8"
-        - "3.9"
-        # - "3.10"
-    name: Python ${{ matrix.python-version }}
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          # - "3.10"
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-        architecture: x64
-    - run: "pip install -r requirements/maintainer.pip"
-    - run: "pytest"
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+      - run: "pip install -r requirements/maintainer.pip"
+      - run: "pytest"
