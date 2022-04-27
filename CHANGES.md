@@ -4,7 +4,11 @@
 
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v2.0.0...master
 
-Nothing notable yet.
+### Changed
+
+* [#348]: Bumped default Spark to 3.2; dropped support for Python 3.6; added CI build for Python 3.10.
+
+[#348]: https://github.com/nchammas/flintrock/pull/348
 
 ## [2.0.0] - 2021-06-10
 
