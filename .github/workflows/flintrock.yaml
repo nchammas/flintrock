@@ -15,12 +15,12 @@ jobs:
       matrix:
         os:
           - ubuntu-18.04
-          # - macos-11
+          - macos-11
         python-version:
           - "3.7"
           - "3.8"
           - "3.9"
-          # - "3.10"
+          - "3.10"
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
     steps:
       - uses: actions/checkout@v3
@@ -33,10 +33,12 @@ jobs:
       - run: "pytest"
       - run: python setup.py sdist bdist_wheel
       - uses: actions/upload-artifact@v3
+        if: ${{ matrix.python-version == '3.9' }}
         with:
           name: Flintrock Standalone - ${{ matrix.os }}
           path: dist/Flintrock-*-standalone-*.zip
       - uses: actions/upload-artifact@v3
+        if: ${{ matrix.os == 'ubuntu-18.04' && matrix.python-version == '3.9' }}
         with:
           name: Flintrock Wheel
           path: dist/Flintrock-*.whl

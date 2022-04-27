@@ -16,7 +16,7 @@ setuptools.setup(
     author='Nicholas Chammas',
     author_email='nicholas.chammas@gmail.com',
     license='Apache License 2.0',
-    python_requires='>= 3.6',
+    python_requires='>= 3.7',
 
     # See: https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
@@ -47,11 +47,11 @@ setuptools.setup(
     # totally break Flintrock.
     # For example: https://github.com/paramiko/paramiko/issues/615
     install_requires=[
-        'boto3 == 1.17.90',
-        'botocore == 1.20.90',
-        'click == 7.0',
-        'paramiko == 2.7.2',
-        'PyYAML == 5.4.1',
+        'boto3 == 1.21.44',
+        'botocore == 1.24.44',
+        'click == 7.1.2',
+        'paramiko == 2.10.3',
+        'PyYAML == 6.0',
         # This is to address reports that PyInstaller-packaged versions
         # of Flintrock intermittently fail due to an out-of-date version
         # of Cryptography being used.

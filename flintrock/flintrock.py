@@ -279,7 +279,7 @@ def cli(cli_context, config, provider, debug):
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--java-version', type=click.IntRange(min=8), default=11)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
-@click.option('--hdfs-version', default='3.3.0')
+@click.option('--hdfs-version', default='3.3.2')
 @click.option('--hdfs-download-source',
               help=(
                   "URL to download Hadoop from. If an S3 URL, Flintrock will use the "

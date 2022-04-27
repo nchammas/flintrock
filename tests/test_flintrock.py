@@ -1,3 +1,5 @@
+import os
+
 # External modules
 import pytest
 
@@ -131,6 +133,11 @@ def test_mutually_exclusive():
             scope=locals())
 
 
+@pytest.mark.xfail(
+    reason="This may fail on CI with HTTP Error 403: rate limit exceeded.",
+    raises=Exception,
+    condition=(os.environ.get('CI') == 'true'),
+)
 def test_get_latest_commit():
     sha = get_latest_commit("https://github.com/apache/spark")
     assert len(sha) == 40
@@ -150,8 +157,8 @@ def test_get_latest_commit():
     raises=Error,
 )
 def test_validate_valid_download_source():
-    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-3.3.0/hadoop-3.3.0.tar.gz")
-    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-3.1.2/spark-3.1.2-bin-hadoop3.2.tgz")
+    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-3.3.2/hadoop-3.3.2.tar.gz")
+    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-3.2.1/spark-3.2.1-bin-hadoop3.2.tgz")
 
 
 def test_validate_invalid_download_source():
