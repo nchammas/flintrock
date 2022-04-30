@@ -845,13 +845,16 @@ def launch(
         key_name,
         identity_file,
         instance_type,
+        master_instance_type,
         region,
         availability_zone,
         ami,
         user,
         security_groups,
         spot_price=None,
+        master_spot_price=None,
         spot_request_duration=None,
+        master_spot_request_duration=None,
         min_root_ebs_size_gb,
         vpc_id,
         subnet_id,
@@ -923,29 +926,44 @@ def launch(
     else:
         user_data = ''
 
-    try:
-        cluster_instances = _create_instances(
-            num_instances=num_instances,
-            region=region,
-            spot_price=spot_price,
-            spot_request_valid_until=duration_to_expiration(spot_request_duration),
-            ami=ami,
-            assume_yes=assume_yes,
-            key_name=key_name,
-            instance_type=instance_type,
-            block_device_mappings=block_device_mappings,
-            availability_zone=availability_zone,
-            placement_group=placement_group,
-            tenancy=tenancy,
-            security_group_ids=security_group_ids,
-            subnet_id=subnet_id,
-            instance_profile_arn=instance_profile_arn,
-            ebs_optimized=ebs_optimized,
-            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
-            user_data=user_data)
+    create_cluster_instances = functools.partial(
+        _create_instances,
+        region=region,
+        ami=ami,
+        assume_yes=assume_yes,
+        key_name=key_name,
+        block_device_mappings=block_device_mappings,
+        availability_zone=availability_zone,
+        placement_group=placement_group,
+        tenancy=tenancy,
+        security_group_ids=security_group_ids,
+        subnet_id=subnet_id,
+        instance_profile_arn=instance_profile_arn,
+        ebs_optimized=ebs_optimized,
+        instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
+        user_data=user_data)
 
-        master_instance = cluster_instances[0]
-        slave_instances = cluster_instances[1:]
+    try:
+        if master_instance_type:
+            master_instances = create_cluster_instances(
+                num_instances=1,
+                spot_price=master_spot_price,
+                spot_request_valid_until=duration_to_expiration(master_spot_request_duration),
+                instance_type=master_instance_type)
+            slave_instances = create_cluster_instances(
+                num_instances=num_slaves,
+                spot_price=spot_price,
+                spot_request_valid_until=duration_to_expiration(spot_request_duration),
+                instance_type=instance_type)
+            master_instance = master_instances[0]
+        else:
+            cluster_instances = create_cluster_instances(
+                num_instances=num_instances,
+                spot_price=spot_price,
+                spot_request_valid_until=duration_to_expiration(spot_request_duration),
+                instance_type=instance_type)
+            master_instance = cluster_instances[0]
+            slave_instances = cluster_instances[1:]
 
         master_tags = [
             {'Key': 'flintrock-role', 'Value': 'master'},

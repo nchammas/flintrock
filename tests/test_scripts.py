@@ -25,7 +25,7 @@ def tgz_file(request):
     return tgz_file_name
 
 
-@pytest.mark.parametrize('python', ['python', 'python2'])
+@pytest.mark.parametrize('python', ['python', 'python3'])
 def test_download_package(python, project_root_dir, tgz_file):
     with tempfile.TemporaryDirectory() as temp_dir:
         subprocess.run(
