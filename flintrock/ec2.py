@@ -810,6 +810,7 @@ def _create_instances(
             cluster_instances = ec2.create_instances(
                 MinCount=num_instances,
                 MaxCount=num_instances,
+                # Shutdown Behavior is specific to on-demand instances.
                 InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior,
                 **common_launch_specs,
             )
