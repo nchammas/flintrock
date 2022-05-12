@@ -707,25 +707,27 @@ def get_ec2_block_device_mappings(
 
 
 def _create_instances(
-        *,
-        num_instances,
-        region,
-        spot_price,
-        spot_request_valid_until,
-        ami,
-        assume_yes,
-        key_name,
-        instance_type,
-        block_device_mappings,
-        availability_zone,
-        placement_group,
-        tenancy,
-        security_group_ids,
-        subnet_id,
-        instance_profile_arn,
-        ebs_optimized,
-        instance_initiated_shutdown_behavior,
-        user_data) -> 'List[boto3.resources.factory.ec2.Instance]':
+    *,
+    num_instances,
+    region,
+    spot_price,
+    spot_request_valid_until,
+    ami,
+    assume_yes,
+    key_name,
+    instance_type,
+    block_device_mappings,
+    availability_zone,
+    placement_group,
+    tenancy,
+    security_group_ids,
+    subnet_id,
+    instance_profile_arn,
+    ebs_optimized,
+    instance_initiated_shutdown_behavior,
+    user_data,
+    tag_specifications,
+) -> 'List[boto3.resources.factory.ec2.Instance]':
     ec2 = boto3.resource(service_name='ec2', region_name=region)
 
     cluster_instances = []
@@ -745,17 +747,12 @@ def _create_instances(
         'IamInstanceProfile': {'Arn': instance_profile_arn},
         'EbsOptimized': ebs_optimized,
         'UserData': user_data,
-        # 'TagSpecifications': [
-        #     {
-        #         'ResourceType': 'instance',
-        #         'Tags': [
-        #             {
-        #                 'Key': 'string',
-        #                 'Value': 'string',
-        #             },
-        #         ]
-        #     },
-        # ],
+        'TagSpecifications': [
+            {
+                'ResourceType': 'instance',
+                'Tags': tag_specifications,
+            },
+        ],
     }
 
     try:
@@ -931,53 +928,44 @@ def launch(
     else:
         user_data = ''
 
+    common_instance_spec = {
+        'region': region,
+        'spot_price': spot_price,
+        'spot_request_valid_until': duration_to_expiration(spot_request_duration),
+        'ami': ami,
+        'assume_yes': assume_yes,
+        'key_name': key_name,
+        'instance_type': instance_type,
+        'block_device_mappings': block_device_mappings,
+        'availability_zone': availability_zone,
+        'placement_group': placement_group,
+        'tenancy': tenancy,
+        'security_group_ids': security_group_ids,
+        'subnet_id': subnet_id,
+        'instance_profile_arn': instance_profile_arn,
+        'ebs_optimized': ebs_optimized,
+        'instance_initiated_shutdown_behavior': instance_initiated_shutdown_behavior,
+        'user_data': user_data,
+    }
+
+    master_instance = None
+    slave_instances = []
+    cluster = None
+
+    master_tags = _tag_specs(cluster_name, 'master', tags)
+    slave_tags = _tag_specs(cluster_name, 'slave', tags)
+
     try:
-        cluster_instances = _create_instances(
-            num_instances=num_instances,
-            region=region,
-            spot_price=spot_price,
-            spot_request_valid_until=duration_to_expiration(spot_request_duration),
-            ami=ami,
-            assume_yes=assume_yes,
-            key_name=key_name,
-            instance_type=instance_type,
-            block_device_mappings=block_device_mappings,
-            availability_zone=availability_zone,
-            placement_group=placement_group,
-            tenancy=tenancy,
-            security_group_ids=security_group_ids,
-            subnet_id=subnet_id,
-            instance_profile_arn=instance_profile_arn,
-            ebs_optimized=ebs_optimized,
-            instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
-            user_data=user_data)
-
-        master_instance = cluster_instances[0]
-        slave_instances = cluster_instances[1:]
-
-        master_tags = [
-            {'Key': 'flintrock-role', 'Value': 'master'},
-            {'Key': 'Name', 'Value': '{c}-master'.format(c=cluster_name)}]
-        master_tags += tags
-
-        (ec2.instances
-            .filter(
-                Filters=[
-                    {'Name': 'instance-id', 'Values': [master_instance.id]}
-                ])
-            .create_tags(Tags=master_tags))
-
-        slave_tags = [
-            {'Key': 'flintrock-role', 'Value': 'slave'},
-            {'Key': 'Name', 'Value': '{c}-slave'.format(c=cluster_name)}]
-        slave_tags += tags
-
-        (ec2.instances
-            .filter(
-                Filters=[
-                    {'Name': 'instance-id', 'Values': [i.id for i in slave_instances]}
-                ])
-            .create_tags(Tags=slave_tags))
+        master_instance = _create_instances(
+            num_instances=1,
+            tag_specifications=master_tags,
+            **common_instance_spec,
+        )[0]
+        slave_instances = _create_instances(
+            num_instances=num_slaves,
+            tag_specifications=slave_tags,
+            **common_instance_spec,
+        )
 
         cluster = EC2Cluster(
             name=cluster_name,
