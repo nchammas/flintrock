@@ -726,6 +726,33 @@ def _create_instances(
 
     cluster_instances = []
     spot_requests = []
+    common_launch_specs = {
+        'ImageId': ami,
+        'KeyName': key_name,
+        'InstanceType': instance_type,
+        'BlockDeviceMappings': block_device_mappings,
+        'Placement': {
+            'AvailabilityZone': availability_zone,
+            'Tenancy': tenancy,
+            'GroupName': placement_group,
+        },
+        'SecurityGroupIds': security_group_ids,
+        'SubnetId': subnet_id,
+        'IamInstanceProfile': {'Arn': instance_profile_arn},
+        'EbsOptimized': ebs_optimized,
+        'UserData': user_data,
+        # 'TagSpecifications': [
+        #     {
+        #         'ResourceType': 'instance',
+        #         'Tags': [
+        #             {
+        #                 'Key': 'string',
+        #                 'Value': 'string',
+        #             },
+        #         ]
+        #     },
+        # ],
+    }
 
     try:
         if spot_price:
@@ -737,20 +764,8 @@ def _create_instances(
                 SpotPrice=str(spot_price),
                 InstanceCount=num_instances,
                 ValidUntil=spot_request_valid_until,
-                LaunchSpecification={
-                    'ImageId': ami,
-                    'KeyName': key_name,
-                    'InstanceType': instance_type,
-                    'BlockDeviceMappings': block_device_mappings,
-                    'Placement': {
-                        'AvailabilityZone': availability_zone,
-                        'GroupName': placement_group},
-                    'SecurityGroupIds': security_group_ids,
-                    'SubnetId': subnet_id,
-                    'IamInstanceProfile': {
-                        'Arn': instance_profile_arn},
-                    'EbsOptimized': ebs_optimized,
-                    'UserData': user_data})['SpotInstanceRequests']
+                LaunchSpecification=common_launch_specs,
+            )['SpotInstanceRequests']
 
             request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
             pending_request_ids = request_ids
@@ -794,21 +809,9 @@ def _create_instances(
             cluster_instances = ec2.create_instances(
                 MinCount=num_instances,
                 MaxCount=num_instances,
-                ImageId=ami,
-                KeyName=key_name,
-                InstanceType=instance_type,
-                BlockDeviceMappings=block_device_mappings,
-                Placement={
-                    'AvailabilityZone': availability_zone,
-                    'Tenancy': tenancy,
-                    'GroupName': placement_group},
-                SecurityGroupIds=security_group_ids,
-                SubnetId=subnet_id,
-                IamInstanceProfile={
-                    'Arn': instance_profile_arn},
-                EbsOptimized=ebs_optimized,
                 InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior,
-                UserData=user_data)
+                **common_launch_specs,
+            )
         time.sleep(10)  # AWS metadata eventual consistency tax.
         return cluster_instances
     except (Exception, KeyboardInterrupt) as e:
