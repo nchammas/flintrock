@@ -7,6 +7,7 @@ import base64
 import logging
 from ipaddress import IPv4Network
 from datetime import datetime
+from typing import List, Tuple
 
 # External modules
 import boto3
@@ -1126,7 +1127,8 @@ def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:
 
 
 def _get_cluster_master_slaves(
-        instances: list) -> ('boto3.resources.factory.ec2.Instance', list):
+    instances: list
+) -> 'Tuple[boto3.resources.factory.ec2.Instance, List[boto3.resources.factory.ec2.Instance]]':
     """
     Get the master and slave instances from a set of raw EC2 instances representing
     a Flintrock cluster.
