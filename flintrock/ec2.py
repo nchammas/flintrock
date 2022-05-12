@@ -1024,17 +1024,20 @@ def get_clusters(*, cluster_names: list=[], region: str, vpc_id: str) -> list:
     if not vpc_id:
         vpc_id = get_default_vpc(region=region).id
 
+    # Since tags are assigned on creation and never removed by us (e.g. like how we remove
+    # security groups during a destroy operation), we can rely on them to find clusters.
     if cluster_names:
-        group_name_filter = ['flintrock-' + cn for cn in cluster_names]
+        cluster_name_filter = [{'Name': 'tag:flintrock-name', 'Values': cluster_names}]
     else:
-        group_name_filter = ['flintrock']
+        cluster_name_filter = []
 
     all_clusters_instances = list(
         ec2.instances.filter(
             Filters=[
-                {'Name': 'instance-state-name', 'Values': ['pending', 'running', 'stopping', 'stopped']},
-                {'Name': 'instance.group-name', 'Values': group_name_filter},
                 {'Name': 'vpc-id', 'Values': [vpc_id]},
+                {'Name': 'instance-state-name', 'Values': ['pending', 'running', 'stopping', 'stopped']},
+                {'Name': 'instance.group-name', 'Values': ['flintrock']},
+                *cluster_name_filter,
             ]))
 
     found_cluster_names = {
@@ -1113,15 +1116,24 @@ def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:
     """
     Given an EC2 instance, get the name of the Flintrock cluster it belongs to.
     """
-    for group in instance.security_groups:
-        if group['GroupName'].startswith('flintrock-'):
-            return group['GroupName'].replace('flintrock-', '', 1)
-    else:
-        raise Exception("Could not extract cluster name from instance: {i}".format(
-            i=instance.id))
+    instance_tags = _ec2_tags_to_dict(instance.tags)
+    if 'flintrock-name' not in instance_tags:
+        raise Exception(
+            f"Could not extract cluster name from instance: {instance.id}"
+        )
+    return instance_tags['flintrock-name']
 
 
-def ec2_tags_to_dict(ec2_tags: list) -> dict:
+def _tag_specs(cluster_name: str, role: str, user_tags: dict) -> dict:
+    return [
+        {'Key': 'flintrock-name', 'Value': cluster_name},
+        {'Key': 'flintrock-role', 'Value': role},
+        {'Key': 'Name', 'Value': f'{cluster_name}-{role}'},
+        *user_tags,
+    ]
+
+
+def _ec2_tags_to_dict(ec2_tags: list) -> dict:
     return {
         tag['Key']: tag['Value']
         for tag in ec2_tags
@@ -1137,13 +1149,9 @@ def _get_cluster_master_slaves(
     """
     master_instance = None
     slave_instances = []
-    untagged_instances = []
 
     for instance in instances:
-        tags = ec2_tags_to_dict(instance.tags)
-        if 'flintrock-role' not in tags:
-            untagged_instances.append(instance)
-            continue
+        tags = _ec2_tags_to_dict(instance.tags)
         role = tags['flintrock-role']
         if role == 'master':
             if master_instance is not None:
@@ -1155,14 +1163,7 @@ def _get_cluster_master_slaves(
         else:
             raise Exception(f"Unrecognized Flintrock role: {role}")
 
-    if untagged_instances:
-        print(
-            "Warning: Some instances are not tagged with a flintrock-role. "
-            "Returning them as slaves.",
-            file=sys.stderr,
-        )
-
-    return (master_instance, slave_instances + untagged_instances)
+    return (master_instance, slave_instances)
 
 
 def _compose_cluster(*, name: str, region: str, vpc_id: str, instances: list) -> EC2Cluster:
