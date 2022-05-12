@@ -83,9 +83,13 @@ class EC2Cluster(FlintrockCluster):
 
     @property
     @functools.lru_cache()
-    def private_network(self):
+    def private_network(self) -> bool:
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
-        return not ec2.Subnet(self.master_instance.subnet_id).map_public_ip_on_launch
+        if self.master_instance:
+            reference_instance = self.master_instance
+        else:
+            reference_instance = self.slave_instances[0]
+        return not ec2.Subnet(reference_instance.subnet_id).map_public_ip_on_launch
 
     @property
     def master_ip(self):
@@ -1129,6 +1133,13 @@ def _get_cluster_name(instance: 'boto3.resources.factory.ec2.Instance') -> str:
             i=instance.id))
 
 
+def ec2_tags_to_dict(ec2_tags: list) -> dict:
+    return {
+        tag['Key']: tag['Value']
+        for tag in ec2_tags
+    }
+
+
 def _get_cluster_master_slaves(
     instances: list
 ) -> 'Tuple[boto3.resources.factory.ec2.Instance, List[boto3.resources.factory.ec2.Instance]]':
@@ -1138,29 +1149,32 @@ def _get_cluster_master_slaves(
     """
     master_instance = None
     slave_instances = []
+    untagged_instances = []
 
     for instance in instances:
-        if not instance.tags:
-            # TODO: Better handle malformed clusters with missing tags.
-            # See: https://github.com/nchammas/flintrock/issues/183
+        tags = ec2_tags_to_dict(instance.tags)
+        if 'flintrock-role' not in tags:
+            untagged_instances.append(instance)
             continue
-        for tag in instance.tags:
-            if tag['Key'] == 'flintrock-role':
-                if tag['Value'] == 'master':
-                    if master_instance is not None:
-                        raise Exception("More than one master found.")
-                    else:
-                        master_instance = instance
-                        break
-                elif tag['Value'] == 'slave':
-                    slave_instances.append(instance)
+        role = tags['flintrock-role']
+        if role == 'master':
+            if master_instance is not None:
+                raise Exception("More than one master found.")
+            else:
+                master_instance = instance
+        elif role == 'slave':
+            slave_instances.append(instance)
+        else:
+            raise Exception(f"Unrecognized Flintrock role: {role}")
 
-    # if not master_instance:
-    #     print("Warning: No master found.", file=sys.stderr)
-    # elif not slave_instances:
-    #     print("Warning: No slaves found.", file=sys.stderr)
+    if untagged_instances:
+        print(
+            "Warning: Some instances are not tagged with a flintrock-role. "
+            "Returning them as slaves.",
+            file=sys.stderr,
+        )
 
-    return (master_instance, slave_instances)
+    return (master_instance, slave_instances + untagged_instances)
 
 
 def _compose_cluster(*, name: str, region: str, vpc_id: str, instances: list) -> EC2Cluster:
