@@ -7,6 +7,9 @@ import base64
 import logging
 from collections import namedtuple
 from datetime import datetime
+import json
+from os.path import exists
+from os import makedirs, getenv
 
 # External modules
 import boto3
@@ -26,6 +29,8 @@ from .exceptions import (
 )
 from .ssh import generate_ssh_key_pair
 
+# get a folder_log_path from env variable
+folder_log_path = getenv('LOG_FOLDER')
 
 logger = logging.getLogger('flintrock.ec2')
 
@@ -683,6 +688,30 @@ def get_ec2_block_device_mappings(
 
     return block_device_mappings
 
+def create_json_log_file(file_name, json_content):
+    try:
+        # verifiy if the folder path is not empty
+        if folder_log_path:
+            # check if the folder exists and if not create it
+            folderExist = exists(folder_log_path)
+
+            if folderExist != True:
+                makedirs(folder_log_path)
+
+            # create a file_path var to store the full path of the file
+            file_path = folder_log_path + "/" + file_name
+        else:
+            file_path = file_name
+
+        jsonString = json.dumps(json_content, default=str)
+        jsonFile = open(file_path, "w")
+        jsonFile.truncate()
+        jsonFile.write(jsonString)
+        jsonFile.close()
+    except Exception as e:
+        logger.info("Error to create log file name {0}".format(file_path))
+        pass
+
 
 def _create_instances(
         *,
@@ -702,7 +731,8 @@ def _create_instances(
         instance_profile_arn,
         ebs_optimized,
         instance_initiated_shutdown_behavior,
-        user_data) -> 'List[boto3.resources.factory.ec2.Instance]':
+        user_data,
+        cluster_name='ADD_SLAVE') -> 'List[boto3.resources.factory.ec2.Instance]':
     ec2 = boto3.resource(service_name='ec2', region_name=region)
 
     cluster_instances = []
@@ -731,6 +761,9 @@ def _create_instances(
                         'Arn': instance_profile_arn},
                     'EbsOptimized': ebs_optimized,
                     'UserData': user_data})['SpotInstanceRequests']
+
+            # Create a json file with the request spot instance returns
+            create_json_log_file('{0}.json'.format(cluster_name), spot_requests)
 
             request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
             pending_request_ids = request_ids
@@ -917,7 +950,8 @@ def launch(
             instance_profile_arn=instance_profile_arn,
             ebs_optimized=ebs_optimized,
             instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
-            user_data=user_data)
+            user_data=user_data,
+            cluster_name=cluster_name)
 
         master_instance = cluster_instances[0]
         slave_instances = cluster_instances[1:]
