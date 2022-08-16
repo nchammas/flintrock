@@ -25,12 +25,11 @@ def tgz_file(request):
     return tgz_file_name
 
 
-@pytest.mark.parametrize('python', ['python', 'python2'])
-def test_download_package(python, project_root_dir, tgz_file):
+def test_download_package(project_root_dir, tgz_file):
     with tempfile.TemporaryDirectory() as temp_dir:
         subprocess.run(
             [
-                python,
+                'python',
                 os.path.join(project_root_dir, 'flintrock/scripts/download-package.py'),
                 'file://' + tgz_file,
                 temp_dir,
