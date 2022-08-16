@@ -10,15 +10,15 @@ altgraph==0.17.2
     # via
     #   macholib
     #   pyinstaller
-attrs==21.4.0
+attrs==22.1.0
     # via
     #   -r requirements/developer.pip
     #   pytest
-bcrypt==3.2.0
+bcrypt==3.2.2
     # via
     #   -r requirements/developer.pip
     #   paramiko
-bleach==5.0.0
+bleach==5.0.1
     # via readme-renderer
 boto3==1.21.44
     # via
@@ -30,32 +30,32 @@ botocore==1.24.44
     #   boto3
     #   flintrock
     #   s3transfer
-certifi==2021.10.8
+certifi==2022.6.15
     # via requests
-cffi==1.15.0
+cffi==1.15.1
     # via
     #   -r requirements/developer.pip
     #   bcrypt
     #   cryptography
     #   pynacl
-charset-normalizer==2.0.12
+charset-normalizer==2.1.0
     # via requests
 click==7.1.2
     # via
     #   -r requirements/developer.pip
     #   flintrock
-colorama==0.4.4
+colorama==0.4.5
     # via twine
-coverage[toml]==6.3.2
+coverage[toml]==6.4.3
     # via
     #   -r requirements/developer.pip
     #   pytest-cov
-cryptography==36.0.2
+cryptography==37.0.4
     # via
     #   -r requirements/developer.pip
     #   flintrock
     #   paramiko
-docutils==0.18.1
+docutils==0.19
     # via readme-renderer
 flake8==3.8.4
     # via -r requirements/developer.pip
@@ -63,7 +63,7 @@ freezegun==1.1.0
     # via -r requirements/developer.pip
 idna==3.3
     # via requests
-importlib-metadata==4.11.3
+importlib-metadata==4.12.0
     # via
     #   -r requirements/developer.pip
     #   flake8
@@ -76,12 +76,12 @@ iniconfig==1.1.1
     # via
     #   -r requirements/developer.pip
     #   pytest
-jmespath==1.0.0
+jmespath==1.0.1
     # via
     #   -r requirements/developer.pip
     #   boto3
     #   botocore
-keyring==23.5.0
+keyring==23.8.2
     # via twine
 macholib==1.16
     # via pyinstaller
@@ -93,11 +93,11 @@ packaging==21.3
     # via
     #   -r requirements/developer.pip
     #   pytest
-paramiko==2.10.3
+paramiko==2.11.0
     # via
     #   -r requirements/developer.pip
     #   flintrock
-pkginfo==1.8.2
+pkginfo==1.8.3
     # via twine
 pluggy==1.0.0
     # via
@@ -121,19 +121,19 @@ pyflakes==2.2.0
     #   flake8
 pygments==2.12.0
     # via readme-renderer
-pyinstaller==4.10
+pyinstaller==5.3
     # via -r requirements/maintainer.in
-pyinstaller-hooks-contrib==2022.4
+pyinstaller-hooks-contrib==2022.8
     # via pyinstaller
 pynacl==1.5.0
     # via
     #   -r requirements/developer.pip
     #   paramiko
-pyparsing==3.0.8
+pyparsing==3.0.9
     # via
     #   -r requirements/developer.pip
     #   packaging
-pytest==7.1.1
+pytest==7.1.2
     # via
     #   -r requirements/developer.pip
     #   pytest-cov
@@ -148,9 +148,9 @@ pyyaml==6.0
     # via
     #   -r requirements/developer.pip
     #   flintrock
-readme-renderer==35.0
+readme-renderer==36.0
     # via twine
-requests==2.27.1
+requests==2.28.1
     # via
     #   requests-toolbelt
     #   twine
@@ -165,7 +165,6 @@ s3transfer==0.5.2
 six==1.16.0
     # via
     #   -r requirements/developer.pip
-    #   bcrypt
     #   bleach
     #   paramiko
     #   python-dateutil
@@ -178,11 +177,11 @@ tqdm==4.64.0
     # via twine
 twine==3.8.0
     # via -r requirements/maintainer.in
-typing-extensions==4.2.0
+typing-extensions==4.3.0
     # via
     #   -r requirements/developer.pip
     #   importlib-metadata
-urllib3==1.26.9
+urllib3==1.26.11
     # via
     #   -r requirements/developer.pip
     #   botocore
@@ -192,7 +191,7 @@ webencodings==0.5.1
     # via bleach
 wheel==0.37.1
     # via -r requirements/maintainer.in
-zipp==3.8.0
+zipp==3.8.1
     # via
     #   -r requirements/developer.pip
     #   importlib-metadata
