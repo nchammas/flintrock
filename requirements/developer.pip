@@ -6,9 +6,9 @@
 #
 -e file:.#egg=Flintrock
     # via -r requirements/user.pip
-attrs==21.4.0
+attrs==22.1.0
     # via pytest
-bcrypt==3.2.0
+bcrypt==3.2.2
     # via
     #   -r requirements/user.pip
     #   paramiko
@@ -22,7 +22,7 @@ botocore==1.24.44
     #   boto3
     #   flintrock
     #   s3transfer
-cffi==1.15.0
+cffi==1.15.1
     # via
     #   -r requirements/user.pip
     #   bcrypt
@@ -32,9 +32,9 @@ click==7.1.2
     # via
     #   -r requirements/user.pip
     #   flintrock
-coverage[toml]==6.3.2
+coverage[toml]==6.4.3
     # via pytest-cov
-cryptography==36.0.2
+cryptography==37.0.4
     # via
     #   -r requirements/user.pip
     #   flintrock
@@ -43,14 +43,14 @@ flake8==3.8.4
     # via -r requirements/developer.in
 freezegun==1.1.0
     # via -r requirements/developer.in
-importlib-metadata==4.11.3
+importlib-metadata==4.12.0
     # via
     #   flake8
     #   pluggy
     #   pytest
 iniconfig==1.1.1
     # via pytest
-jmespath==1.0.0
+jmespath==1.0.1
     # via
     #   -r requirements/user.pip
     #   boto3
@@ -59,7 +59,7 @@ mccabe==0.6.1
     # via flake8
 packaging==21.3
     # via pytest
-paramiko==2.10.3
+paramiko==2.11.0
     # via
     #   -r requirements/user.pip
     #   flintrock
@@ -79,9 +79,9 @@ pynacl==1.5.0
     # via
     #   -r requirements/user.pip
     #   paramiko
-pyparsing==3.0.8
+pyparsing==3.0.9
     # via packaging
-pytest==7.1.1
+pytest==7.1.2
     # via
     #   -r requirements/developer.in
     #   pytest-cov
@@ -103,18 +103,17 @@ s3transfer==0.5.2
 six==1.16.0
     # via
     #   -r requirements/user.pip
-    #   bcrypt
     #   paramiko
     #   python-dateutil
 tomli==2.0.1
     # via
     #   coverage
     #   pytest
-typing-extensions==4.2.0
+typing-extensions==4.3.0
     # via importlib-metadata
-urllib3==1.26.9
+urllib3==1.26.11
     # via
     #   -r requirements/user.pip
     #   botocore
-zipp==3.8.0
+zipp==3.8.1
     # via importlib-metadata
