@@ -192,6 +192,14 @@ def build_spark_download_url(ctx, param, value):
     spark_version = ctx.params['spark_version']
     hadoop_version = ctx.params['hdfs_version']
     hadoop_build_version = spark_hadoop_build_version(hadoop_version)
+
+    # Starting in Spark 3.3.0, the build artifact naming scheme changed a bit.
+    # Instead of 'hadoop3.2', for example, that part now reads 'hadoop3'.
+    if spark_version:
+        spark_version_tuple = tuple(map(int, spark_version.split('.')))
+        if spark_version_tuple >= (3, 3, 0):
+            hadoop_build_version = hadoop_build_version.split('.')[0]
+
     if value.endswith('.gz') or value.endswith('.tgz'):
         logger.warning(
             "Spark download source appears to point to a file, not a directory. "
@@ -279,7 +287,7 @@ def cli(cli_context, config, provider, debug):
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--java-version', type=click.IntRange(min=8), default=11)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
-@click.option('--hdfs-version', default='3.3.2')
+@click.option('--hdfs-version', default='3.3.4')
 @click.option('--hdfs-download-source',
               help=(
                   "URL to download Hadoop from. If an S3 URL, Flintrock will use the "
