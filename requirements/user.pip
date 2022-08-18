@@ -6,7 +6,7 @@
 #
 -e file:.#egg=Flintrock
     # via -r requirements/user.in
-bcrypt==3.2.0
+bcrypt==3.2.2
     # via paramiko
 boto3==1.21.44
     # via flintrock
@@ -15,22 +15,22 @@ botocore==1.24.44
     #   boto3
     #   flintrock
     #   s3transfer
-cffi==1.15.0
+cffi==1.15.1
     # via
     #   bcrypt
     #   cryptography
     #   pynacl
 click==7.1.2
     # via flintrock
-cryptography==36.0.2
+cryptography==37.0.4
     # via
     #   flintrock
     #   paramiko
-jmespath==1.0.0
+jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-paramiko==2.10.3
+paramiko==2.11.0
     # via flintrock
 pycparser==2.21
     # via cffi
@@ -44,8 +44,7 @@ s3transfer==0.5.2
     # via boto3
 six==1.16.0
     # via
-    #   bcrypt
     #   paramiko
     #   python-dateutil
-urllib3==1.26.9
+urllib3==1.26.11
     # via botocore
