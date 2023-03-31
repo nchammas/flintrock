@@ -632,6 +632,17 @@ def setup_node(
     Cluster methods like provision_node() and add_slaves_node() should
     delegate the main work of setting up new nodes to this function.
     """
+    # TODO: Move Python and Java setup to new service under services.py.
+    #       New service to cover Python/Scala/Java: LanguageRuntimes (name?)
+    ssh_check_output(
+        client=ssh_client,
+        command=(
+            """
+            set -e
+            sudo yum install -y python3 python
+            """
+        )
+    )
     host = ssh_client.get_transport().getpeername()[0]
     ssh_check_output(
         client=ssh_client,
@@ -666,17 +677,6 @@ def setup_node(
     cluster.storage_dirs.root = storage_dirs['root']
     cluster.storage_dirs.ephemeral = storage_dirs['ephemeral']
 
-    # TODO: Move Python and Java setup to new service under services.py.
-    #       New service to cover Python/Scala/Java: LanguageRuntimes (name?)
-    ssh_check_output(
-        client=ssh_client,
-        command=(
-            """
-            set -e
-            sudo yum install -y python3
-            """
-        )
-    )
     ensure_java(ssh_client, java_version)
 
     for service in services:
