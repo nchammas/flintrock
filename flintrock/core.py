@@ -573,15 +573,15 @@ def ensure_java(client: paramiko.client.SSHClient, java_version: int):
 
     if installed_java_version and installed_java_version < java_version:
         logger.info("""
-                Existing Java {j} will be upgraded to AdoptOpenJDK {java_version}
+                Existing Java {j} will be upgraded to Adoptium OpenJDK {java_version}
                 """.format(j=installed_java_version, java_version=java_version))
 
-    # We will install AdoptOpenJDK because it gives us access to Java 8 through 15
+    # We will install Adoptium OpenJDK because it gives us access to Java 8 through 15
     # Right now, Amazon Extras only provides Corretto Java 8, 11 and 15
-    logger.info("[{h}] Installing AdoptOpenJDK Java {j}...".format(h=host, j=java_version))
+    logger.info("[{h}] Installing Adoptium OpenJDK Java {j}...".format(h=host, j=java_version))
 
-    install_adoptopenjdk_repo(client)
-    java_package = "adoptopenjdk-{j}-hotspot".format(j=java_version)
+    install_adoptium_repo(client)
+    java_package = "temurin-{j}-jdk".format(j=java_version)
     ssh_check_output(
         client=client,
         command="""
@@ -600,19 +600,19 @@ def ensure_java(client: paramiko.client.SSHClient, java_version: int):
         """.format(jp=java_package))
 
 
-def install_adoptopenjdk_repo(client):
+def install_adoptium_repo(client):
     """
-    Installs the adoptopenjdk.repo file into /etc/yum.repos.d/
+    Installs the adoptium.repo file into /etc/yum.repos.d/
     """
     with client.open_sftp() as sftp:
         sftp.put(
-            localpath=os.path.join(SCRIPTS_DIR, 'adoptopenjdk.repo'),
-            remotepath='/tmp/adoptopenjdk.repo')
+            localpath=os.path.join(SCRIPTS_DIR, 'adoptium.repo'),
+            remotepath='/tmp/adoptium.repo')
     ssh_check_output(
         client=client,
         command="""
             # Use sudo to install the repo file
-            sudo mv /tmp/adoptopenjdk.repo /etc/yum.repos.d/
+            sudo mv /tmp/adoptium.repo /etc/yum.repos.d/
         """
     )
 
