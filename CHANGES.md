@@ -7,8 +7,10 @@
 ### Changed
 
 * [#348]: Bumped default Spark to 3.2; dropped support for Python 3.6; added CI build for Python 3.10.
+* [#361]: Migrated from AdoptOpenJDK, which is deprecated, to Adoptium Open JDK.
 
 [#348]: https://github.com/nchammas/flintrock/pull/348
+[#361]: https://github.com/nchammas/flintrock/pull/361
 
 ## [2.0.0] - 2021-06-10
 
