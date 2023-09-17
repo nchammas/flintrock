@@ -1,0 +1,8 @@
+# Source: https://adoptium.net/installation/linux/#_centosrhelfedora_instructions
+
+[Adoptium]
+name=Adoptium
+baseurl=https://packages.adoptium.net/artifactory/rpm/amazonlinux/$releasever/$basearch
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.adoptium.net/artifactory/api/gpg/key/public

@@ -1,6 +1,0 @@
-[AdoptOpenJDK]
-name=AdoptOpenJDK
-baseurl=http://adoptopenjdk.jfrog.io/adoptopenjdk/rpm/centos/8/$basearch
-enabled=1
-gpgcheck=1
-gpgkey=https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public
