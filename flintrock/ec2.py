@@ -338,6 +338,7 @@ class EC2Cluster(FlintrockCluster):
                 user_data=user_data,
                 tag_specifications=_tag_specs(self.name, 'slave', tags),
             )
+            time.sleep(3)
 
             existing_slaves = self.slave_ips
 
@@ -804,9 +805,6 @@ def _create_instances(
                 InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior,
                 **common_launch_specs,
             )
-        # AWS metadata eventual consistency tax.
-        # Do we need such a long wait here?
-        time.sleep(3)
         return cluster_instances
     except (Exception, KeyboardInterrupt) as e:
         if not isinstance(e, KeyboardInterrupt):
@@ -960,6 +958,7 @@ def launch(
             tag_specifications=slave_tags,
             **common_instance_spec,
         )
+        time.sleep(3)
 
         cluster = EC2Cluster(
             name=cluster_name,
