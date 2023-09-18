@@ -269,16 +269,17 @@ class EC2Cluster(FlintrockCluster):
 
     @timeit
     def add_slaves(
-            self,
-            *,
-            user: str,
-            identity_file: str,
-            num_slaves: int,
-            spot_price: float,
-            spot_request_duration: str,
-            min_root_ebs_size_gb: int,
-            tags: list,
-            assume_yes: bool):
+        self,
+        *,
+        user: str,
+        identity_file: str,
+        num_slaves: int,
+        spot_price: float,
+        spot_request_duration: str,
+        min_root_ebs_size_gb: int,
+        tags: list,
+        assume_yes: bool,
+    ):
         security_group_ids = [
             group['GroupId']
             for group in self.master_instance.security_groups]
