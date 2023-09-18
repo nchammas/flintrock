@@ -335,19 +335,9 @@ class EC2Cluster(FlintrockCluster):
                 instance_profile_arn=instance_profile_arn,
                 ebs_optimized=self.master_instance.ebs_optimized,
                 instance_initiated_shutdown_behavior=instance_initiated_shutdown_behavior,
-                user_data=user_data)
-
-            slave_tags = [
-                {'Key': 'flintrock-role', 'Value': 'slave'},
-                {'Key': 'Name', 'Value': '{c}-slave'.format(c=self.name)}]
-            slave_tags += tags
-
-            (ec2.instances
-                .filter(
-                    Filters=[
-                        {'Name': 'instance-id', 'Values': [i.id for i in new_slave_instances]}
-                    ])
-                .create_tags(Tags=slave_tags))
+                user_data=user_data,
+                tag_specifications=_tag_specs(self.name, 'slave', tags),
+            )
 
             existing_slaves = self.slave_ips
 
@@ -807,8 +797,6 @@ def _create_instances(
                 c=num_instances,
                 s='' if num_instances == 1 else 's'))
 
-            # TODO: If an exception is raised in here, some instances may be
-            #       left stranded.
             cluster_instances = ec2.create_instances(
                 MinCount=num_instances,
                 MaxCount=num_instances,
@@ -953,6 +941,8 @@ def launch(
         'user_data': user_data,
     }
 
+    # We initialize these like this so that if the launch operation fails we have
+    # references we can use for cleanup.
     master_instance = None
     slave_instances = []
     cluster = None
@@ -991,15 +981,19 @@ def launch(
 
         return cluster
     except (Exception, KeyboardInterrupt) as e:
-        if isinstance(e, InterruptedEC2Operation):
-            cleanup_instances = e.instances
-        else:
-            # TODO: There is no guarantee that cluster_instances is
-            #       defined.
-            # See: https://github.com/nchammas/flintrock/issues/183
-            cleanup_instances = cluster_instances
+        # If the interruption happens right after a request to create instances is
+        # made, we may not find all cluster nodes here. There is a small delay between
+        # when a create request is sent and when a subsequent call will see the results.
+        # This sleep works around that small delay. Is there a way to guarantee
+        # read-after-write consistency here?
+        time.sleep(1)
+        cluster = get_cluster(
+            cluster_name=cluster_name,
+            region=region,
+            vpc_id=vpc_id,
+        )
         _cleanup_instances(
-            instances=cleanup_instances,
+            instances=cluster.instances,
             assume_yes=assume_yes,
             region=region,
         )
@@ -1029,8 +1023,9 @@ def get_clusters(*, cluster_names: list=[], region: str, vpc_id: str) -> list:
     if not vpc_id:
         vpc_id = get_default_vpc(region=region).id
 
-    # Since tags are assigned on creation and never removed by us (e.g. like how we remove
-    # security groups during a destroy operation), we can rely on them to find clusters.
+    # Since tags are assigned on creation and never removed by us (in contrast to how we
+    # remove security groups during a destroy operation), we can rely on them to find
+    # clusters.
     if cluster_names:
         cluster_name_filter = [{'Name': 'tag:flintrock-name', 'Values': cluster_names}]
     else:
