@@ -793,11 +793,6 @@ def _create_instances(
                         {'Name': 'instance-id', 'Values': [r['InstanceId'] for r in spot_requests]}
                     ]))
         else:
-            # Move this to flintrock.py?
-            logger.info("Launching {c} instance{s}...".format(
-                c=num_instances,
-                s='' if num_instances == 1 else 's'))
-
             cluster_instances = ec2.create_instances(
                 MinCount=num_instances,
                 MaxCount=num_instances,
