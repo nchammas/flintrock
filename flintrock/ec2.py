@@ -195,6 +195,7 @@ class EC2Cluster(FlintrockCluster):
         for instance in self.instances:
             instance.modify_attribute(
                 Groups=[flintrock_base_group.id])
+        time.sleep(1)
 
         # TODO: Centralize logic to get cluster security group name from cluster name.
         cluster_group = list(
@@ -814,7 +815,9 @@ def _create_instances(
                 InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior,
                 **common_launch_specs,
             )
-        time.sleep(10)  # AWS metadata eventual consistency tax.
+        # AWS metadata eventual consistency tax.
+        # Do we need such a long wait here?
+        time.sleep(3)
         return cluster_instances
     except (Exception, KeyboardInterrupt) as e:
         if not isinstance(e, KeyboardInterrupt):
