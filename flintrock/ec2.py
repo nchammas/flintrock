@@ -915,7 +915,6 @@ def launch(
     else:
         instance_profile_arn = ''
 
-    num_instances = num_slaves + 1
     if user_data is not None:
         user_data = user_data.read()
     else:
