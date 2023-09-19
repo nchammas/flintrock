@@ -275,6 +275,7 @@ class EC2Cluster(FlintrockCluster):
         num_slaves: int,
         spot_price: float,
         min_root_ebs_size_gb: int,
+        ebs_volume_type: str,
         tags: list,
         assume_yes: bool,
     ):
@@ -283,6 +284,7 @@ class EC2Cluster(FlintrockCluster):
             for group in self.master_instance.security_groups]
         block_device_mappings = get_ec2_block_device_mappings(
             min_root_ebs_size_gb=min_root_ebs_size_gb,
+            ebs_volume_type=ebs_volume_type,
             ami=self.master_instance.image_id,
             region=self.region)
         availability_zone = self.master_instance.placement['AvailabilityZone']
@@ -648,6 +650,7 @@ def get_or_create_flintrock_security_groups(
 def get_ec2_block_device_mappings(
         *,
         min_root_ebs_size_gb: int,
+        ebs_volume_type: str,
         ami: str,
         region: str) -> 'List[dict]':
     """
@@ -683,7 +686,7 @@ def get_ec2_block_device_mappings(
                 # of a root instance store volume.
                 'VolumeSize': min_root_ebs_size_gb,
                 # gp2 is general-purpose SSD
-                'VolumeType': 'gp2'})
+                'VolumeType': ebs_volume_type})
         del root_device['Ebs']['Encrypted']
         block_device_mappings.append(root_device)
 
@@ -793,6 +796,7 @@ def launch(
         security_groups,
         spot_price=None,
         min_root_ebs_size_gb,
+        ebs_volume_type,
         vpc_id,
         subnet_id,
         instance_profile_name,
@@ -843,6 +847,7 @@ def launch(
     security_group_ids = [sg.id for sg in user_security_groups + flintrock_security_groups]
     block_device_mappings = get_ec2_block_device_mappings(
         min_root_ebs_size_gb=min_root_ebs_size_gb,
+        ebs_volume_type=ebs_volume_type,
         ami=ami,
         region=region)
 

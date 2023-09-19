@@ -353,6 +353,7 @@ def cli(cli_context, config, provider, debug):
 @click.option('--ec2-spot-request-duration',
               help="(DEPRECATED) Duration a spot request is valid (e.g. 3d 2h 1m).")
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
+@click.option('--ec2-ebs-volume-type', default='gp2')
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-subnet-id', default='')
 @click.option('--ec2-instance-profile-name', default='')
@@ -406,6 +407,7 @@ def launch(
         ec2_spot_price,
         ec2_spot_request_duration,
         ec2_min_root_ebs_size_gb,
+        ec2_ebs_volume_type,
         ec2_vpc_id,
         ec2_subnet_id,
         ec2_instance_profile_name,
@@ -520,6 +522,7 @@ def launch(
             security_groups=ec2_security_groups,
             spot_price=ec2_spot_price,
             min_root_ebs_size_gb=ec2_min_root_ebs_size_gb,
+            ebs_volume_type=ec2_ebs_volume_type,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
             instance_profile_name=ec2_instance_profile_name,
@@ -797,6 +800,7 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
 @click.option('--ec2-spot-request-duration',
               help="(DEPRECATED) Duration a spot request is valid (e.g. 3d 2h 1m).")
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
+@click.option('--ec2-ebs-volume-type', default='gp2')
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-tag', 'ec2_tags',
               callback=ec2.cli_validate_tags,
@@ -815,6 +819,7 @@ def add_slaves(
         ec2_spot_price,
         ec2_spot_request_duration,
         ec2_min_root_ebs_size_gb,
+        ec2_ebs_volume_type,
         ec2_tags,
         assume_yes):
     """
@@ -850,6 +855,7 @@ def add_slaves(
         identity_file = ec2_identity_file
         provider_options = {
             'min_root_ebs_size_gb': ec2_min_root_ebs_size_gb,
+            'ebs_volume_type': ec2_ebs_volume_type,
             'spot_price': ec2_spot_price,
             'tags': ec2_tags
         }
