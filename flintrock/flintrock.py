@@ -490,6 +490,11 @@ def launch(
             )
         services += [spark]
 
+    logger.info(
+        "Launching 1 master and {n} slave{s}...".format(
+            n=num_slaves,
+            s='' if num_slaves == 1 else 's',
+        ))
     if provider == 'ec2':
         cluster = ec2.launch(
             cluster_name=cluster_name,
@@ -822,6 +827,11 @@ def add_slaves(
             '--ec2-user'],
         scope=locals())
 
+    logger.info(
+        "Launching {n} slave{s}...".format(
+            n=num_slaves,
+            s='' if num_slaves == 1 else 's',
+        ))
     if provider == 'ec2':
         cluster = ec2.get_cluster(
             cluster_name=cluster_name,
