@@ -724,7 +724,6 @@ def _create_instances(
     ec2 = boto3.resource(service_name='ec2', region_name=region)
 
     cluster_instances = []
-    spot_requests = []
     common_launch_specs = {
         'ImageId': ami,
         'KeyName': key_name,
@@ -733,7 +732,6 @@ def _create_instances(
         'Placement': {
             'AvailabilityZone': availability_zone,
             'Tenancy': tenancy,
-            'GroupName': placement_group,
         },
         'SecurityGroupIds': security_group_ids,
         'SubnetId': subnet_id,
@@ -748,80 +746,36 @@ def _create_instances(
         ],
     }
 
+    if spot_price:
+        common_launch_specs.update({
+            'InstanceMarketOptions': {
+                'MarketType': 'spot',
+                'SpotOptions': {
+                    'SpotInstanceType': 'one-time',
+                    'MaxPrice': str(spot_price),
+                    'InstanceInterruptionBehavior': 'terminate',
+                },
+            }
+        })
+    else:
+        common_launch_specs.update({
+            'InstanceInitiatedShutdownBehavior': instance_initiated_shutdown_behavior,
+        })
+        # This can't be part of the previous update because we need a deep merge.
+        common_launch_specs['Placement'].update({
+            'GroupName': placement_group,
+        })
+
     try:
-        if spot_price:
-            user_data = base64.b64encode(user_data.encode('utf-8')).decode()
-            logger.info("Requesting {c} spot instances at a max price of ${p}...".format(
-                c=num_instances, p=spot_price))
-            client = ec2.meta.client
-            spot_requests = client.request_spot_instances(
-                SpotPrice=str(spot_price),
-                InstanceCount=num_instances,
-                ValidUntil=spot_request_valid_until,
-                LaunchSpecification=common_launch_specs,
-            )['SpotInstanceRequests']
-
-            request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
-            pending_request_ids = request_ids
-
-            while pending_request_ids:
-                logger.info("{grant} of {req} instances granted. Waiting...".format(
-                    grant=num_instances - len(pending_request_ids),
-                    req=num_instances))
-                time.sleep(30)
-                spot_requests = client.describe_spot_instance_requests(
-                    SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
-
-                failed_requests = [r for r in spot_requests if r['State'] == 'failed']
-                if failed_requests:
-                    failure_reasons = {r['Status']['Code'] for r in failed_requests}
-                    raise Error(
-                        "The spot request failed for the following reason{s}: {reasons}"
-                        .format(
-                            s='' if len(failure_reasons) == 1 else 's',
-                            reasons=', '.join(failure_reasons)))
-
-                pending_request_ids = [
-                    r['SpotInstanceRequestId'] for r in spot_requests
-                    if r['State'] == 'open']
-
-            logger.info("All {c} instances granted.".format(c=num_instances))
-
-            cluster_instances = list(
-                ec2.instances.filter(
-                    Filters=[
-                        {'Name': 'instance-id', 'Values': [r['InstanceId'] for r in spot_requests]}
-                    ]))
-        else:
-            cluster_instances = ec2.create_instances(
-                MinCount=num_instances,
-                MaxCount=num_instances,
-                # Shutdown Behavior is specific to on-demand instances.
-                InstanceInitiatedShutdownBehavior=instance_initiated_shutdown_behavior,
-                **common_launch_specs,
-            )
+        cluster_instances = ec2.create_instances(
+            MinCount=num_instances,
+            MaxCount=num_instances,
+            **common_launch_specs,
+        )
         return cluster_instances
     except (Exception, KeyboardInterrupt) as e:
         if not isinstance(e, KeyboardInterrupt):
             print(e, file=sys.stderr)
-        if spot_requests:
-            request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
-            if any([r['State'] != 'active' for r in spot_requests]):
-                print("Canceling spot instance requests...", file=sys.stderr)
-                client.cancel_spot_instance_requests(
-                    SpotInstanceRequestIds=request_ids)
-            # Make sure we have the latest information on any launched spot instances.
-            spot_requests = client.describe_spot_instance_requests(
-                SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
-            instance_ids = [
-                r['InstanceId'] for r in spot_requests
-                if 'InstanceId' in r]
-            if instance_ids:
-                cluster_instances = list(
-                    ec2.instances.filter(
-                        Filters=[
-                            {'Name': 'instance-id', 'Values': instance_ids}
-                        ]))
         raise InterruptedEC2Operation(instances=cluster_instances) from e
 
 
