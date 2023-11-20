@@ -41,7 +41,8 @@ else:
 
 EC2_SPOT_REQUEST_DURATION_DEPRECATION_MESSAGE = (
     "Deprecation: --ec2-spot-request-duration is deprecated. One-time spot instances do "
-    "not support a request duration. For more information see: XXXXXXXX-TODO-XXXXXXXX"
+    "not support a request duration. "
+    "For more information see: https://github.com/nchammas/flintrock/pull/366"
 )
 
 logger = logging.getLogger('flintrock.flintrock')
