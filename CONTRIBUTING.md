@@ -83,16 +83,20 @@ If you are changing anything about Flintrock's dependencies, be sure to update t
 [pip-tools]: https://github.com/jazzband/pip-tools
 
 ```shell
-pip install -U "pip-tools==7.3.0"
+function update-deps() {
+    pip install -U "pip-tools==7.3.0"
 
-pip-compile -U requirements/user.in -o requirements/user.pip
-pip-compile -U requirements/developer.in -o requirements/developer.pip
-pip-compile -U requirements/maintainer.in -o requirements/maintainer.pip
+    pip-compile -U requirements/user.in -o requirements/user.pip
+    pip-compile -U requirements/developer.in -o requirements/developer.pip
+    pip-compile -U requirements/maintainer.in -o requirements/maintainer.pip
 
-# Uncomment whichever set of requirements makes sense for you.
-# pip-sync requirements/user.pip
-# pip-sync requirements/developer.pip
-# pip-sync requirements/maintainer.pip
+    # Uncomment whichever set of requirements makes sense for you.
+    # pip-sync requirements/user.pip
+    # pip-sync requirements/developer.pip
+    # pip-sync requirements/maintainer.pip
+}
+
+update-deps
 ```
 
 `pip-compile` takes the provided set of input requirements, like `user.in` and compiles them into a full list of pinned transitive dependencies, like `user.pip`. This is similar to a lock file. `pip-sync` ensures that the current active virtual environment has exactly the dependencies listed in the provided pip file, no more and no less.
