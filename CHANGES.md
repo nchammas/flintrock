@@ -8,11 +8,13 @@
 
 * [#348]: Bumped default Spark to 3.2; dropped support for Python 3.6; added CI build for Python 3.10.
 * [#361]: Migrated from AdoptOpenJDK, which is deprecated, to Adoptium OpenJDK.
-* [#362]: Improved Flintrock's ability to cleanup after launch failures.
+* [#362][#366]: Improved Flintrock's ability to cleanup after launch failures.
+* [#366]: Deprecated `--ec2-spot-request-duration`, which is not needed for one-time spot instances launched using the RunInstances API.
 
 [#348]: https://github.com/nchammas/flintrock/pull/348
 [#361]: https://github.com/nchammas/flintrock/pull/361
 [#362]: https://github.com/nchammas/flintrock/pull/362
+[#366]: https://github.com/nchammas/flintrock/pull/366
 
 ## [2.0.0] - 2021-06-10
 

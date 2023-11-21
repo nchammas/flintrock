@@ -39,6 +39,11 @@ if FROZEN:
 else:
     THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
+EC2_SPOT_REQUEST_DURATION_DEPRECATION_MESSAGE = (
+    "Deprecation: --ec2-spot-request-duration is deprecated. One-time spot instances do "
+    "not support a request duration. "
+    "For more information see: https://github.com/nchammas/flintrock/pull/366"
+)
 
 logger = logging.getLogger('flintrock.flintrock')
 
@@ -345,8 +350,8 @@ def cli(cli_context, config, provider, debug):
               help="Additional security groups names to assign to the instances. "
                    "You can specify this option multiple times.")
 @click.option('--ec2-spot-price', type=float)
-@click.option('--ec2-spot-request-duration', default='7d',
-              help="Duration a spot request is valid (e.g. 3d 2h 1m).")
+@click.option('--ec2-spot-request-duration',
+              help="(DEPRECATED) Duration a spot request is valid (e.g. 3d 2h 1m).")
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--ec2-vpc-id', default='', help="Leave empty for default VPC.")
 @click.option('--ec2-subnet-id', default='')
@@ -414,6 +419,9 @@ def launch(
     """
     Launch a new cluster.
     """
+    if ec2_spot_request_duration:
+        logger.warning(EC2_SPOT_REQUEST_DURATION_DEPRECATION_MESSAGE)
+
     provider = cli_context.obj['provider']
     services = []
 
@@ -511,7 +519,6 @@ def launch(
             user=ec2_user,
             security_groups=ec2_security_groups,
             spot_price=ec2_spot_price,
-            spot_request_duration=ec2_spot_request_duration,
             min_root_ebs_size_gb=ec2_min_root_ebs_size_gb,
             vpc_id=ec2_vpc_id,
             subnet_id=ec2_subnet_id,
@@ -787,8 +794,8 @@ def stop(cli_context, cluster_name, ec2_region, ec2_vpc_id, assume_yes):
               help="Path to SSH .pem file for accessing nodes.")
 @click.option('--ec2-user')
 @click.option('--ec2-spot-price', type=float)
-@click.option('--ec2-spot-request-duration', default='7d',
-              help="Duration a spot request is valid (e.g. 3d 2h 1m).")
+@click.option('--ec2-spot-request-duration',
+              help="(DEPRECATED) Duration a spot request is valid (e.g. 3d 2h 1m).")
 @click.option('--ec2-min-root-ebs-size-gb', type=int, default=30)
 @click.option('--assume-yes/--no-assume-yes', default=False)
 @click.option('--ec2-tag', 'ec2_tags',
@@ -816,6 +823,8 @@ def add_slaves(
     Flintrock will configure new slaves based on information queried
     automatically from the master.
     """
+    if ec2_spot_request_duration:
+        logger.warning(EC2_SPOT_REQUEST_DURATION_DEPRECATION_MESSAGE)
     provider = cli_context.obj['provider']
 
     option_requires(
@@ -842,7 +851,6 @@ def add_slaves(
         provider_options = {
             'min_root_ebs_size_gb': ec2_min_root_ebs_size_gb,
             'spot_price': ec2_spot_price,
-            'spot_request_duration': ec2_spot_request_duration,
             'tags': ec2_tags
         }
     else:
