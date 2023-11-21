@@ -1,4 +1,4 @@
 -r developer.pip
 wheel >= 0.31.0
 twine == 4.0.2
-PyInstaller == 5.3
+PyInstaller == 6.2.0
