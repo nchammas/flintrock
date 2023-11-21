@@ -19,7 +19,7 @@ def test_validate_tags():
 
     for test_case in positive_test_cases:
         ec2_tags = validate_tags(test_case[0])
-        assert(isinstance(ec2_tags, list))
+        assert isinstance(ec2_tags, list)
         for i, ec2_tag in enumerate(ec2_tags):
             expected_dict = test_case[1][i]
             for k in expected_dict:

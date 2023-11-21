@@ -15,6 +15,7 @@ from flintrock.flintrock import (
     mutually_exclusive,
     get_latest_commit,
     validate_download_source,
+    normalize_keys,
 )
 
 
@@ -164,3 +165,23 @@ def test_validate_valid_download_source():
 def test_validate_invalid_download_source():
     with pytest.raises(Error):
         validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-invalid-version/hadoop-invalid-version.tar.gz")
+
+
+def test_normalize_keys():
+    config_file_settings = {
+        "java-version": 11,
+        "ec2": {
+            "spot-price": 0.05,
+            "key-name": "key.pem",
+        },
+        "tags": ["name, test-cluster"],
+    }
+    cli_settings = {
+        "java_version": 11,
+        "ec2": {
+            "spot_price": 0.05,
+            "key_name": "key.pem",
+        },
+        "tags": ["name, test-cluster"],
+    }
+    assert normalize_keys(config_file_settings) == cli_settings

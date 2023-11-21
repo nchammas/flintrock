@@ -1121,10 +1121,13 @@ def normalize_keys(obj):
     """
     Used to map keys from config files to Python parameter names.
     """
-    if type(obj) != dict:
+    if not isinstance(obj, dict):
         return obj
     else:
-        return {k.replace('-', '_'): normalize_keys(v) for k, v in obj.items()}
+        return {
+            k.replace('-', '_'): normalize_keys(v)
+            for k, v in obj.items()
+        }
 
 
 def config_to_click(config: dict) -> dict:
