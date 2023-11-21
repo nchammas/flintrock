@@ -6,7 +6,7 @@ The instructions here assume the following things:
 
 1. You've read through our [guide on contributing code](../CONTRIBUTING.md#contributing-code) and installed Flintrock's development dependencies.
 2. You're working from Flintrock's root directory.
-3. You're running Python 3.7+.
+3. You're running Python 3.8+.
 4. You've already setup your Flintrock config file and can launch clusters.
 
 To run all of Flintrock's tests that don't require AWS credentials, just run:
