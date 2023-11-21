@@ -80,30 +80,22 @@ There are a few things you should do before diving in to write a new feature or 
 
 If you are changing anything about Flintrock's dependencies, be sure to update the compiled requirements using [pip-tools]:
 
-```shell
-function update-deps() {
-    pip install -U "pip-tools==6.8.0"
-
-    pip-compile -U requirements/user.in -o requirements/user.pip
-    pip-compile -U requirements/developer.in -o requirements/developer.pip
-    pip-compile -U requirements/maintainer.in -o requirements/maintainer.pip
-
-    # Uncomment whichever set of requirements makes sense for you.
-    # pip-sync requirements/user.pip
-    # pip-sync requirements/developer.pip
-    pip-sync requirements/maintainer.pip
-}
-
-update-deps
-```
-
-After doing that, make sure your environment matches what's in the compiled requirements by running `pip-sync` against the appropriate requirements file:
-
-```
-pip-sync requirements/[user|developer|maintainer].pip
-```
-
 [pip-tools]: https://github.com/jazzband/pip-tools
+
+```shell
+pip install -U "pip-tools==7.3.0"
+
+pip-compile -U requirements/user.in -o requirements/user.pip
+pip-compile -U requirements/developer.in -o requirements/developer.pip
+pip-compile -U requirements/maintainer.in -o requirements/maintainer.pip
+
+# Uncomment whichever set of requirements makes sense for you.
+# pip-sync requirements/user.pip
+# pip-sync requirements/developer.pip
+# pip-sync requirements/maintainer.pip
+```
+
+`pip-compile` takes the provided set of input requirements, like `user.in` and compiles them into a full list of pinned transitive dependencies, like `user.pip`. This is similar to a lock file. `pip-sync` ensures that the current active virtual environment has exactly the dependencies listed in the provided pip file, no more and no less.
 
 #### Coordinate first
 
