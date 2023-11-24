@@ -292,7 +292,7 @@ def cli(cli_context, config, provider, debug):
 @click.option('--num-slaves', type=click.IntRange(min=1), required=True)
 @click.option('--java-version', type=click.IntRange(min=8), default=11)
 @click.option('--install-hdfs/--no-install-hdfs', default=False)
-@click.option('--hdfs-version', default='3.3.4')
+@click.option('--hdfs-version', default='3.3.6')
 @click.option('--hdfs-download-source',
               help=(
                   "URL to download Hadoop from. If an S3 URL, Flintrock will use the "
@@ -1121,10 +1121,13 @@ def normalize_keys(obj):
     """
     Used to map keys from config files to Python parameter names.
     """
-    if type(obj) != dict:
+    if not isinstance(obj, dict):
         return obj
     else:
-        return {k.replace('-', '_'): normalize_keys(v) for k, v in obj.items()}
+        return {
+            k.replace('-', '_'): normalize_keys(v)
+            for k, v in obj.items()
+        }
 
 
 def config_to_click(config: dict) -> dict:

@@ -15,6 +15,7 @@ from flintrock.flintrock import (
     mutually_exclusive,
     get_latest_commit,
     validate_download_source,
+    normalize_keys,
 )
 
 
@@ -157,10 +158,30 @@ def test_get_latest_commit():
     raises=Error,
 )
 def test_validate_valid_download_source():
-    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-3.3.4/hadoop-3.3.4.tar.gz")
-    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-3.3.0/spark-3.3.0-bin-hadoop3.tgz")
+    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz")
+    validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=spark/spark-3.5.0/spark-3.5.0-bin-hadoop3.tgz")
 
 
 def test_validate_invalid_download_source():
     with pytest.raises(Error):
         validate_download_source("https://www.apache.org/dyn/closer.lua?action=download&filename=hadoop/common/hadoop-invalid-version/hadoop-invalid-version.tar.gz")
+
+
+def test_normalize_keys():
+    config_file_settings = {
+        "java-version": 11,
+        "ec2": {
+            "spot-price": 0.05,
+            "key-name": "key.pem",
+        },
+        "tags": ["name, test-cluster"],
+    }
+    cli_settings = {
+        "java_version": 11,
+        "ec2": {
+            "spot_price": 0.05,
+            "key_name": "key.pem",
+        },
+        "tags": ["name, test-cluster"],
+    }
+    assert normalize_keys(config_file_settings) == cli_settings

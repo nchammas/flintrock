@@ -1,6 +1,6 @@
 services:
   spark:
-    version: 3.3.0
+    version: 3.5.0
     # git-commit: latest  # if not 'latest', provide a full commit SHA; e.g. d6dc12ef0146ae409834c78737c116050961f350
     # git-repository:  # optional; defaults to https://github.com/apache/spark
     # optional; defaults to download from a dynamically selected Apache mirror
@@ -12,7 +12,7 @@ services:
     # download-source: "s3://some-bucket/spark/{v}/"
     # executor-instances: 1
   hdfs:
-    version: 3.3.4
+    version: 3.3.6
     # optional; defaults to download from a dynamically selected Apache mirror
     #   - can be http, https, or s3 URL
     #   - must contain a {v} template corresponding to the version
