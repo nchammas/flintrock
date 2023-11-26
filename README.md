@@ -123,10 +123,17 @@ without too much trouble, too.
 
 ### Release version
 
-To get the latest release of Flintrock, simply run [pip](https://pip.pypa.io/en/stable/):
+To get the latest release of Flintrock, simply install it with [pip][pip].
+
+Since Flintrock is a command-line application rather than a library, you may prefer to
+install it using [pipx][pipx], which automatically takes care of installing Flintrock to
+an isolated virtual environment for you.
+
+[pip]: https://pip.pypa.io/en/stable/
+[pipx]: https://pypa.github.io/pipx/
 
 ```
-pip3 install flintrock
+pipx install flintrock
 ```
 
 This will install Flintrock and place it on your path. You should be good to go now!
@@ -150,10 +157,12 @@ unzip it to a location of your choice, and run the `flintrock` executable inside
 For example:
 
 ```sh
-flintrock_version="2.0.0"
+flintrock_version="2.1.0"
+download_file="Flintrock-$flintrock_version-standalone-macOS-x86_64.zip"
+download_url="https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/$download_file"
 
-curl --location --remote-name "https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/Flintrock-$flintrock_version-standalone-macOS-x86_64.zip"
-unzip -q -d flintrock "Flintrock-$flintrock_version-standalone-macOS-x86_64.zip"
+curl --location --remote-name "$download_url"
+unzip -q -d flintrock "$download_file"
 cd flintrock/
 
 # You're good to go!
@@ -175,7 +184,7 @@ These packages are not supported by the core contributors and **may be out of da
 If you like living on the edge, install the development version of Flintrock:
 
 ```sh
-pip3 install git+https://github.com/nchammas/flintrock
+pipx install git+https://github.com/nchammas/flintrock
 ```
 
 If you want to [contribute](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md), follow the instructions in our contributing guide on [how to install Flintrock](https://github.com/nchammas/flintrock/blob/master/CONTRIBUTING.md#contributing-code).
@@ -203,17 +212,17 @@ There are some things that Flintrock specifically *does not* support.
 
 Flintrock is not for managing long-lived clusters, or any infrastructure that serves as a permanent part of some environment.
 
-  For starters, Flintrock provides no guarantee that clusters launched with one version of Flintrock can be managed by another version of Flintrock, and no considerations are made for any long-term use cases.
+For starters, Flintrock provides no guarantee that clusters launched with one version of Flintrock can be managed by another version of Flintrock, and no considerations are made for any long-term use cases.
 
-  If you are looking for ways to manage permanent infrastructure, look at tools like [Terraform](https://www.terraform.io/), [Ansible](http://www.ansible.com/), [SaltStack](http://saltstack.com/), or [Ubuntu Juju](http://www.ubuntu.com/cloud/tools/juju). You might also find a service like [Databricks](https://databricks.com/product/databricks) useful if you're looking for someone else to host and manage Spark for you. Amazon also offers [Spark on EMR](https://aws.amazon.com/elasticmapreduce/details/spark/).
+If you are looking for ways to manage permanent infrastructure, look at tools like [Terraform](https://www.terraform.io/), [Ansible](http://www.ansible.com/), or [Ubuntu Juju](http://www.ubuntu.com/cloud/tools/juju). You might also find a service like [Databricks](https://databricks.com/product/databricks) useful if you're looking for someone else to host and manage Spark for you. Amazon also offers [Spark on EMR](https://aws.amazon.com/elasticmapreduce/details/spark/).
 
 ### Launching non-Spark-related services
 
-Flintrock is meant for launching Spark clusters that include closely related services like HDFS, Mesos, and YARN.
+Flintrock is meant for launching Spark clusters that include closely related services like HDFS.
 
-  Flintrock is not for launching external datasources (e.g. Cassandra), or other services that are not closely integrated with Spark (e.g. Tez).
+Flintrock is not for launching external datasources (e.g. Cassandra), or other services that are not closely integrated with Spark (e.g. Tez).
 
-  If you are looking for an easy way to launch other services from the Hadoop ecosystem, look at the [Apache Bigtop](http://bigtop.apache.org/) project.
+If you are looking for an easy way to launch other services from the Hadoop ecosystem, look at the [Apache Bigtop](http://bigtop.apache.org/) project.
 
 ### Launching out-of-date services
 
@@ -283,29 +292,7 @@ flintrock launch test-cluster \
 
 ### Fast Launches
 
-Flintrock is really fast. This is how quickly it can launch fully operational clusters on EC2 compared to [spark-ec2](https://github.com/amplab/spark-ec2).
-
-#### Setup
-
-* Provider: EC2
-* Instance type: `m3.large`
-* AMI:
-    * Flintrock: [Default Amazon Linux AMI](https://aws.amazon.com/amazon-linux-ami/)
-    * spark-ec2: [Custom spark-ec2 AMI](https://github.com/amplab/spark-ec2/tree/a990752575cd8b0ab25731d7820a55c714798ec3/ami-list)
-* Spark/Hadoop download source: S3
-* Launch time: Best of 6 tries
-
-#### Results
-
-| Cluster Size  | Flintrock Launch Time |  spark-ec2 Launch Time  |
-|---------------|----------------------:|------------------------:|
-| 1 slave       | 2m 06s                |     8m 44s              |
-| 50 slaves     | 2m 30s                |    37m 30s              |
-| 100 slaves    | 2m 42s                | 1h 06m 05s              |
-
-The spark-ec2 launch times are sourced from [SPARK-5189](https://issues.apache.org/jira/browse/SPARK-5189).
-
-Note that AWS performance is highly variable, so you will not get these results consistently. They show the best case scenario for each tool, and not the typical case. For Flintrock, the typical launch time will be a minute or two longer.
+Flintrock is really fast. It can launch a 100-node cluster in about three minutes (give or take a few seconds due to AWS's normal performance variability).
 
 ### Advanced Storage Setup
 
@@ -330,7 +317,7 @@ Flintrock is built and tested against vanilla Amazon Linux and CentOS. You can e
 
 Supporting multiple versions of anything is tough. There's more surface area to cover for testing, and over the long term the maintenance burden of supporting something non-current with bug fixes and workarounds really adds up.
 
-There are projects that support stuff across a wide cut of language or API versions. For example, Spark supports Java 7 and 8, and Python 2.6+ and 3+. The people behind these projects are gods. They take on an immense maintenance burden for the benefit and convenience of their users.
+There are projects that support stuff across a wide cut of language or API versions. For example, Spark supports multiple versions of Java, Scala, R, and Python. The people behind these projects are gods. They take on an immense maintenance burden for the benefit and convenience of their users.
 
 We here at project Flintrock are much more modest in our abilities. We are best able to serve the project over the long term when we limit ourselves to supporting a small but widely applicable set of configurations.
 
