@@ -22,9 +22,7 @@ cffi==1.16.0
 click==8.1.7
     # via flintrock
 cryptography==41.0.5
-    # via
-    #   flintrock
-    #   paramiko
+    # via paramiko
 jmespath==1.0.1
     # via
     #   boto3
