@@ -30,7 +30,7 @@ providers:
     instance-type: m5.large
     region: us-east-1
     # availability-zone: <name>
-    ami: ami-0cabc39acf991f4f1  # Amazon Linux 2, us-east-1
+    ami: ami-0588935a949f9ff17  # Amazon Linux 2, us-east-1
     user: ec2-user
     # ami: ami-61bbf104  # CentOS 7, us-east-1
     # user: centos
