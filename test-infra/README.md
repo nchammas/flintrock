@@ -4,9 +4,12 @@ The Terraform templates in this directory manage private VPC infrastructure that
 
 ## Set Up
 
-To spin up a private VPC along with associated infrastructure like a NAT gateway:
+After [installing Terraform][install], you can spin up a private VPC along with associated infrastructure like a NAT gateway:
 
-```
+[install]: https://developer.hashicorp.com/terraform/install
+
+```sh
+terraform init
 terraform apply
 ```
 
@@ -36,6 +39,7 @@ All you need to do is pick a version of Flintrock to install and then you can be
 pip install https://github.com/nchammas/flintrock/archive/master.zip
 flintrock launch test-cluster
 flintrock login test-cluster
+flintrock destroy test-cluster
 ```
 
 ## Tear Down
