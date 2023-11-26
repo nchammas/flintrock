@@ -6,4 +6,4 @@
 #     See: https://caremad.io/2013/07/setup-vs-requirement/
 #   - The #egg= syntax is a workaround for pip-tools.
 #     See: https://github.com/jazzband/pip-tools/issues/204#issuecomment-550051424
--e file:.#egg=Flintrock
+--editable file:.#egg=Flintrock
