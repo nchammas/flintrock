@@ -11,8 +11,9 @@ aws ec2 describe-images \
         "Name=architecture,Values=x86_64" \
     --query \
         'reverse(sort_by(Images, &CreationDate))[:100].{CreationDate:CreationDate,ImageId:ImageId,Name:Name,Description:Description}'
-#   - Dependencies: https://requires.io/github/nchammas/flintrock/requirements/?branch=master
+#   - Dependencies: pip list --outdated
 # Run full acceptance tests
+#   - Run private VPC tests too
 # Update Flintrock version
 #   - flintrock/__init__.py
 #   - README blurb about standalone version
@@ -26,7 +27,7 @@ aws ec2 describe-images \
 
 trash dist/ build/ Flintrock.egg-info/
 
-python setup.py sdist bdist_wheel
+python -m build
 
 # python setup.py register -r https://testpypi.python.org/pypi
 
@@ -43,8 +44,8 @@ python generate-standalone-package.py
 # Upload release builds to GitHub
 open dist/
 #   - Wheel
-#   - OS X standalone package
-#   - Linux standalone package (published to S3 by CI)
+#   - macOS standalone package (x86 _and_ arm64?)
+#   - Linux standalone package (built by CI)
 # Update version to next.dev0
 
 # ---
