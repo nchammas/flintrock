@@ -17,6 +17,8 @@ jobs:
           - ubuntu-20.04
           - macos-11
         python-version:
+          # Update the artifact upload steps below if modifying
+          # this list of Python versions.
           - "3.8"
           - "3.9"
           - "3.10"
