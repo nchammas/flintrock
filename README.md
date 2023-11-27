@@ -147,29 +147,14 @@ flintrock configure
 
 ### Standalone version (Python not required!)
 
-If you don't have a recent enough version of Python, or if you don't have Python installed at all,
-you can still use Flintrock. We publish standalone packages of Flintrock on GitHub with our
-[releases](https://github.com/nchammas/flintrock/releases).
+We used to publish standalone versions of Flintrock that don't require you to have Python
+installed on your machine. Since Flintrock 2.1.0, we have stopped publishing these
+standalone builds.
 
-Find the standalone package for your OS under our [latest release](https://github.com/nchammas/flintrock/releases/latest),
-unzip it to a location of your choice, and run the `flintrock` executable inside.
+If you used these standalone packages, please [chime in on this issue][standalone] and
+share a bit about your environment and use case.
 
-For example:
-
-```sh
-flintrock_version="2.1.0"
-download_file="Flintrock-$flintrock_version-standalone-macOS-x86_64.zip"
-download_url="https://github.com/nchammas/flintrock/releases/download/v$flintrock_version/$download_file"
-
-curl --location --remote-name "$download_url"
-unzip -q -d flintrock "$download_file"
-cd flintrock/
-
-# You're good to go!
-./flintrock --help
-```
-
-You'll probably want to add the location of the Flintrock executable to your `PATH` so that you can invoke it from any directory.
+[standalone]: https://github.com/nchammas/flintrock/issues/370
 
 ### Community-supported distributions
 
