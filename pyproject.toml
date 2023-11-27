@@ -1,0 +1,5 @@
+# Minimal pyproject file per: https://packaging.python.org/en/latest/guides/modernize-setup-py-project/
+[build-system]
+# Minimum setuptools version that supports version in setup.cfg per: https://packaging.python.org/en/latest/guides/single-sourcing-package-version/
+requires = ["setuptools >= 46.4.0"]
+build-backend = "setuptools.build_meta"

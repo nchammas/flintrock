@@ -1,5 +1,5 @@
 import setuptools
-from flintrock import __version__
+# from flintrock import __version__
 
 
 with open('README.md') as f:
@@ -7,10 +7,12 @@ with open('README.md') as f:
 
 setuptools.setup(
     name='Flintrock',
-    version=__version__,
+    # Moved to setup.cfg to avoid import of flintrock during installation of
+    # flintrock. This used to work, but becomes a problem with isolated builds
+    # and new pip behavior triggered by pyproject.toml.
+    # version=__version__,
     description='A command-line tool for launching Apache Spark clusters.',
     long_description=long_description,
-    # FYI: This option requires setuptools >= 38.6.0.
     long_description_content_type="text/markdown",
     url='https://github.com/nchammas/flintrock',
     author='Nicholas Chammas',
@@ -52,11 +54,6 @@ setuptools.setup(
         'click == 8.1.7',
         'paramiko == 3.3.1',
         'PyYAML == 6.0.1',
-        # This is to address reports that PyInstaller-packaged versions
-        # of Flintrock intermittently fail due to an out-of-date version
-        # of Cryptography being used.
-        # See: https://github.com/nchammas/flintrock/issues/169
-        'cryptography >= 1.7.2',
     ],
 
     entry_points={

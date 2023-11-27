@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/nchammas/flintrock/compare/v2.0.0...master
+[Unreleased]: https://github.com/nchammas/flintrock/compare/v2.1.0...master
+
+Nothing notable yet.
+
+## [2.1.0] - 2023-11-26
+
+[2.1.0]: https://github.com/nchammas/flintrock/compare/v2.0.0...2.1.0
 
 ### Changed
 
@@ -10,12 +16,14 @@
 * [#361]: Migrated from AdoptOpenJDK, which is deprecated, to Adoptium OpenJDK.
 * [#362], [#366]: Improved Flintrock's ability to cleanup after launch failures.
 * [#366]: Deprecated `--ec2-spot-request-duration`, which is not needed for one-time spot instances launched using the RunInstances API.
+* [#369]: Adopted `pyproject.toml` and tweaked Flintrock's Python packaging accordingly. This keeps Flintrock in line with modern Python packaging standards and should be transparent to end-users.
 
 [#348]: https://github.com/nchammas/flintrock/pull/348
 [#361]: https://github.com/nchammas/flintrock/pull/361
 [#362]: https://github.com/nchammas/flintrock/pull/362
 [#366]: https://github.com/nchammas/flintrock/pull/366
 [#367]: https://github.com/nchammas/flintrock/pull/367
+[#369]: https://github.com/nchammas/flintrock/pull/369
 
 ## [2.0.0] - 2021-06-10
 

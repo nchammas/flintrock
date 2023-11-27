@@ -1,8 +1,8 @@
-# See: https://docs.python.org/3/distutils/commandref.html
+# See: https://setuptools.pypa.io/en/latest/userguide/miscellaneous.html
 graft flintrock
 
 include README.md
-include CHANGELOG.md
+include CHANGES.md
 include COPYRIGHT
 include LICENSE
 
