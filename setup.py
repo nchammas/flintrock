@@ -52,7 +52,7 @@ setuptools.setup(
         'boto3 == 1.29.4',
         'botocore == 1.32.4',
         'click == 8.1.7',
-        'paramiko == 3.3.1',
+        'paramiko == 3.4.0',
         'PyYAML == 6.0.1',
     ],
 
