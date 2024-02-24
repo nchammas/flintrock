@@ -6,7 +6,7 @@
 #
 -e file:.#egg=Flintrock
     # via -r requirements/user.in
-bcrypt==4.0.1
+bcrypt==4.1.2
     # via paramiko
 boto3==1.29.4
     # via flintrock
@@ -21,13 +21,13 @@ cffi==1.16.0
     #   pynacl
 click==8.1.7
     # via flintrock
-cryptography==41.0.5
+cryptography==42.0.5
     # via paramiko
 jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-paramiko==3.3.1
+paramiko==3.4.0
     # via flintrock
 pycparser==2.21
     # via cffi
