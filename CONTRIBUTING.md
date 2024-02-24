@@ -78,7 +78,7 @@ There are a few things you should do before diving in to write a new feature or 
 
 ### Changing dependencies
 
-If you are changing anything about Flintrock's dependencies, be sure to update the compiled requirements using [pip-tools]:
+If you are changing anything about Flintrock's dependencies, be sure to update the compiled requirements using [pip-tools] and the lowest version of Python that Flintrock supports (Python 3.8):
 
 [pip-tools]: https://github.com/jazzband/pip-tools
 
