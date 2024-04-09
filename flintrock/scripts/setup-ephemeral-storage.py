@@ -57,6 +57,11 @@ def device_pairs_to_tuple(pairs):
     return BlockDevice(**device_dict)
 
 
+def device_to_tuple(device):
+    device_dict = {'kname': device['name']}
+    return BlockDevice(**device_dict)
+
+
 def get_non_root_block_devices():
     """
     Get all the non-root block devices available to the host.
@@ -65,34 +70,17 @@ def get_non_root_block_devices():
     """
     block_devices_raw = subprocess.check_output([
         'lsblk',
-        '--ascii',
-        '--pairs',
-        '--bytes',
-        '--paths',
-        '--output', 'KNAME,MOUNTPOINT,SIZE',
-        # --inverse and --nodeps make sure that
-        #   1) we get the mount points for devices that have holder devices
-        #   2) we don't get the holder devices themselves
-        '--inverse',
-        '--nodeps',
-        '--noheadings',
+        '--fs',
+        '--json',
+        '-p',
     ]).decode('utf-8')
     block_devices = [
-        device_pairs_to_tuple(line.split())
-        for line in block_devices_raw.splitlines()
+        device_to_tuple(device)
+        for device in json.loads(block_devices_raw)['blockdevices']
+        if 'children' not in device and (('mountpoints' in device and device['mountpoints'][0] != '/')
+                                         or ('mountpoint' in device and device['mountpoint'] != '/'))
     ]
-    non_root_block_devices = [
-        device for device in block_devices
-        if device.mountpoint != '/'
-    ]
-    # Skip tiny devices, like the 1M devices that show up on
-    # m5 instances on EC2.
-    # See: https://github.com/nchammas/flintrock/issues/256
-    non_trivial_non_root_block_devices = [
-        device for device in non_root_block_devices
-        if int(device.size) >= 1024 ** 3
-    ]
-    return non_trivial_non_root_block_devices
+    return block_devices
 
 
 def unmount_devices(devices):
