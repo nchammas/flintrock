@@ -177,13 +177,11 @@ class EC2Cluster(FlintrockCluster):
         super().destroy()
         ec2 = boto3.resource(service_name='ec2', region_name=self.region)
 
-        # TODO: Centralize logic to get Flintrock base security group. (?)
-        flintrock_base_group = list(
-            ec2.security_groups.filter(
-                Filters=[
-                    {'Name': 'group-name', 'Values': ['flintrock']},
-                    {'Name': 'vpc-id', 'Values': [self.vpc_id]},
-                ]))[0]
+        flintrock_base_group = get_security_groups(
+            vpc_id=self.vpc_id,
+            region=self.region,
+            security_group_names=['flintrock']
+        )[0]
 
         # We "unassign" the cluster security group here (i.e. the
         # 'flintrock-clustername' group) so that we can immediately delete it once
@@ -196,13 +194,11 @@ class EC2Cluster(FlintrockCluster):
                 Groups=[flintrock_base_group.id])
         time.sleep(1)
 
-        # TODO: Centralize logic to get cluster security group name from cluster name.
-        cluster_group = list(
-            ec2.security_groups.filter(
-                Filters=[
-                    {'Name': 'group-name', 'Values': ['flintrock-' + self.name]},
-                    {'Name': 'vpc-id', 'Values': [self.vpc_id]},
-                ]))[0]
+        cluster_group = get_security_groups(
+            vpc_id=self.vpc_id,
+            region=self.region,
+            security_group_names=['flintrock-' + self.name]
+        )[0]
         cluster_group.delete()
 
         (ec2.instances
@@ -380,13 +376,11 @@ class EC2Cluster(FlintrockCluster):
         if self.state == 'running':
             super().remove_slaves(user=user, identity_file=identity_file)
 
-        # TODO: Centralize logic to get Flintrock base security group.
-        flintrock_base_group = list(
-            ec2.security_groups.filter(
-                Filters=[
-                    {'Name': 'group-name', 'Values': ['flintrock']},
-                    {'Name': 'vpc-id', 'Values': [self.vpc_id]},
-                ]))[0]
+        flintrock_base_group = get_security_groups(
+            vpc_id=self.vpc_id,
+            region=self.region,
+            security_group_names=['flintrock']
+        )[0]
 
         # TODO: Is there a way to do this in one call for all instances?
         for instance in removed_slave_instances:
