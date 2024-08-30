@@ -1,4 +1,5 @@
 import functools
+import os
 import string
 import sys
 import time
@@ -24,6 +25,8 @@ from .exceptions import (
     ClusterInvalidState,
     InterruptedEC2Operation,
     NothingToDo,
+    SlackUsernameNotFound,
+    TeamDataNotFound,
 )
 from .ssh import generate_ssh_key_pair
 from .services import SecurityGroupRule
@@ -829,6 +832,17 @@ def launch(
                 c=cluster_name,
                 r=region,
                 v=vpc_id))
+
+    environment = os.environ.get('ENV', 'staging')
+    tag_dict = {tag['Key']: tag['Value'] for tag in tags}
+
+    if environment == 'staging':
+        if not tag_dict.get('TEAM') == 'DATA':
+            raise TeamDataNotFound('The value for TEAM is not DATA in the configuration file in '
+                                   'providers/ec2/tags for the staging environment.')
+        if 'SLACK_USERNAME' not in tag_dict:
+            raise SlackUsernameNotFound('The SLACK_USERNAME key is missing from the configuration file in '
+                                        'providers/ec2/tags for the staging environment.')
 
     flintrock_security_groups = get_or_create_flintrock_security_groups(
         cluster_name=cluster_name,

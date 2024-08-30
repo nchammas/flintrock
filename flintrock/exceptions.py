@@ -17,6 +17,16 @@ class Error(Exception):
     pass
 
 
+class SlackUsernameNotFound(Error):
+    """Exception raised when the SLACK_USERNAME is not found in the configuration."""
+    pass
+
+
+class TeamDataNotFound(Error):
+    """Exception raised when the TEAM,DATA is not found in the configuration."""
+    pass
+
+
 class ClusterNotFound(Error):
     pass
 
