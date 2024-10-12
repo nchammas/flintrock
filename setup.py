@@ -53,7 +53,7 @@ setuptools.setup(
         'botocore == 1.32.4',
         'click == 8.1.7',
         'paramiko == 3.4.0',
-        'PyYAML == 6.0.1',
+        'PyYAML == 6.0.2',
     ],
 
     entry_points={
