@@ -197,13 +197,15 @@ class EC2Cluster(FlintrockCluster):
         time.sleep(1)
 
         # TODO: Centralize logic to get cluster security group name from cluster name.
-        cluster_group = list(
+        cluster_group_list = list(
             ec2.security_groups.filter(
                 Filters=[
                     {'Name': 'group-name', 'Values': ['flintrock-' + self.name]},
                     {'Name': 'vpc-id', 'Values': [self.vpc_id]},
-                ]))[0]
-        cluster_group.delete()
+                ]))
+        # Cluster group might already have been killed if a destroy was ungracefully stopped during a previous execution
+        if len(cluster_group_list) > 0:
+            cluster_group_list[0].delete()
 
         (ec2.instances
             .filter(
