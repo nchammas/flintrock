@@ -4,7 +4,11 @@
 
 [Unreleased]: https://github.com/nchammas/flintrock/compare/v2.1.0...master
 
-Nothing notable yet.
+### Changed
+
+* [#383]: Dropped support for Python 3.8 and added CI build for Python 3.13.
+
+[#383]: https://github.com/nchammas/flintrock/pull/383
 
 ## [2.1.0] - 2023-11-26
 
