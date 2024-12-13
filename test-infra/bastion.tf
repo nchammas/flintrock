@@ -77,8 +77,8 @@ resource "aws_instance" "bastion" {
       "sudo yum install -y git",
       "sudo yum install -y gcc make patch zlib-devel bzip2 bzip2-devel readline-devel sqlite sqlite-devel openssl11-devel tk-devel libffi-devel xz-devel",
       "curl https://pyenv.run | bash",
-      ".pyenv/bin/pyenv install 3.8",
-      ".pyenv/bin/pyenv global 3.8",
+      ".pyenv/bin/pyenv install 3.9",
+      ".pyenv/bin/pyenv global 3.9",
       ".pyenv/bin/pyenv exec python -m venv /home/ec2-user/venv",
       "/home/ec2-user/venv/bin/pip install PyYAML",
     ]
