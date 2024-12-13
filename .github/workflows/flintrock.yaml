@@ -31,7 +31,6 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
-          architecture: x64
       - run: "pip install -r requirements/maintainer.pip"
       - run: "pytest"
       - run: python -m build
