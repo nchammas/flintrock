@@ -15,7 +15,7 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
-          - macos-11
+          - macos-14
         python-version:
           # Update the artifact upload steps below if modifying
           # this list of Python versions.
@@ -31,7 +31,6 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
-          architecture: x64
       - run: "pip install -r requirements/maintainer.pip"
       - run: "pytest"
       - run: python -m build
