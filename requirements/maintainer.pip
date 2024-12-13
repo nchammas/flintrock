@@ -153,7 +153,7 @@ python-dateutil==2.9.0.post0
     # via
     #   -r /Users/nicholaschammas/Projects/nchammas/flintrock/requirements/developer.pip
     #   botocore
-pyyaml==6.0.1
+pyyaml==6.0.2
     # via
     #   -r /Users/nicholaschammas/Projects/nchammas/flintrock/requirements/developer.pip
     #   flintrock
