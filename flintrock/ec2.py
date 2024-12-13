@@ -195,7 +195,10 @@ class EC2Cluster(FlintrockCluster):
             region=self.region,
             cluster_name=self.name,
         )
-        cluster_group.delete()
+        # Cluster group might already have been killed if a destroy was ungracefully stopped during
+        # a previous execution.
+        if cluster_group:
+            cluster_group.delete()
 
         (ec2.instances
             .filter(
