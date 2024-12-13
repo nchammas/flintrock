@@ -15,7 +15,7 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
-          - macos-11
+          - macos-14
         python-version:
           # Update the artifact upload steps below if modifying
           # this list of Python versions.
