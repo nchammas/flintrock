@@ -18,7 +18,7 @@ setuptools.setup(
     author='Nicholas Chammas',
     author_email='nicholas.chammas@gmail.com',
     license='Apache License 2.0',
-    python_requires='>= 3.8',
+    python_requires='>= 3.9',
 
     # See: https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
@@ -53,7 +53,7 @@ setuptools.setup(
         'botocore == 1.32.4',
         'click == 8.1.7',
         'paramiko == 3.4.0',
-        'PyYAML == 6.0.1',
+        'PyYAML == 6.0.2',
     ],
 
     entry_points={
